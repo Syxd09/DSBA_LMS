@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { useAuth } from '@/hooks/useAuth';
+import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { MarksEntryGrid } from '@/components/marks/MarksEntryGrid';
 import { ExamStructureBuilder } from '@/components/marks/ExamStructureBuilder';
 import { mockStudentMarks } from '@/lib/mock-data';
-import { Navigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,16 +19,12 @@ const subQuestions = [
 ];
 
 export default function MarksEntry() {
-  const { isAuthenticated, user } = useAuth();
+  const { role } = useAuth();
   const [selectedSubject, setSelectedSubject] = useState('cs201');
   const [selectedExam, setSelectedExam] = useState('internal1');
 
-  if (!isAuthenticated || user?.role !== 'teacher') {
-    return <Navigate to="/" replace />;
-  }
-
   return (
-    <DashboardLayout>
+    <AuthenticatedLayout allowedRoles={['teacher', 'hod', 'principal']}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -109,6 +104,6 @@ export default function MarksEntry() {
           </TabsContent>
         </Tabs>
       </div>
-    </DashboardLayout>
+    </AuthenticatedLayout>
   );
 }
