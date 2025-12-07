@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { AppRole } from '@/hooks/useAuth';
 import {
   LayoutDashboard,
   Users,
@@ -13,9 +13,22 @@ import {
   TrendingUp,
   Award,
   Building2,
+  LogOut,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-const navigationConfig = {
+interface Profile {
+  full_name: string;
+  email: string;
+}
+
+interface SidebarProps {
+  role: AppRole | null;
+  profile: Profile | null;
+  onSignOut: () => void;
+}
+
+const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon: typeof LayoutDashboard }>> = {
   principal: [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Departments', href: '/departments', icon: Building2 },
@@ -48,12 +61,10 @@ const navigationConfig = {
   ],
 };
 
-export function Sidebar() {
-  const { user } = useAuth();
-  
-  if (!user) return null;
+export function Sidebar({ role, profile, onSignOut }: SidebarProps) {
+  if (!role) return null;
 
-  const navigation = navigationConfig[user.role];
+  const navigation = navigationConfig[role] || navigationConfig.student;
 
   return (
     <aside className="w-64 bg-card border-r border-border flex flex-col">
@@ -64,7 +75,7 @@ export function Sidebar() {
           </div>
           <div>
             <h1 className="font-semibold text-foreground">EduMetrics</h1>
-            <p className="text-xs text-muted-foreground capitalize">{user.role} Portal</p>
+            <p className="text-xs text-muted-foreground capitalize">{role} Portal</p>
           </div>
         </div>
       </div>
@@ -89,18 +100,26 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border space-y-3">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-secondary flex items-center justify-center">
             <span className="text-sm font-medium text-secondary-foreground">
-              {user.name.charAt(0)}
+              {profile?.full_name?.charAt(0) || 'U'}
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">{user.name}</p>
-            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+            <p className="text-sm font-medium text-foreground truncate">
+              {profile?.full_name || 'User'}
+            </p>
+            <p className="text-xs text-muted-foreground truncate">
+              {profile?.email || ''}
+            </p>
           </div>
         </div>
+        <Button variant="ghost" size="sm" className="w-full justify-start" onClick={onSignOut}>
+          <LogOut className="w-4 h-4 mr-2" />
+          Sign Out
+        </Button>
       </div>
     </aside>
   );

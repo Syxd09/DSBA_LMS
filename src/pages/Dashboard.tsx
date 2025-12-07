@@ -1,20 +1,15 @@
-import { useAuth } from '@/contexts/AuthContext';
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { useAuth } from '@/hooks/useAuth';
+import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { PrincipalDashboard } from '@/components/dashboard/PrincipalDashboard';
 import { HODDashboard } from '@/components/dashboard/HODDashboard';
 import { TeacherDashboard } from '@/components/dashboard/TeacherDashboard';
 import { StudentDashboard } from '@/components/dashboard/StudentDashboard';
-import { Navigate } from 'react-router-dom';
 
 export default function Dashboard() {
-  const { user, isAuthenticated } = useAuth();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
+  const { role } = useAuth();
 
   const getDashboard = () => {
-    switch (user?.role) {
+    switch (role) {
       case 'principal':
         return <PrincipalDashboard />;
       case 'hod':
@@ -24,9 +19,9 @@ export default function Dashboard() {
       case 'student':
         return <StudentDashboard />;
       default:
-        return <div>Unknown role</div>;
+        return <StudentDashboard />;
     }
   };
 
-  return <DashboardLayout>{getDashboard()}</DashboardLayout>;
+  return <AuthenticatedLayout>{getDashboard()}</AuthenticatedLayout>;
 }

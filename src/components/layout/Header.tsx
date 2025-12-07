@@ -1,20 +1,20 @@
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Bell, LogOut, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { useNavigate } from 'react-router-dom';
+import { AppRole } from '@/hooks/useAuth';
 
-export function Header() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+interface Profile {
+  full_name: string;
+  email: string;
+}
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
+interface HeaderProps {
+  profile: Profile | null;
+  role: AppRole | null;
+  onSignOut: () => void;
+}
 
-  if (!user) return null;
-
+export function Header({ profile, role, onSignOut }: HeaderProps) {
   return (
     <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between">
       <div className="flex items-center gap-4 flex-1">
@@ -37,10 +37,10 @@ export function Header() {
 
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <p className="text-sm font-medium">{user.name}</p>
-            <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
+            <p className="text-sm font-medium">{profile?.full_name || 'User'}</p>
+            <p className="text-xs text-muted-foreground capitalize">{role || 'Unknown'}</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleLogout}>
+          <Button variant="ghost" size="icon" onClick={onSignOut}>
             <LogOut className="w-5 h-5" />
           </Button>
         </div>

@@ -1,6 +1,4 @@
-import { useAuth } from '@/contexts/AuthContext';
-import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Navigate } from 'react-router-dom';
+import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { COAttainmentChart } from '@/components/dashboard/COAttainmentChart';
 import { BloomTaxonomyChart } from '@/components/dashboard/BloomTaxonomyChart';
 import { PerformanceTrendChart } from '@/components/dashboard/PerformanceTrendChart';
@@ -27,15 +25,10 @@ const studentDistribution = [
 ];
 
 export default function Analytics() {
-  const { isAuthenticated } = useAuth();
   const [selectedSubject, setSelectedSubject] = useState('all');
 
-  if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
-
   return (
-    <DashboardLayout>
+    <AuthenticatedLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -160,6 +153,6 @@ export default function Analytics() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
+    </AuthenticatedLayout>
   );
 }
