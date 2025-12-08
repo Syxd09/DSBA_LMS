@@ -13,6 +13,10 @@ import Departments from "./pages/Departments";
 import Subjects from "./pages/Subjects";
 import Results from "./pages/Results";
 import Performance from "./pages/Performance";
+import Programs from "./pages/Programs";
+import Cohorts from "./pages/Cohorts";
+import Exams from "./pages/Exams";
+import CourseOutcomes from "./pages/CourseOutcomes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +38,10 @@ const App = () => (
           <Route path="/subjects" element={<Subjects />} />
           <Route path="/results" element={<Results />} />
           <Route path="/performance" element={<Performance />} />
+          <Route path="/programs" element={<Programs />} />
+          <Route path="/cohorts" element={<Cohorts />} />
+          <Route path="/exams" element={<Exams />} />
+          <Route path="/course-outcomes" element={<CourseOutcomes />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
