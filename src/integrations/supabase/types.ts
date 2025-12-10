@@ -50,6 +50,66 @@ export type Database = {
         }
         Relationships: []
       }
+      bulk_uploads: {
+        Row: {
+          cohort_id: string | null
+          created_at: string | null
+          error_count: number | null
+          error_log: Json | null
+          exam_id: string | null
+          file_name: string
+          id: string
+          status: string | null
+          success_count: number | null
+          total_rows: number | null
+          upload_type: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          cohort_id?: string | null
+          created_at?: string | null
+          error_count?: number | null
+          error_log?: Json | null
+          exam_id?: string | null
+          file_name: string
+          id?: string
+          status?: string | null
+          success_count?: number | null
+          total_rows?: number | null
+          upload_type: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          cohort_id?: string | null
+          created_at?: string | null
+          error_count?: number | null
+          error_log?: Json | null
+          exam_id?: string | null
+          file_name?: string
+          id?: string
+          status?: string | null
+          success_count?: number | null
+          total_rows?: number | null
+          upload_type?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_uploads_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_uploads_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       co_po_mappings: {
         Row: {
           co_id: string
@@ -187,6 +247,47 @@ export type Database = {
             columns: ["program_id"]
             isOneToOne: false
             referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      department_settings: {
+        Row: {
+          created_at: string | null
+          department_id: string | null
+          external_weight: number | null
+          id: string
+          internal_method: string | null
+          internal_weight: number | null
+          pass_percentage: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          department_id?: string | null
+          external_weight?: number | null
+          id?: string
+          internal_method?: string | null
+          internal_weight?: number | null
+          pass_percentage?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          department_id?: string | null
+          external_weight?: number | null
+          id?: string
+          internal_method?: string | null
+          internal_weight?: number | null
+          pass_percentage?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "department_settings_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: true
+            referencedRelation: "departments"
             referencedColumns: ["id"]
           },
         ]
@@ -335,6 +436,123 @@ export type Database = {
             columns: ["subject_id"]
             isOneToOne: false
             referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      final_marks: {
+        Row: {
+          best_internal: number | null
+          co_attainment: Json | null
+          cohort_id: string | null
+          computed_at: string | null
+          exam_id: string | null
+          external_marks: number | null
+          grade: string | null
+          grade_point: number | null
+          id: string
+          internal_1: number | null
+          internal_2: number | null
+          percentage: number | null
+          status: string | null
+          student_id: string
+          subject_id: string | null
+          total_marks: number | null
+        }
+        Insert: {
+          best_internal?: number | null
+          co_attainment?: Json | null
+          cohort_id?: string | null
+          computed_at?: string | null
+          exam_id?: string | null
+          external_marks?: number | null
+          grade?: string | null
+          grade_point?: number | null
+          id?: string
+          internal_1?: number | null
+          internal_2?: number | null
+          percentage?: number | null
+          status?: string | null
+          student_id: string
+          subject_id?: string | null
+          total_marks?: number | null
+        }
+        Update: {
+          best_internal?: number | null
+          co_attainment?: Json | null
+          cohort_id?: string | null
+          computed_at?: string | null
+          exam_id?: string | null
+          external_marks?: number | null
+          grade?: string | null
+          grade_point?: number | null
+          id?: string
+          internal_1?: number | null
+          internal_2?: number | null
+          percentage?: number | null
+          status?: string | null
+          student_id?: string
+          subject_id?: string | null
+          total_marks?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "final_marks_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "final_marks_exam_id_fkey"
+            columns: ["exam_id"]
+            isOneToOne: false
+            referencedRelation: "exams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "final_marks_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grading_rules: {
+        Row: {
+          created_at: string
+          department_id: string | null
+          grade: string
+          grade_point: number
+          id: string
+          max_percentage: number
+          min_percentage: number
+        }
+        Insert: {
+          created_at?: string
+          department_id?: string | null
+          grade: string
+          grade_point: number
+          id?: string
+          max_percentage: number
+          min_percentage: number
+        }
+        Update: {
+          created_at?: string
+          department_id?: string | null
+          grade?: string
+          grade_point?: number
+          id?: string
+          max_percentage?: number
+          min_percentage?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grading_rules_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
             referencedColumns: ["id"]
           },
         ]
@@ -521,6 +739,56 @@ export type Database = {
             columns: ["section_id"]
             isOneToOne: false
             referencedRelation: "exam_sections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      semester_results: {
+        Row: {
+          cgpa: number | null
+          cohort_id: string | null
+          created_at: string | null
+          earned_credits: number | null
+          id: string
+          published_at: string | null
+          semester: number
+          sgpa: number | null
+          status: string | null
+          student_id: string
+          total_credits: number | null
+        }
+        Insert: {
+          cgpa?: number | null
+          cohort_id?: string | null
+          created_at?: string | null
+          earned_credits?: number | null
+          id?: string
+          published_at?: string | null
+          semester: number
+          sgpa?: number | null
+          status?: string | null
+          student_id: string
+          total_credits?: number | null
+        }
+        Update: {
+          cgpa?: number | null
+          cohort_id?: string | null
+          created_at?: string | null
+          earned_credits?: number | null
+          id?: string
+          published_at?: string | null
+          semester?: number
+          sgpa?: number | null
+          status?: string | null
+          student_id?: string
+          total_credits?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "semester_results_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
             referencedColumns: ["id"]
           },
         ]
