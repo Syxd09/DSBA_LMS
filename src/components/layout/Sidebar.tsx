@@ -13,6 +13,10 @@ import {
   Award,
   Building2,
   LogOut,
+  UserCheck,
+  Target,
+  Settings,
+  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -34,16 +38,25 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Programs', href: '/programs', icon: GraduationCap },
     { name: 'Cohorts', href: '/cohorts', icon: Users },
     { name: 'Subjects', href: '/subjects', icon: BookOpen },
+    { name: 'Student Enrollments', href: '/student-enrollments', icon: UserCheck },
+    { name: 'Teacher Assignments', href: '/teacher-assignments', icon: ClipboardList },
     { name: 'Users', href: '/users', icon: Users },
+    { name: 'Grades & SGPA', href: '/grade-management', icon: Award },
+    { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+    { name: 'Audit Logs', href: '/audit-logs', icon: History },
   ],
   hod: [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Programs', href: '/programs', icon: GraduationCap },
     { name: 'Cohorts', href: '/cohorts', icon: Users },
     { name: 'Subjects', href: '/subjects', icon: BookOpen },
+    { name: 'Student Enrollments', href: '/student-enrollments', icon: UserCheck },
+    { name: 'Teacher Assignments', href: '/teacher-assignments', icon: ClipboardList },
     { name: 'Course Outcomes', href: '/course-outcomes', icon: FileText },
     { name: 'Exams', href: '/exams', icon: ClipboardList },
+    { name: 'Grades & SGPA', href: '/grade-management', icon: Award },
+    { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   ],
   teacher: [
@@ -52,6 +65,7 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Course Outcomes', href: '/course-outcomes', icon: FileText },
     { name: 'Exams', href: '/exams', icon: ClipboardList },
     { name: 'Marks Entry', href: '/marks-entry', icon: ClipboardList },
+    { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   ],
   student: [

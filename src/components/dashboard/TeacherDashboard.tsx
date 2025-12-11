@@ -1,48 +1,85 @@
 import { StatsCard } from './StatsCard';
-import { mockSubjects, examPerformanceData } from '@/lib/mock-data';
+import { examPerformanceData } from '@/lib/mock-data';
 import { Users, BookOpen, ClipboardList, TrendingUp, Clock, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 export function TeacherDashboard() {
   const navigate = useNavigate();
+  const { user, profile } = useAuth();
+
+  const { data: teacherAssignments = [] } = useQuery({
+    queryKey: ['teacher-my-assignments', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase.from('teacher_assignments').select(`
+        *,
+        subjects(id, name, code, credits, semester),
+        cohorts(name)
+      `).eq('teacher_id', user.id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id
+  });
+
+  const { data: exams = [] } = useQuery({
+    queryKey: ['teacher-exams', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase.from('exams').select(`
+        *,
+        subjects(name, code)
+      `).eq('teacher_id', user.id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id
+  });
+
+  const assignedSubjects = teacherAssignments.map(a => a.subjects).filter(Boolean);
+  const pendingExams = exams.filter(e => e.status === 'draft').length;
+  const totalStudents = teacherAssignments.length * 60; // Approximate
+  const classAverage = 71;
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">Teacher Dashboard</h2>
-        <p className="text-muted-foreground">Welcome back, Prof. Amit Verma</p>
+        <p className="text-muted-foreground">Welcome back, {profile?.full_name || 'Teacher'}</p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
           title="Assigned Subjects"
-          value="3"
+          value={assignedSubjects.length.toString()}
           subtitle="This semester"
           icon={BookOpen}
           variant="primary"
         />
         <StatsCard
           title="Total Students"
-          value="180"
+          value={totalStudents.toString()}
           subtitle="Across all subjects"
           icon={Users}
         />
         <StatsCard
           title="Pending Evaluations"
-          value="45"
-          subtitle="Internal 2 pending"
+          value={pendingExams.toString()}
+          subtitle="Exams pending"
           icon={ClipboardList}
           variant="warning"
         />
         <StatsCard
           title="Class Average"
-          value="71%"
+          value={`${classAverage}%`}
           subtitle="All subjects"
           icon={TrendingUp}
           trend={{ value: 6, isPositive: true }}
@@ -60,13 +97,13 @@ export function TeacherDashboard() {
               <ClipboardList className="w-4 h-4 mr-2" />
               Enter Marks
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => navigate('/exams')}>
               <BookOpen className="w-4 h-4 mr-2" />
               Create Exam Structure
             </Button>
-            <Button variant="outline">
-              <Users className="w-4 h-4 mr-2" />
-              View Students
+            <Button variant="outline" onClick={() => navigate('/co-po-analytics')}>
+              <TrendingUp className="w-4 h-4 mr-2" />
+              View Analytics
             </Button>
           </div>
         </CardContent>
@@ -78,55 +115,62 @@ export function TeacherDashboard() {
           <CardTitle className="text-base font-semibold">My Subjects</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {mockSubjects.slice(0, 3).map((subject) => {
-            const int1Done = Math.random() > 0.3;
-            const int2Done = Math.random() > 0.6;
-            return (
-              <div key={subject.id} className="p-4 border border-border">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h4 className="font-medium text-foreground">{subject.name}</h4>
-                    <p className="text-sm text-muted-foreground">{subject.code} • Semester {subject.semester}</p>
+          {assignedSubjects.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              No subjects assigned yet. Contact your HOD for subject assignments.
+            </div>
+          ) : (
+            assignedSubjects.map((subject: any) => {
+              const subjectExams = exams.filter(e => e.subject_id === subject.id);
+              const int1Done = subjectExams.some(e => e.exam_type === 'I1' && e.status === 'published');
+              const int2Done = subjectExams.some(e => e.exam_type === 'I2' && e.status === 'published');
+              return (
+                <div key={subject.id} className="p-4 border border-border">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h4 className="font-medium text-foreground">{subject.name}</h4>
+                      <p className="text-sm text-muted-foreground">{subject.code} • Semester {subject.semester}</p>
+                    </div>
+                    <Badge variant="outline">{subject.credits} Credits</Badge>
                   </div>
-                  <Badge variant="outline">{subject.credits} Credits</Badge>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Internal 1</span>
-                    <div className="flex items-center gap-2">
-                      {int1Done ? (
-                        <>
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                          <span className="text-sm text-green-500">Published</span>
-                        </>
-                      ) : (
-                        <>
-                          <Clock className="w-4 h-4 text-yellow-500" />
-                          <span className="text-sm text-yellow-500">Pending</span>
-                        </>
-                      )}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Internal 1</span>
+                      <div className="flex items-center gap-2">
+                        {int1Done ? (
+                          <>
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <span className="text-sm text-green-500">Published</span>
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="w-4 h-4 text-yellow-500" />
+                            <span className="text-sm text-yellow-500">Pending</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Internal 2</span>
+                      <div className="flex items-center gap-2">
+                        {int2Done ? (
+                          <>
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <span className="text-sm text-green-500">Published</span>
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="w-4 h-4 text-yellow-500" />
+                            <span className="text-sm text-yellow-500">Pending</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Internal 2</span>
-                    <div className="flex items-center gap-2">
-                      {int2Done ? (
-                        <>
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                          <span className="text-sm text-green-500">Published</span>
-                        </>
-                      ) : (
-                        <>
-                          <Clock className="w-4 h-4 text-yellow-500" />
-                          <span className="text-sm text-yellow-500">Pending</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </CardContent>
       </Card>
 
