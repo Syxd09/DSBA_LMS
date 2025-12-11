@@ -17,6 +17,11 @@ import Programs from "./pages/Programs";
 import Cohorts from "./pages/Cohorts";
 import Exams from "./pages/Exams";
 import CourseOutcomes from "./pages/CourseOutcomes";
+import StudentEnrollments from "./pages/StudentEnrollments";
+import TeacherAssignments from "./pages/TeacherAssignments";
+import GradeManagement from "./pages/GradeManagement";
+import COPOAnalytics from "./pages/COPOAnalytics";
+import AuditLogs from "./pages/AuditLogs";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +47,11 @@ const App = () => (
           <Route path="/cohorts" element={<Cohorts />} />
           <Route path="/exams" element={<Exams />} />
           <Route path="/course-outcomes" element={<CourseOutcomes />} />
+          <Route path="/student-enrollments" element={<StudentEnrollments />} />
+          <Route path="/teacher-assignments" element={<TeacherAssignments />} />
+          <Route path="/grade-management" element={<GradeManagement />} />
+          <Route path="/co-po-analytics" element={<COPOAnalytics />} />
+          <Route path="/audit-logs" element={<AuditLogs />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

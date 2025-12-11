@@ -6,6 +6,9 @@ import { Award, TrendingUp, BookOpen, Target, Brain, Lightbulb } from 'lucide-re
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 const radarData = [
   { subject: 'Remember', A: 85, fullMark: 100 },
@@ -17,95 +20,122 @@ const radarData = [
 ];
 
 export function StudentDashboard() {
+  const { user, profile } = useAuth();
+
+  const { data: enrollment } = useQuery({
+    queryKey: ['student-enrollment', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase.from('student_enrollments').select(`
+        *,
+        cohorts(name, current_semester, programs(name, code))
+      `).eq('student_id', user.id).single();
+      if (error && error.code !== 'PGRST116') throw error;
+      return data;
+    },
+    enabled: !!user?.id
+  });
+
+  const { data: finalMarks = [] } = useQuery({
+    queryKey: ['student-final-marks', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase.from('final_marks').select(`
+        *,
+        subjects(name, code)
+      `).eq('student_id', user.id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id
+  });
+
+  const { data: semesterResults = [] } = useQuery({
+    queryKey: ['student-semester-results', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      const { data, error } = await supabase.from('semester_results').select('*').eq('student_id', user.id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id
+  });
+
+  const overallAverage = finalMarks.length > 0 
+    ? Math.round(finalMarks.reduce((acc, m) => acc + (Number(m.percentage) || 0), 0) / finalMarks.length)
+    : 0;
+
+  const latestSemResult = semesterResults.sort((a, b) => b.semester - a.semester)[0];
+  const sgpa = latestSemResult?.sgpa || 0;
+  const cgpa = latestSemResult?.cgpa || 0;
+
+  const cohortName = enrollment?.cohorts?.name || '';
+  const programName = (enrollment?.cohorts as any)?.programs?.name || '';
+  const semester = enrollment?.cohorts?.current_semester || 1;
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">My Performance</h2>
-        <p className="text-muted-foreground">Rahul Mehta • CS2021001 • BCA Semester 3</p>
+        <p className="text-muted-foreground">
+          {profile?.full_name || 'Student'} • {enrollment?.roll_number || 'N/A'} • {programName} Semester {semester}
+        </p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
           title="Overall Average"
-          value="72%"
+          value={`${overallAverage}%`}
           subtitle="Current semester"
           icon={Award}
           trend={{ value: 8, isPositive: true }}
           variant="primary"
         />
         <StatsCard
-          title="Class Rank"
-          value="12"
-          subtitle="of 60 students"
+          title="SGPA"
+          value={sgpa.toFixed(2)}
+          subtitle="This semester"
           icon={TrendingUp}
         />
         <StatsCard
-          title="Subjects Enrolled"
-          value="5"
-          subtitle="This semester"
-          icon={BookOpen}
+          title="CGPA"
+          value={cgpa.toFixed(2)}
+          subtitle="Cumulative"
+          icon={Award}
         />
         <StatsCard
-          title="CO Attainment"
-          value="76%"
-          subtitle="Average across COs"
-          icon={Target}
-          variant="success"
+          title="Subjects Enrolled"
+          value={finalMarks.length.toString()}
+          subtitle="This semester"
+          icon={BookOpen}
         />
       </div>
 
       {/* Result Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <StudentResultCard
-          subject="Data Structures"
-          examType="Internal 1"
-          totalMarks={45}
-          maxMarks={60}
-          rank={8}
-          totalStudents={60}
-          classAverage={42.5}
-          coScores={[
-            { co: 'CO1', score: 9, max: 12 },
-            { co: 'CO2', score: 10, max: 12 },
-            { co: 'CO3', score: 8, max: 12 },
-            { co: 'CO4', score: 10, max: 12 },
-            { co: 'CO5', score: 8, max: 12 },
-          ]}
-        />
-        <StudentResultCard
-          subject="Database Management"
-          examType="Internal 1"
-          totalMarks={38}
-          maxMarks={60}
-          rank={15}
-          totalStudents={60}
-          classAverage={40.2}
-          coScores={[
-            { co: 'CO1', score: 8, max: 12 },
-            { co: 'CO2', score: 7, max: 12 },
-            { co: 'CO3', score: 8, max: 12 },
-            { co: 'CO4', score: 8, max: 12 },
-            { co: 'CO5', score: 7, max: 12 },
-          ]}
-        />
-        <StudentResultCard
-          subject="Operating Systems"
-          examType="Internal 1"
-          totalMarks={52}
-          maxMarks={60}
-          rank={3}
-          totalStudents={60}
-          classAverage={44.8}
-          coScores={[
-            { co: 'CO1', score: 11, max: 12 },
-            { co: 'CO2', score: 10, max: 12 },
-            { co: 'CO3', score: 11, max: 12 },
-            { co: 'CO4', score: 10, max: 12 },
-            { co: 'CO5', score: 10, max: 12 },
-          ]}
-        />
-      </div>
+      {finalMarks.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {finalMarks.slice(0, 6).map((mark: any) => (
+            <StudentResultCard
+              key={mark.id}
+              subject={mark.subjects?.name || 'Subject'}
+              examType={mark.exam_id ? 'Internal' : 'Overall'}
+              totalMarks={Number(mark.total_marks) || 0}
+              maxMarks={100}
+              rank={0}
+              totalStudents={60}
+              classAverage={70}
+              coScores={[]}
+            />
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            No results available yet. Check back after your exams are evaluated.
+          </CardContent>
+        </Card>
+      )}
 
       {/* Bloom Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -167,21 +197,23 @@ export function StudentDashboard() {
             <div className="p-4 bg-secondary/30 border border-border">
               <p className="font-medium text-sm mb-1">Focus on Higher-Order Thinking</p>
               <p className="text-sm text-muted-foreground">
-                Your performance in "Evaluate" and "Create" levels is below average. Practice more case-study based problems in Data Structures.
+                Practice more case-study based problems to improve your analytical skills.
               </p>
             </div>
             <div className="p-4 bg-secondary/30 border border-border">
-              <p className="font-medium text-sm mb-1">Strengthen CO2 in DBMS</p>
+              <p className="font-medium text-sm mb-1">Review Course Outcomes</p>
               <p className="text-sm text-muted-foreground">
-                CO2 (Query Optimization) needs attention. Review normalization concepts and practice complex SQL queries.
+                Check your CO attainment in each subject to identify areas for improvement.
               </p>
             </div>
-            <div className="p-4 bg-green-500/10 border border-green-500/20">
-              <p className="font-medium text-sm mb-1 text-green-700">Keep up with Operating Systems!</p>
-              <p className="text-sm text-muted-foreground">
-                Excellent performance in OS. Your understanding of process management and memory concepts is strong.
-              </p>
-            </div>
+            {overallAverage >= 70 && (
+              <div className="p-4 bg-green-500/10 border border-green-500/20">
+                <p className="font-medium text-sm mb-1 text-green-700">Great Progress!</p>
+                <p className="text-sm text-muted-foreground">
+                  You're performing well. Keep up the consistent effort!
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
