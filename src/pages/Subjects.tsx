@@ -223,7 +223,7 @@ export default function Subjects() {
                     </TableCell>
                     <TableCell>{subject.credits}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" onClick={() => window.location.href = '/course-outcomes'}>
                         Manage COs
                       </Button>
                     </TableCell>

@@ -182,19 +182,19 @@ export default function Departments() {
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Users className="w-4 h-4" />
-                      <span>0 Faculty Members</span>
+                      <span>Faculty Members</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <BookOpen className="w-4 h-4" />
-                      <span>0 Programs</span>
+                      <span>Programs</span>
                     </div>
                   </div>
                   <div className="mt-4 pt-4 border-t border-border flex gap-2">
-                    <Button variant="outline" size="sm" className="flex-1">
-                      View Details
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => window.location.href = '/programs'}>
+                      View Programs
                     </Button>
-                    <Button variant="outline" size="sm" className="flex-1">
-                      Manage
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => window.location.href = '/users'}>
+                      Manage Staff
                     </Button>
                   </div>
                 </CardContent>
