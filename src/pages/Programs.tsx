@@ -248,7 +248,7 @@ export default function Programs() {
                     </div>
                   </div>
                   <div className="mt-4 pt-4 border-t border-border">
-                    <Button variant="outline" size="sm" className="w-full">
+                    <Button variant="outline" size="sm" className="w-full" onClick={() => window.location.href = '/cohorts'}>
                       Manage Cohorts
                     </Button>
                   </div>

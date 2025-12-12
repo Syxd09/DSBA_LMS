@@ -250,7 +250,7 @@ export default function Cohorts() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" onClick={() => window.location.href = '/student-enrollments'}>
                           Manage Students
                         </Button>
                       </TableCell>
