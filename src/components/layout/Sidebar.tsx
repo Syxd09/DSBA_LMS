@@ -45,6 +45,7 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Audit Logs', href: '/audit-logs', icon: History },
+    { name: 'Settings', href: '/settings', icon: Settings },
   ],
   hod: [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },

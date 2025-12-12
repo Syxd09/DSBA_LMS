@@ -1,109 +1,44 @@
-import { useState } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, History, Filter, Download, Loader2, FileText } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { FileText, Filter, Loader2, RefreshCw } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { auditApi } from '@/lib/api';
+import { useState } from 'react';
 import { format } from 'date-fns';
 
-interface AuditLog {
-  id: string;
-  action: string;
-  table_name: string;
-  record_id: string | null;
-  user_id: string | null;
-  old_data: Record<string, unknown> | null;
-  new_data: Record<string, unknown> | null;
-  created_at: string;
-  user?: {
-    full_name: string;
-    email: string;
-  };
-}
-
 export default function AuditLogs() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [tableFilter, setTableFilter] = useState<string>('all');
-  const [actionFilter, setActionFilter] = useState<string>('all');
-  
-  const { data: logs, isLoading } = useQuery({
+  const queryClient = useQueryClient();
+  const [tableFilter, setTableFilter] = useState('all');
+  const [actionFilter, setActionFilter] = useState('all');
+
+  const { data: logs = [], isLoading } = useQuery({
     queryKey: ['audit-logs', tableFilter, actionFilter],
-    queryFn: async () => {
-      let query = supabase
-        .from('audit_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
-      
-      if (tableFilter && tableFilter !== 'all') {
-        query = query.eq('table_name', tableFilter);
-      }
-      
-      if (actionFilter && actionFilter !== 'all') {
-        query = query.eq('action', actionFilter);
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      
-      // Fetch user profiles for the logs
-      const userIds = [...new Set(data?.map(l => l.user_id).filter(Boolean) || [])];
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, full_name, email')
-        .in('user_id', userIds);
-      
-      return data?.map(log => ({
-        ...log,
-        user: profiles?.find(p => p.user_id === log.user_id)
-      })) || [];
-    },
+    queryFn: () => auditApi.list({
+      table_name: tableFilter !== 'all' ? tableFilter : undefined,
+      action: actionFilter !== 'all' ? actionFilter : undefined,
+      limit: 100,
+    }),
   });
-  
-  const filteredLogs = logs?.filter(log =>
-    log.table_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    log.user?.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
-  
-  const getActionBadgeVariant = (action: string) => {
-    switch (action.toLowerCase()) {
-      case 'insert':
-      case 'create':
-        return 'default';
-      case 'update':
-        return 'secondary';
-      case 'delete':
-        return 'destructive';
-      default:
-        return 'outline';
-    }
+
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
   };
-  
-  const exportLogs = () => {
-    const csv = [
-      ['Timestamp', 'Action', 'Table', 'User', 'Record ID'].join(','),
-      ...filteredLogs.map(log => [
-        log.created_at,
-        log.action,
-        log.table_name,
-        log.user?.full_name || log.user_id || 'System',
-        log.record_id || ''
-      ].join(','))
-    ].join('\n');
-    
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `audit_logs_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+
+  const getActionBadge = (action: string) => {
+    switch (action) {
+      case 'INSERT':
+        return <Badge className="bg-green-500">INSERT</Badge>;
+      case 'UPDATE':
+        return <Badge className="bg-blue-500">UPDATE</Badge>;
+      case 'DELETE':
+        return <Badge variant="destructive">DELETE</Badge>;
+      default:
+        return <Badge variant="outline">{action}</Badge>;
+    }
   };
 
   return (
@@ -112,49 +47,42 @@ export default function AuditLogs() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Audit Logs</h2>
-            <p className="text-muted-foreground">Track all changes made to the system</p>
+            <p className="text-muted-foreground">Track all system changes and activities</p>
           </div>
-          <Button variant="outline" onClick={exportLogs}>
-            <Download className="w-4 h-4 mr-2" />
-            Export CSV
+          <Button variant="outline" onClick={handleRefresh}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
           </Button>
         </div>
 
+        {/* Filters */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Filter className="w-4 h-4" />
               Filters
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-4">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search logs..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              
+            <div className="flex gap-4">
               <Select value={tableFilter} onValueChange={setTableFilter}>
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="All Tables" />
+                  <SelectValue placeholder="Table" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Tables</SelectItem>
-                  <SelectItem value="student_marks">Student Marks</SelectItem>
+                  <SelectItem value="profiles">Profiles</SelectItem>
+                  <SelectItem value="departments">Departments</SelectItem>
+                  <SelectItem value="programs">Programs</SelectItem>
+                  <SelectItem value="cohorts">Cohorts</SelectItem>
+                  <SelectItem value="subjects">Subjects</SelectItem>
                   <SelectItem value="exams">Exams</SelectItem>
-                  <SelectItem value="questions">Questions</SelectItem>
-                  <SelectItem value="user_roles">User Roles</SelectItem>
+                  <SelectItem value="student_marks">Student Marks</SelectItem>
                 </SelectContent>
               </Select>
-              
               <Select value={actionFilter} onValueChange={setActionFilter}>
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="All Actions" />
+                  <SelectValue placeholder="Action" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Actions</SelectItem>
@@ -167,66 +95,58 @@ export default function AuditLogs() {
           </CardContent>
         </Card>
 
+        {/* Logs Table */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <History className="w-4 h-4" />
-              Activity Log
-              <Badge variant="secondary" className="ml-2">
-                {filteredLogs.length} entries
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
-            ) : filteredLogs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <FileText className="w-12 h-12 mb-4" />
+            ) : logs.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground">
+                <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>No audit logs found</p>
+                <p className="text-sm mt-1">Logs will appear here as changes are made to the system</p>
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Timestamp</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Table</TableHead>
                     <TableHead>User</TableHead>
+                    <TableHead>Table</TableHead>
+                    <TableHead>Action</TableHead>
                     <TableHead>Record ID</TableHead>
                     <TableHead>Changes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredLogs.map((log) => (
+                  {logs.map((log: any) => (
                     <TableRow key={log.id}>
                       <TableCell className="text-sm">
-                        {format(new Date(log.created_at), 'MMM dd, yyyy HH:mm:ss')}
+                        {log.created_at ? format(new Date(log.created_at), 'MMM d, yyyy HH:mm:ss') : '-'}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getActionBadgeVariant(log.action)}>
-                          {log.action}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {log.table_name}
+                        <div>
+                          <p className="font-medium text-sm">{log.user?.full_name || 'System'}</p>
+                          <p className="text-xs text-muted-foreground">{log.user?.email || '-'}</p>
+                        </div>
                       </TableCell>
                       <TableCell>
-                        {log.user?.full_name || log.user_id || 'System'}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {log.record_id ? log.record_id.slice(0, 8) + '...' : '—'}
+                        <Badge variant="outline">{log.table_name}</Badge>
                       </TableCell>
                       <TableCell>
-                        {log.old_data || log.new_data ? (
-                          <Button variant="ghost" size="sm">
-                            View Details
-                          </Button>
-                        ) : (
-                          '—'
-                        )}
+                        {getActionBadge(log.action)}
+                      </TableCell>
+                      <TableCell className="text-xs font-mono">
+                        {log.record_id?.substring(0, 8) || '-'}...
+                      </TableCell>
+                      <TableCell className="max-w-sm">
+                        {log.new_data ? (
+                          <div className="text-xs text-muted-foreground truncate">
+                            {JSON.stringify(log.new_data).substring(0, 50)}...
+                          </div>
+                        ) : '-'}
                       </TableCell>
                     </TableRow>
                   ))}

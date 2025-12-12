@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { subjectsApi } from '@/lib/api';
 
 export interface CourseOutcome {
   id: string;
@@ -7,23 +7,13 @@ export interface CourseOutcome {
   co_number: number;
   description: string;
   bloom_level: string;
+  created_at: string;
 }
 
-export function useCourseOutcomes(subjectId: string | null) {
+export function useCourseOutcomes(subjectId?: string) {
   return useQuery({
     queryKey: ['course-outcomes', subjectId],
-    queryFn: async () => {
-      if (!subjectId) return [];
-
-      const { data, error } = await supabase
-        .from('course_outcomes')
-        .select('*')
-        .eq('subject_id', subjectId)
-        .order('co_number');
-
-      if (error) throw error;
-      return data as CourseOutcome[];
-    },
+    queryFn: () => subjectsApi.getOutcomes(subjectId!),
     enabled: !!subjectId,
   });
 }

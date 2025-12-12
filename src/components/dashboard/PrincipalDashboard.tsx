@@ -2,70 +2,58 @@ import { StatsCard } from './StatsCard';
 import { DepartmentTable } from './DepartmentTable';
 import { COAttainmentChart } from './COAttainmentChart';
 import { PerformanceTrendChart } from './PerformanceTrendChart';
-import { mockCOAttainment, coTrendData } from '@/lib/mock-data';
 import { Users, GraduationCap, BookOpen, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { dashboardApi, departmentsApi, analyticsApi } from '@/lib/api';
 
 export function PrincipalDashboard() {
+  const { data: dashboardData, isLoading } = useQuery({
+    queryKey: ['principal-dashboard'],
+    queryFn: () => dashboardApi.getPrincipalDashboard(),
+  });
+
   const { data: departments = [] } = useQuery({
     queryKey: ['departments'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('departments').select('*');
-      if (error) throw error;
-      return data;
-    }
+    queryFn: () => departmentsApi.list(),
   });
 
-  const { data: profiles = [] } = useQuery({
-    queryKey: ['all-profiles'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('profiles').select('*');
-      if (error) throw error;
-      return data;
-    }
+  const { data: deptStats } = useQuery({
+    queryKey: ['department-stats'],
+    queryFn: () => analyticsApi.getDepartmentStats(),
   });
 
-  const { data: studentEnrollments = [] } = useQuery({
-    queryKey: ['student-enrollments-count'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('student_enrollments').select('*');
-      if (error) throw error;
-      return data;
-    }
-  });
+  const studentCount = dashboardData?.total_students || 0;
+  const teacherCount = dashboardData?.total_teachers || 0;
+  const subjectsCount = dashboardData?.total_subjects || 0;
+  const atRiskCount = dashboardData?.at_risk_students || 0;
+  const coAttainment = dashboardData?.co_attainment || [];
+  const performanceTrend = dashboardData?.performance_trend || [];
 
-  const { data: subjects = [] } = useQuery({
-    queryKey: ['subjects-count'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('subjects').select('*');
-      if (error) throw error;
-      return data;
-    }
-  });
-
-  const { data: userRoles = [] } = useQuery({
-    queryKey: ['user-roles'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('user_roles').select('*');
-      if (error) throw error;
-      return data;
-    }
-  });
-
-  const teacherCount = userRoles.filter(r => r.role === 'teacher').length;
-  const studentCount = studentEnrollments.length || userRoles.filter(r => r.role === 'student').length;
-  const atRiskCount = Math.floor(studentCount * 0.1); // Placeholder for at-risk calculation
-
-  const departmentStats = departments.map(dept => ({
+  // Use real department stats from API
+  const departmentStats = deptStats?.departments || [];
+  const tableData = departmentStats.map((dept: any) => ({
     name: dept.name,
-    passPercentage: Math.round(75 + Math.random() * 20),
-    averageScore: Math.round((60 + Math.random() * 20) * 10) / 10,
-    totalStudents: Math.floor(studentCount / Math.max(departments.length, 1)),
-    atRiskStudents: Math.floor(atRiskCount / Math.max(departments.length, 1)),
+    passPercentage: dept.pass_percentage || 0,
+    averageScore: dept.average_score || 0,
+    totalStudents: dept.total_students || 0,
+    atRiskStudents: dept.at_risk_students || 0,
   }));
+
+  // Performance trend from real data
+  const trendData = performanceTrend.length > 0 ? performanceTrend.map((p: any) => ({
+    name: p.period || p.name,
+    avgAttainment: p.average || p.avgAttainment,
+  })) : [];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -81,7 +69,6 @@ export function PrincipalDashboard() {
           value={studentCount.toLocaleString()}
           subtitle="Across all departments"
           icon={GraduationCap}
-          trend={{ value: 5.2, isPositive: true }}
           variant="primary"
         />
         <StatsCard
@@ -92,7 +79,7 @@ export function PrincipalDashboard() {
         />
         <StatsCard
           title="Active Subjects"
-          value={subjects.length.toString()}
+          value={subjectsCount.toString()}
           subtitle="Current semester"
           icon={BookOpen}
         />
@@ -123,17 +110,19 @@ export function PrincipalDashboard() {
               <Badge variant="destructive">Critical</Badge>
             </div>
           )}
-          <div className="flex items-center justify-between p-3 bg-muted/50 border border-border">
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-              <span className="text-sm">CO attainment review pending for some departments</span>
+          {coAttainment.some((co: any) => (co.attainment || 0) < 70) && (
+            <div className="flex items-center justify-between p-3 bg-muted/50 border border-border">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full" />
+                <span className="text-sm">Some course outcomes below 70% threshold</span>
+              </div>
+              <Badge variant="outline">Warning</Badge>
             </div>
-            <Badge variant="outline">Warning</Badge>
-          </div>
+          )}
           <div className="flex items-center justify-between p-3 bg-green-500/5 border border-green-500/20">
             <div className="flex items-center gap-3">
               <CheckCircle className="w-4 h-4 text-green-500" />
-              <span className="text-sm">{departments.length} departments active with {subjects.length} subjects</span>
+              <span className="text-sm">{departments.length} departments active with {subjectsCount} subjects</span>
             </div>
             <Badge className="bg-green-500">Active</Badge>
           </div>
@@ -142,12 +131,24 @@ export function PrincipalDashboard() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <COAttainmentChart data={mockCOAttainment} />
-        <PerformanceTrendChart data={coTrendData} />
+        <COAttainmentChart data={coAttainment.length > 0 ? coAttainment.map((co: any) => ({
+          co: `CO${co.co_number || co.co}`,
+          attainment: co.attainment || 0,
+          target: co.target || 70,
+        })) : []} />
+        <PerformanceTrendChart data={trendData} />
       </div>
 
       {/* Department Table */}
-      <DepartmentTable departments={departmentStats} />
+      {tableData.length > 0 ? (
+        <DepartmentTable departments={tableData} />
+      ) : (
+        <Card>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            No department statistics available yet. Data will appear once exams are conducted.
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

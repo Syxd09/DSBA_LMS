@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './useAuth';
+import { examsApi, marksApi } from '@/lib/api';
+import { toast } from '@/hooks/use-toast';
 
 export interface Exam {
   id: string;
@@ -9,355 +9,134 @@ export interface Exam {
   exam_type: string;
   max_marks: number;
   status: string;
-  teacher_id: string | null;
   created_at: string;
-  published_at: string | null;
-  subject?: {
-    id: string;
-    name: string;
-    code: string;
-  };
-  cohort?: {
-    id: string;
-    name: string;
-  };
+  created_by: string;
+  subject?: { name: string; code: string };
+  cohort?: { name: string };
 }
 
 export interface ExamSection {
   id: string;
-  exam_id: string;
-  name: string;
-  sequence: number;
-  max_marks: number;
-  selection_mode: string;
+  section_name: string;
   required_questions: number;
+  total_questions: number;
+  questions: ExamQuestion[];
 }
 
-export interface Question {
+export interface ExamQuestion {
   id: string;
-  section_id: string;
-  sequence: number;
+  question_number: string;
   max_marks: number;
-  bloom_level: string;
-  co_id: string | null;
-  is_optional: boolean;
-  group_key: string | null;
+  sub_questions: SubQuestion[];
 }
 
 export interface SubQuestion {
   id: string;
-  question_id: string;
-  label: string;
+  sub_question_label: string;
   max_marks: number;
-  bloom_level: string;
-  co_id: string | null;
+  co_id?: string;
+  bloom_level?: string;
 }
 
-export function useTeacherExams() {
-  const { user } = useAuth();
-
-  return useQuery({
-    queryKey: ['teacher-exams', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      
-      const { data, error } = await supabase
-        .from('exams')
-        .select(`
-          *,
-          subject:subjects(id, name, code),
-          cohort:cohorts(id, name)
-        `)
-        .eq('teacher_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as Exam[];
-    },
-    enabled: !!user?.id,
-  });
-}
-
-export function useExamDetails(examId: string | null) {
-  return useQuery({
-    queryKey: ['exam-details', examId],
-    queryFn: async () => {
-      if (!examId) return null;
-
-      const { data: exam, error: examError } = await supabase
-        .from('exams')
-        .select(`
-          *,
-          subject:subjects(id, name, code),
-          cohort:cohorts(id, name)
-        `)
-        .eq('id', examId)
-        .single();
-
-      if (examError) throw examError;
-
-      const { data: sections, error: sectionsError } = await supabase
-        .from('exam_sections')
-        .select('*')
-        .eq('exam_id', examId)
-        .order('sequence');
-
-      if (sectionsError) throw sectionsError;
-
-      const { data: questions, error: questionsError } = await supabase
-        .from('questions')
-        .select('*')
-        .in('section_id', sections.map(s => s.id))
-        .order('sequence');
-
-      if (questionsError) throw questionsError;
-
-      const questionIds = questions.map(q => q.id);
-      let subQuestions: SubQuestion[] = [];
-
-      if (questionIds.length > 0) {
-        const { data: subs, error: subsError } = await supabase
-          .from('sub_questions')
-          .select('*')
-          .in('question_id', questionIds);
-
-        if (subsError) throw subsError;
-        subQuestions = subs;
-      }
-
-      return {
-        exam: exam as Exam,
-        sections: sections as ExamSection[],
-        questions: questions as Question[],
-        subQuestions,
-      };
-    },
-    enabled: !!examId,
-  });
-}
-
-export function useExamStudents(cohortId: string | null) {
-  return useQuery({
-    queryKey: ['exam-students', cohortId],
-    queryFn: async () => {
-      if (!cohortId) return [];
-
-      const { data: enrollments, error } = await supabase
-        .from('student_enrollments')
-        .select(`
-          id,
-          student_id,
-          roll_number,
-          status
-        `)
-        .eq('cohort_id', cohortId)
-        .eq('status', 'active');
-
-      if (error) throw error;
-
-      // Fetch profiles for students
-      const studentIds = enrollments.map(e => e.student_id);
-      if (studentIds.length === 0) return [];
-
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, full_name')
-        .in('user_id', studentIds);
-
-      if (profilesError) throw profilesError;
-
-      const profileMap = new Map(profiles.map(p => [p.user_id, p.full_name]));
-
-      return enrollments.map(e => ({
-        studentId: e.student_id,
-        rollNumber: e.roll_number,
-        studentName: profileMap.get(e.student_id) || 'Unknown',
-      }));
-    },
-    enabled: !!cohortId,
-  });
-}
-
-export function useStudentMarks(examId: string | null) {
-  return useQuery({
-    queryKey: ['student-marks', examId],
-    queryFn: async () => {
-      if (!examId) return [];
-
-      const { data, error } = await supabase
-        .from('student_marks')
-        .select('*')
-        .eq('exam_id', examId);
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!examId,
-  });
-}
-
-export function useSaveMarks() {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-
-  return useMutation({
-    mutationFn: async ({ 
-      examId, 
-      marks 
-    }: { 
-      examId: string; 
-      marks: Array<{ studentId: string; subQuestionId: string; marks: number }> 
-    }) => {
-      // Delete existing marks for this exam and insert new ones
-      const { error: deleteError } = await supabase
-        .from('student_marks')
-        .delete()
-        .eq('exam_id', examId);
-
-      if (deleteError) throw deleteError;
-
-      if (marks.length === 0) return;
-
-      const insertData = marks.map(m => ({
-        exam_id: examId,
-        student_id: m.studentId,
-        sub_question_id: m.subQuestionId,
-        marks: m.marks,
-        entered_by: user?.id,
-      }));
-
-      const { error: insertError } = await supabase
-        .from('student_marks')
-        .insert(insertData);
-
-      if (insertError) throw insertError;
-    },
-    onSuccess: (_, { examId }) => {
-      queryClient.invalidateQueries({ queryKey: ['student-marks', examId] });
-    },
-  });
-}
-
-export function usePublishExam() {
+export function useExams(params?: { subject_id?: string; cohort_id?: string; status_filter?: string }) {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: async (examId: string) => {
-      const { error } = await supabase
-        .from('exams')
-        .update({ 
-          status: 'published', 
-          published_at: new Date().toISOString() 
-        })
-        .eq('id', examId);
+  const { data: exams = [], isLoading, error } = useQuery({
+    queryKey: ['exams', params],
+    queryFn: () => examsApi.list(params),
+  });
 
-      if (error) throw error;
+  const createExamMutation = useMutation({
+    mutationFn: (data: { subject_id: string; cohort_id: string; exam_type: string; max_marks: number }) =>
+      examsApi.create(data),
+    onSuccess: () => {
+      toast({ title: 'Exam created successfully' });
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
     },
-    onSuccess: (_, examId) => {
-      queryClient.invalidateQueries({ queryKey: ['exam-details', examId] });
-      queryClient.invalidateQueries({ queryKey: ['teacher-exams'] });
+    onError: (error: any) => {
+      toast({
+        title: 'Error creating exam',
+        description: error.response?.data?.detail || 'Failed to create exam',
+        variant: 'destructive',
+      });
     },
   });
-}
 
-export function useCreateExamStructure() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ 
-      examId, 
-      sections 
-    }: { 
-      examId: string; 
-      sections: Array<{
-        name: string;
-        sequence: number;
-        maxMarks: number;
-        selectionMode: string;
-        requiredQuestions: number;
-        questions: Array<{
-          sequence: number;
-          maxMarks: number;
-          bloomLevel: string;
-          coId: string | null;
-          isOptional: boolean;
-          subQuestions: Array<{
-            label: string;
-            maxMarks: number;
-            bloomLevel: string;
-            coId: string | null;
-          }>;
-        }>;
-      }> 
-    }) => {
-      // Delete existing structure
-      const { data: existingSections } = await supabase
-        .from('exam_sections')
-        .select('id')
-        .eq('exam_id', examId);
-
-      if (existingSections && existingSections.length > 0) {
-        await supabase
-          .from('exam_sections')
-          .delete()
-          .eq('exam_id', examId);
-      }
-
-      // Create new sections
-      for (const section of sections) {
-        const { data: newSection, error: sectionError } = await supabase
-          .from('exam_sections')
-          .insert({
-            exam_id: examId,
-            name: section.name,
-            sequence: section.sequence,
-            max_marks: section.maxMarks,
-            selection_mode: section.selectionMode,
-            required_questions: section.requiredQuestions,
-          })
-          .select()
-          .single();
-
-        if (sectionError) throw sectionError;
-
-        // Create questions
-        for (const question of section.questions) {
-          const { data: newQuestion, error: questionError } = await supabase
-            .from('questions')
-            .insert({
-              section_id: newSection.id,
-              sequence: question.sequence,
-              max_marks: question.maxMarks,
-              bloom_level: question.bloomLevel,
-              co_id: question.coId,
-              is_optional: question.isOptional,
-            })
-            .select()
-            .single();
-
-          if (questionError) throw questionError;
-
-          // Create sub-questions
-          if (question.subQuestions.length > 0) {
-            const subQuestionsData = question.subQuestions.map(sq => ({
-              question_id: newQuestion.id,
-              label: sq.label,
-              max_marks: sq.maxMarks,
-              bloom_level: sq.bloomLevel,
-              co_id: sq.coId,
-            }));
-
-            const { error: subError } = await supabase
-              .from('sub_questions')
-              .insert(subQuestionsData);
-
-            if (subError) throw subError;
-          }
-        }
-      }
+  const updateStructureMutation = useMutation({
+    mutationFn: ({ examId, sections }: { examId: string; sections: any[] }) =>
+      examsApi.updateStructure(examId, sections),
+    onSuccess: () => {
+      toast({ title: 'Exam structure saved' });
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
     },
-    onSuccess: (_, { examId }) => {
-      queryClient.invalidateQueries({ queryKey: ['exam-details', examId] });
+    onError: (error: any) => {
+      toast({
+        title: 'Error saving structure',
+        description: error.response?.data?.detail || 'Failed to save exam structure',
+        variant: 'destructive',
+      });
     },
   });
+
+  const publishExamMutation = useMutation({
+    mutationFn: (examId: string) => examsApi.publish(examId),
+    onSuccess: () => {
+      toast({ title: 'Exam published successfully' });
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error publishing exam',
+        description: error.response?.data?.detail || 'Failed to publish exam',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const saveMarksMutation = useMutation({
+    mutationFn: ({ examId, marks }: { examId: string; marks: Array<{ student_id: string; sub_question_id: string; marks: number }> }) =>
+      marksApi.saveMarks(examId, marks),
+    onSuccess: () => {
+      toast({ title: 'Marks saved successfully' });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error saving marks',
+        description: error.response?.data?.detail || 'Failed to save marks',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const computeMarksMutation = useMutation({
+    mutationFn: (examId: string) => marksApi.computeMarks(examId),
+    onSuccess: () => {
+      toast({ title: 'Marks computed successfully' });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error computing marks',
+        description: error.response?.data?.detail || 'Failed to compute marks',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  return {
+    exams,
+    isLoading,
+    error,
+    createExam: createExamMutation.mutate,
+    isCreating: createExamMutation.isPending,
+    updateStructure: updateStructureMutation.mutate,
+    isSavingStructure: updateStructureMutation.isPending,
+    publishExam: publishExamMutation.mutate,
+    isPublishing: publishExamMutation.isPending,
+    saveMarks: saveMarksMutation.mutate,
+    isSavingMarks: saveMarksMutation.isPending,
+    computeMarks: computeMarksMutation.mutate,
+    isComputing: computeMarksMutation.isPending,
+    getExam: (id: string) => examsApi.get(id),
+    getExamMarks: (examId: string) => marksApi.getExamMarks(examId),
+  };
 }

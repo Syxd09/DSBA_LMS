@@ -1,260 +1,277 @@
 import { useState } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { useGradingRules, useFinalMarks, useCalculateGrades } from '@/hooks/useGrading';
-import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { gradingApi, subjectsApi, cohortsApi } from '@/lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calculator, Award, Settings, Loader2, TrendingUp } from 'lucide-react';
+import { Award, Calculator, Loader2, Plus } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 export default function GradeManagement() {
+  const queryClient = useQueryClient();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCohort, setSelectedCohort] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
-  
-  const { data: gradingRules, isLoading: rulesLoading } = useGradingRules();
-  
-  const { data: cohorts } = useQuery({
-    queryKey: ['cohorts-list'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('cohorts')
-        .select('*, program:programs(name)')
-        .order('year', { ascending: false });
-      if (error) throw error;
-      return data || [];
+  const [newRule, setNewRule] = useState({
+    grade: '',
+    min_percentage: 0,
+    max_percentage: 100,
+    grade_point: 0,
+  });
+
+  const { data: rules = [], isLoading: rulesLoading } = useQuery({
+    queryKey: ['grading-rules'],
+    queryFn: () => gradingApi.getRules(),
+  });
+
+  const { data: subjects = [] } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: () => subjectsApi.list(),
+  });
+
+  const { data: cohorts = [] } = useQuery({
+    queryKey: ['cohorts'],
+    queryFn: () => cohortsApi.list(),
+  });
+
+  const { data: finalMarks = [], isLoading: marksLoading } = useQuery({
+    queryKey: ['final-marks', selectedCohort, selectedSubject],
+    queryFn: () => gradingApi.getFinalMarks({ 
+      cohort_id: selectedCohort || undefined, 
+      subject_id: selectedSubject || undefined 
+    }),
+    enabled: !!(selectedCohort || selectedSubject),
+  });
+
+  const createRuleMutation = useMutation({
+    mutationFn: (data: { grade: string; min_percentage: number; max_percentage: number; grade_point: number }) =>
+      gradingApi.createRule(data),
+    onSuccess: () => {
+      toast({ title: 'Grading rule created' });
+      setIsDialogOpen(false);
+      setNewRule({ grade: '', min_percentage: 0, max_percentage: 100, grade_point: 0 });
+      queryClient.invalidateQueries({ queryKey: ['grading-rules'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error creating rule',
+        description: error.response?.data?.detail || 'Failed to create rule',
+        variant: 'destructive',
+      });
     },
   });
-  
-  const { data: subjects } = useQuery({
-    queryKey: ['subjects-list'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('subjects')
-        .select('*')
-        .order('name');
-      if (error) throw error;
-      return data || [];
+
+  const calculateMutation = useMutation({
+    mutationFn: () => gradingApi.calculateGrades(selectedCohort, selectedSubject),
+    onSuccess: () => {
+      toast({ title: 'Grades calculated successfully' });
+      queryClient.invalidateQueries({ queryKey: ['final-marks'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error calculating grades',
+        description: error.response?.data?.detail || 'Failed to calculate grades',
+        variant: 'destructive',
+      });
     },
   });
-  
-  const { data: finalMarks, isLoading: marksLoading, refetch: refetchMarks } = useFinalMarks({
-    cohort_id: selectedCohort || undefined,
-    subject_id: selectedSubject || undefined,
-  });
-  
-  const { data: profiles } = useQuery({
-    queryKey: ['student-profiles', finalMarks],
-    queryFn: async () => {
-      if (!finalMarks?.length) return [];
-      const studentIds = [...new Set(finalMarks.map(m => m.student_id))];
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('user_id, full_name, email')
-        .in('user_id', studentIds);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!finalMarks?.length,
-  });
-  
-  const calculateGrades = useCalculateGrades();
-  
-  const handleCalculateGrades = async () => {
-    if (!selectedCohort || !selectedSubject) return;
-    
-    await calculateGrades.mutateAsync({
-      cohort_id: selectedCohort,
-      subject_id: selectedSubject,
-    });
-    
-    refetchMarks();
-  };
-  
-  const getGradeBadgeVariant = (grade: string) => {
-    if (['A+', 'A'].includes(grade)) return 'default';
-    if (['B+', 'B'].includes(grade)) return 'secondary';
-    if (['C+', 'C', 'D'].includes(grade)) return 'outline';
-    return 'destructive';
-  };
-  
-  const getStudentName = (studentId: string) => {
-    return profiles?.find(p => p.user_id === studentId)?.full_name || 'Unknown';
+
+  const handleCreateRule = () => {
+    if (!newRule.grade) {
+      toast({ title: 'Please enter a grade name', variant: 'destructive' });
+      return;
+    }
+    createRuleMutation.mutate(newRule);
   };
 
   return (
-    <AuthenticatedLayout allowedRoles={['principal', 'hod', 'teacher']}>
+    <AuthenticatedLayout allowedRoles={['principal', 'hod']}>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">Grade Management</h2>
-          <p className="text-muted-foreground">Calculate and manage student grades</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Grade Management</h2>
+            <p className="text-muted-foreground">Configure grading rules and calculate grades</p>
+          </div>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Rule
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Grading Rule</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Grade</Label>
+                  <Input
+                    value={newRule.grade}
+                    onChange={(e) => setNewRule({ ...newRule, grade: e.target.value.toUpperCase() })}
+                    placeholder="e.g., A+"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Min %</Label>
+                    <Input
+                      type="number"
+                      value={newRule.min_percentage}
+                      onChange={(e) => setNewRule({ ...newRule, min_percentage: parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Max %</Label>
+                    <Input
+                      type="number"
+                      value={newRule.max_percentage}
+                      onChange={(e) => setNewRule({ ...newRule, max_percentage: parseInt(e.target.value) || 100 })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Grade Point</Label>
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={newRule.grade_point}
+                    onChange={(e) => setNewRule({ ...newRule, grade_point: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <Button className="w-full" onClick={handleCreateRule} disabled={createRuleMutation.isPending}>
+                  {createRuleMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  Add Rule
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
-        <Tabs defaultValue="calculate" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="calculate">
-              <Calculator className="w-4 h-4 mr-2" />
-              Calculate Grades
-            </TabsTrigger>
-            <TabsTrigger value="rules">
-              <Settings className="w-4 h-4 mr-2" />
-              Grading Rules
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="calculate" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Select Subject & Cohort</CardTitle>
-                <CardDescription>Choose the subject and cohort to calculate grades for</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex gap-4">
-                  <Select value={selectedCohort} onValueChange={setSelectedCohort}>
-                    <SelectTrigger className="w-64">
-                      <SelectValue placeholder="Select cohort" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cohorts?.map((cohort) => (
-                        <SelectItem key={cohort.id} value={cohort.id}>
-                          {cohort.name} ({cohort.program?.name})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                    <SelectTrigger className="w-64">
-                      <SelectValue placeholder="Select subject" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subjects?.map((subject) => (
-                        <SelectItem key={subject.id} value={subject.id}>
-                          {subject.name} ({subject.code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  <Button 
-                    onClick={handleCalculateGrades}
-                    disabled={!selectedCohort || !selectedSubject || calculateGrades.isPending}
-                  >
-                    {calculateGrades.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    <Calculator className="w-4 h-4 mr-2" />
-                    Calculate Grades
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {selectedCohort && selectedSubject && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Award className="w-4 h-4" />
-                    Grade Results
-                    <Badge variant="secondary" className="ml-2">
-                      {finalMarks?.length || 0} students
+        {/* Grading Rules */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Award className="w-4 h-4" />
+              Grading Scale
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {rulesLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : rules.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">No grading rules configured</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {rules.map((rule: any) => (
+                  <div key={rule.id} className="p-4 border rounded-lg text-center bg-secondary/20">
+                    <p className="text-2xl font-bold text-primary">{rule.grade}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {rule.min_percentage}% - {rule.max_percentage}%
+                    </p>
+                    <Badge variant="outline" className="mt-2">
+                      GP: {rule.grade_point}
                     </Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {marksLoading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : !finalMarks?.length ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No grades calculated yet. Click "Calculate Grades" to compute.
-                    </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Student</TableHead>
-                          <TableHead className="text-right">Internal 1</TableHead>
-                          <TableHead className="text-right">Internal 2</TableHead>
-                          <TableHead className="text-right">Best Internal</TableHead>
-                          <TableHead className="text-right">External</TableHead>
-                          <TableHead className="text-right">Total</TableHead>
-                          <TableHead className="text-right">%</TableHead>
-                          <TableHead className="text-center">Grade</TableHead>
-                          <TableHead className="text-right">Points</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {finalMarks.map((mark) => (
-                          <TableRow key={mark.id}>
-                            <TableCell className="font-medium">
-                              {getStudentName(mark.student_id)}
-                            </TableCell>
-                            <TableCell className="text-right">{mark.internal_1}</TableCell>
-                            <TableCell className="text-right">{mark.internal_2}</TableCell>
-                            <TableCell className="text-right font-medium">{mark.best_internal}</TableCell>
-                            <TableCell className="text-right">{mark.external_marks}</TableCell>
-                            <TableCell className="text-right font-medium">{mark.total_marks}</TableCell>
-                            <TableCell className="text-right">{mark.percentage}%</TableCell>
-                            <TableCell className="text-center">
-                              <Badge variant={getGradeBadgeVariant(mark.grade || 'F')}>
-                                {mark.grade || 'F'}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">{mark.grade_point}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="rules" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-semibold">Grading Scale</CardTitle>
-                <CardDescription>Default grading rules applied to all departments</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {rulesLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                   </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Grade</TableHead>
-                        <TableHead>Percentage Range</TableHead>
-                        <TableHead>Grade Points</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {gradingRules?.map((rule) => (
-                        <TableRow key={rule.id}>
-                          <TableCell>
-                            <Badge variant={getGradeBadgeVariant(rule.grade)}>
-                              {rule.grade}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {rule.min_percentage}% - {rule.max_percentage}%
-                          </TableCell>
-                          <TableCell>{rule.grade_point}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Grade Calculation */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Calculator className="w-4 h-4" />
+              Calculate Grades
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4 mb-6">
+              <Select value={selectedCohort} onValueChange={setSelectedCohort}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select cohort" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cohorts.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.code} - {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={() => calculateMutation.mutate()}
+                disabled={calculateMutation.isPending || !selectedCohort || !selectedSubject}
+              >
+                {calculateMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Calculate
+              </Button>
+            </div>
+
+            {marksLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : finalMarks.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Student</TableHead>
+                    <TableHead>Internal 1</TableHead>
+                    <TableHead>Internal 2</TableHead>
+                    <TableHead>Best</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>%</TableHead>
+                    <TableHead>Grade</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {finalMarks.map((m: any) => (
+                    <TableRow key={m.id}>
+                      <TableCell>{m.student?.full_name || 'N/A'}</TableCell>
+                      <TableCell>{m.internal_1 ?? '-'}</TableCell>
+                      <TableCell>{m.internal_2 ?? '-'}</TableCell>
+                      <TableCell>{m.best_internal}</TableCell>
+                      <TableCell>{m.total_marks}</TableCell>
+                      <TableCell>{m.percentage?.toFixed(1)}%</TableCell>
+                      <TableCell>
+                        <Badge variant={m.grade !== 'F' ? 'default' : 'destructive'}>
+                          {m.grade}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <p className="text-center py-8 text-muted-foreground">
+                Select a cohort and subject to view grades
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AuthenticatedLayout>
   );

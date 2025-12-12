@@ -1,115 +1,134 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { supabase } from '@/integrations/supabase/client';
+import { programsApi, departmentsApi } from '@/lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { GraduationCap, Plus, Users, BookOpen, Loader2 } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { GraduationCap, Plus, Loader2, Edit, Trash2, Calendar } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface Program {
   id: string;
   name: string;
   code: string;
-  duration_years: number;
   department_id: string | null;
+  duration_years: number;
   created_at: string;
-  departments?: {
-    name: string;
-    code: string;
-  };
-}
-
-interface Department {
-  id: string;
-  name: string;
-  code: string;
+  department?: { name: string };
 }
 
 export default function Programs() {
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newProgram, setNewProgram] = useState({
-    name: '',
-    code: '',
-    duration_years: 3,
-    department_id: '',
+  const queryClient = useQueryClient();
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [selectedProgram, setSelectedProgram] = useState<Program | null>(null);
+  const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [formData, setFormData] = useState({ name: '', code: '', department_id: '', duration_years: 3 });
+
+  const { data: programs = [], isLoading } = useQuery({
+    queryKey: ['programs', departmentFilter],
+    queryFn: () => programsApi.list(departmentFilter !== 'all' ? { department_id: departmentFilter } : undefined),
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments'],
+    queryFn: () => departmentsApi.list(),
+  });
 
-  const fetchData = async () => {
-    try {
-      const [programsRes, departmentsRes] = await Promise.all([
-        supabase.from('programs').select('*, departments(name, code)').order('name'),
-        supabase.from('departments').select('*').order('name'),
-      ]);
-
-      if (programsRes.error) throw programsRes.error;
-      if (departmentsRes.error) throw departmentsRes.error;
-
-      setPrograms(programsRes.data || []);
-      setDepartments(departmentsRes.data || []);
-    } catch (error) {
-      console.error('Error fetching data:', error);
+  const createMutation = useMutation({
+    mutationFn: (data: { name: string; code: string; department_id?: string; duration_years?: number }) =>
+      programsApi.create(data),
+    onSuccess: () => {
+      toast({ title: 'Program created successfully' });
+      setIsCreateDialogOpen(false);
+      setFormData({ name: '', code: '', department_id: '', duration_years: 3 });
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+    },
+    onError: (error: any) => {
       toast({
-        title: 'Error',
-        description: 'Failed to fetch programs.',
+        title: 'Error creating program',
+        description: error.response?.data?.detail || 'Failed to create program',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+  });
 
-  const handleCreateProgram = async () => {
-    if (!newProgram.name || !newProgram.code) {
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { name?: string; code?: string; department_id?: string; duration_years?: number } }) =>
+      programsApi.update(id, data),
+    onSuccess: () => {
+      toast({ title: 'Program updated successfully' });
+      setIsEditDialogOpen(false);
+      setSelectedProgram(null);
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+    },
+    onError: (error: any) => {
       toast({
-        title: 'Validation Error',
-        description: 'Please fill in all required fields.',
+        title: 'Error updating program',
+        description: error.response?.data?.detail || 'Failed to update program',
         variant: 'destructive',
       });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => programsApi.delete(id),
+    onSuccess: () => {
+      toast({ title: 'Program deleted' });
+      setDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ['programs'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error deleting program',
+        description: error.response?.data?.detail || 'Failed to delete program',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleCreate = () => {
+    if (!formData.name || !formData.code) {
+      toast({ title: 'Please fill in all required fields', variant: 'destructive' });
       return;
     }
+    createMutation.mutate({
+      name: formData.name,
+      code: formData.code.toUpperCase(),
+      department_id: formData.department_id || undefined,
+      duration_years: formData.duration_years,
+    });
+  };
 
-    setIsSubmitting(true);
-    try {
-      const { error } = await supabase.from('programs').insert({
-        name: newProgram.name,
-        code: newProgram.code.toUpperCase(),
-        duration_years: newProgram.duration_years,
-        department_id: newProgram.department_id || null,
-      });
+  const handleEdit = (program: Program) => {
+    setSelectedProgram(program);
+    setFormData({
+      name: program.name,
+      code: program.code,
+      department_id: program.department_id || '',
+      duration_years: program.duration_years,
+    });
+    setIsEditDialogOpen(true);
+  };
 
-      if (error) throw error;
-
-      toast({
-        title: 'Program created',
-        description: `${newProgram.name} has been created successfully.`,
-      });
-
-      setIsDialogOpen(false);
-      setNewProgram({ name: '', code: '', duration_years: 3, department_id: '' });
-      fetchData();
-    } catch (error: any) {
-      console.error('Error creating program:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to create program.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleUpdate = () => {
+    if (!selectedProgram) return;
+    updateMutation.mutate({
+      id: selectedProgram.id,
+      data: {
+        name: formData.name,
+        code: formData.code.toUpperCase(),
+        department_id: formData.department_id || undefined,
+        duration_years: formData.duration_years,
+      },
+    });
   };
 
   return (
@@ -118,9 +137,9 @@ export default function Programs() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Programs</h2>
-            <p className="text-muted-foreground">Manage academic programs and degrees</p>
+            <p className="text-muted-foreground">Manage academic programs</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
@@ -133,65 +152,76 @@ export default function Programs() {
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Program Name</Label>
+                  <Label>Program Name *</Label>
                   <Input
-                    value={newProgram.name}
-                    onChange={(e) => setNewProgram({ ...newProgram, name: e.target.value })}
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="e.g., Bachelor of Computer Applications"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Program Code</Label>
+                  <Label>Program Code *</Label>
                   <Input
-                    value={newProgram.code}
-                    onChange={(e) => setNewProgram({ ...newProgram, code: e.target.value })}
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                     placeholder="e.g., BCA"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Duration (Years)</Label>
-                    <Input
-                      type="number"
-                      value={newProgram.duration_years}
-                      onChange={(e) => setNewProgram({ ...newProgram, duration_years: parseInt(e.target.value) || 3 })}
-                      min={1}
-                      max={6}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Department</Label>
-                    <Select
-                      value={newProgram.department_id}
-                      onValueChange={(value) => setNewProgram({ ...newProgram, department_id: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {departments.map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id}>
-                            {dept.code}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label>Department</Label>
+                  <Select
+                    value={formData.department_id}
+                    onValueChange={(v) => setFormData({ ...formData, department_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept: any) => (
+                        <SelectItem key={dept.id} value={dept.id}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Button className="w-full" onClick={handleCreateProgram} disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    'Create Program'
-                  )}
+                <div className="space-y-2">
+                  <Label>Duration (Years)</Label>
+                  <Input
+                    type="number"
+                    value={formData.duration_years}
+                    onChange={(e) => setFormData({ ...formData, duration_years: parseInt(e.target.value) || 3 })}
+                    min={1}
+                    max={6}
+                  />
+                </div>
+                <Button className="w-full" onClick={handleCreate} disabled={createMutation.isPending}>
+                  {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Create Program
                 </Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Filter */}
+        <Card>
+          <CardContent className="pt-6">
+            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Filter by department" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments</SelectItem>
+                {departments.map((dept: any) => (
+                  <SelectItem key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
@@ -202,8 +232,8 @@ export default function Programs() {
             <CardContent className="py-12 text-center">
               <GraduationCap className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">No programs yet</h3>
-              <p className="text-muted-foreground mb-4">Create your first academic program to get started.</p>
-              <Button onClick={() => setIsDialogOpen(true)}>
+              <p className="text-muted-foreground mb-4">Create your first program to get started.</p>
+              <Button onClick={() => setIsCreateDialogOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Program
               </Button>
@@ -211,52 +241,118 @@ export default function Programs() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {programs.map((program) => (
-              <Card key={program.id}>
+            {programs.map((program: Program) => (
+              <Card key={program.id} className="group hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-primary/10 flex items-center justify-center">
+                      <div className="w-10 h-10 bg-primary/10 flex items-center justify-center rounded">
                         <GraduationCap className="w-5 h-5 text-primary" />
                       </div>
                       <div>
                         <CardTitle className="text-lg">{program.name}</CardTitle>
-                        <p className="text-sm text-muted-foreground">{program.code}</p>
+                        <Badge variant="outline" className="mt-1">{program.code}</Badge>
                       </div>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(program)}>
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive"
+                        onClick={() => setDeleteId(program.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Duration</span>
-                      <Badge variant="outline">{program.duration_years} Years</Badge>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="w-4 h-4" />
+                      <span>{program.duration_years} Years</span>
                     </div>
-                    {program.departments && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Department</span>
-                        <span className="font-medium">{program.departments.code}</span>
-                      </div>
+                    {program.department && (
+                      <p className="text-muted-foreground">{program.department.name}</p>
                     )}
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Users className="w-4 h-4" />
-                      <span>0 Cohorts</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <BookOpen className="w-4 h-4" />
-                      <span>0 Curriculum Versions</span>
-                    </div>
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-border">
-                    <Button variant="outline" size="sm" className="w-full">
-                      Manage Cohorts
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Program</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Program Name *</Label>
+                <Input
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Program Code *</Label>
+                <Input
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Department</Label>
+                <Select
+                  value={formData.department_id}
+                  onValueChange={(v) => setFormData({ ...formData, department_id: v })}
+                >
+	                <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept: any) => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Duration (Years)</Label>
+                <Input
+                  type="number"
+                  value={formData.duration_years}
+                  onChange={(e) => setFormData({ ...formData, duration_years: parseInt(e.target.value) || 3 })}
+                  min={1}
+                  max={6}
+                />
+              </div>
+              <Button className="w-full" onClick={handleUpdate} disabled={updateMutation.isPending}>
+                {updateMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Update Program
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation */}
+        <ConfirmDialog
+          open={!!deleteId}
+          onOpenChange={() => setDeleteId(null)}
+          title="Delete Program"
+          description="Are you sure you want to delete this program? This will also affect all cohorts under it."
+          confirmLabel="Delete"
+          variant="destructive"
+          onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
+          isLoading={deleteMutation.isPending}
+        />
       </div>
     </AuthenticatedLayout>
   );

@@ -1,27 +1,22 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchParams } from 'react-router-dom';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { MarksEntryGrid } from '@/components/marks/MarksEntryGrid';
 import { ExamStructureBuilder } from '@/components/marks/ExamStructureBuilder';
-import { 
-  useTeacherExams, 
-  useExamDetails, 
-  useExamStudents, 
-  useStudentMarks,
-  useSaveMarks,
-  usePublishExam,
-  useCreateExamStructure
-} from '@/hooks/useExams';
+import { MarksEntryGrid } from '@/components/marks/MarksEntryGrid';
+import { useExams } from '@/hooks/useExams';
 import { useCourseOutcomes } from '@/hooks/useCourseOutcomes';
+import { examsApi, marksApi, enrollmentsApi } from '@/lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 export default function MarksEntry() {
-  const { role } = useAuth();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const examFromUrl = searchParams.get('exam');
   const [selectedExamId, setSelectedExamId] = useState<string | null>(examFromUrl);
@@ -32,223 +27,223 @@ export default function MarksEntry() {
     }
   }, [examFromUrl]);
 
-  const { data: exams, isLoading: examsLoading } = useTeacherExams();
-  const { data: examDetails, isLoading: detailsLoading } = useExamDetails(selectedExamId);
-  const { data: students, isLoading: studentsLoading } = useExamStudents(examDetails?.exam?.cohort_id ?? null);
-  const { data: existingMarks, isLoading: marksLoading } = useStudentMarks(selectedExamId);
-  const { data: courseOutcomes, isLoading: cosLoading } = useCourseOutcomes(examDetails?.exam?.subject_id ?? null);
+  // Fetch exams
+  const { exams, isLoading: examsLoading } = useExams();
 
-  const saveMarksMutation = useSaveMarks();
-  const publishExamMutation = usePublishExam();
-  const createStructureMutation = useCreateExamStructure();
+  // Fetch exam details
+  const { data: examDetails, isLoading: detailsLoading } = useQuery({
+    queryKey: ['exam-details', selectedExamId],
+    queryFn: () => examsApi.get(selectedExamId!),
+    enabled: !!selectedExamId,
+  });
 
-  const selectedExam = exams?.find(e => e.id === selectedExamId);
+  // Fetch students in cohort
+  const { data: enrollments = [], isLoading: studentsLoading } = useQuery({
+    queryKey: ['enrollments', examDetails?.cohort_id],
+    queryFn: () => enrollmentsApi.list({ cohort_id: examDetails?.cohort_id }),
+    enabled: !!examDetails?.cohort_id,
+  });
 
-  // Transform sub-questions for the grid
-  const subQuestionsForGrid = useMemo(() => {
-    if (!examDetails?.subQuestions || !examDetails?.questions) return [];
-    
-    return examDetails.subQuestions.map(sq => {
-      const question = examDetails.questions.find(q => q.id === sq.question_id);
-      const section = examDetails.sections.find(s => s.id === question?.section_id);
-      const qIndex = examDetails.questions.filter(q => q.section_id === section?.id).findIndex(q => q.id === question?.id) + 1;
-      
-      return {
-        id: sq.id,
-        label: `${qIndex}(${sq.label})`,
-        maxMarks: sq.max_marks,
-        questionId: sq.question_id,
-      };
+  // Fetch existing marks
+  const { data: existingMarks = [], isLoading: marksLoading } = useQuery({
+    queryKey: ['exam-marks', selectedExamId],
+    queryFn: () => marksApi.getExamMarks(selectedExamId!),
+    enabled: !!selectedExamId,
+  });
+
+  // Fetch course outcomes
+  const { data: courseOutcomes = [] } = useCourseOutcomes(examDetails?.subject_id);
+
+  // Save exam structure mutation
+  const saveStructureMutation = useMutation({
+    mutationFn: (sections: any[]) => examsApi.updateStructure(selectedExamId!, sections),
+    onSuccess: () => {
+      toast({ title: 'Exam structure saved' });
+      queryClient.invalidateQueries({ queryKey: ['exam-details', selectedExamId] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error saving structure',
+        description: error.response?.data?.detail || 'Failed to save structure',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Save marks mutation
+  const saveMarksMutation = useMutation({
+    mutationFn: (marks: Array<{ studentId: string; subQuestionId: string; marks: number }>) => {
+      const formatted = marks.map(m => ({
+        student_id: m.studentId,
+        sub_question_id: m.subQuestionId,
+        marks: m.marks,
+      }));
+      return marksApi.saveMarks(selectedExamId!, formatted);
+    },
+    onSuccess: () => {
+      toast({ title: 'Marks saved successfully' });
+      queryClient.invalidateQueries({ queryKey: ['exam-marks', selectedExamId] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error saving marks',
+        description: error.response?.data?.detail || 'Failed to save marks',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Publish exam mutation
+  const publishMutation = useMutation({
+    mutationFn: () => examsApi.publish(selectedExamId!),
+    onSuccess: () => {
+      toast({ title: 'Exam published successfully' });
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+      queryClient.invalidateQueries({ queryKey: ['exam-details', selectedExamId] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error publishing exam',
+        description: error.response?.data?.detail || 'Failed to publish exam',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const selectedExam = exams?.find((e: any) => e.id === selectedExamId);
+  const sections = examDetails?.sections || [];
+  const isLoading = examsLoading || detailsLoading;
+
+  // Extract sub-questions from exam structure for the grid
+  const subQuestions = useMemo(() => {
+    const sqs: Array<{ id: string; label: string; maxMarks: number; questionId: string }> = [];
+    sections.forEach((section: any, sIdx: number) => {
+      section.questions?.forEach((question: any, qIdx: number) => {
+        question.sub_questions?.forEach((sq: any) => {
+          sqs.push({
+            id: sq.id,
+            label: `${sIdx + 1}.${qIdx + 1}${sq.label}`,
+            maxMarks: sq.max_marks,
+            questionId: question.id,
+          });
+        });
+      });
     });
-  }, [examDetails]);
+    return sqs;
+  }, [sections]);
 
-  // Transform existing structure for the builder
-  const initialSections = useMemo(() => {
-    if (!examDetails?.sections) return undefined;
-    
-    return examDetails.sections.map(section => ({
-      id: section.id,
-      name: section.name,
-      sequence: section.sequence,
-      maxMarks: section.max_marks,
-      requiredQuestions: section.required_questions,
-      selectionMode: section.selection_mode as 'FIRST_N' | 'BEST_N',
-      questions: examDetails.questions
-        .filter(q => q.section_id === section.id)
-        .map(question => ({
-          id: question.id,
-          sequence: question.sequence,
-          maxMarks: question.max_marks,
-          bloomLevel: question.bloom_level,
-          coId: question.co_id,
-          isOptional: question.is_optional,
-          subQuestions: examDetails.subQuestions
-            .filter(sq => sq.question_id === question.id)
-            .map(sq => ({
-              id: sq.id,
-              label: sq.label,
-              maxMarks: sq.max_marks,
-              bloomLevel: sq.bloom_level,
-              coId: sq.co_id,
-            })),
-        })),
+  // Transform enrollments to the format expected by MarksEntryGrid
+  const students = useMemo(() => {
+    return enrollments.map((e: any) => ({
+      studentId: e.student_id,
+      studentName: e.student?.full_name || 'Student',
+      rollNumber: e.roll_number,
     }));
-  }, [examDetails]);
+  }, [enrollments]);
 
-  const handleSaveMarks = async (marks: Array<{ studentId: string; subQuestionId: string; marks: number }>) => {
-    if (!selectedExamId) return;
-    await saveMarksMutation.mutateAsync({ examId: selectedExamId, marks });
-  };
-
-  const handlePublish = async () => {
-    if (!selectedExamId) return;
-    await publishExamMutation.mutateAsync(selectedExamId);
-  };
-
-  const handleSaveStructure = async (sections: any[]) => {
-    if (!selectedExamId) return;
-    
-    const transformedSections = sections.map((section, idx) => ({
-      name: section.name,
-      sequence: idx + 1,
-      maxMarks: section.questions.reduce((sum: number, q: any) => 
-        sum + q.subQuestions.reduce((sqSum: number, sq: any) => sqSum + sq.maxMarks, 0), 0
-      ),
-      selectionMode: section.selectionMode,
-      requiredQuestions: section.requiredQuestions,
-      questions: section.questions.map((q: any, qIdx: number) => ({
-        sequence: qIdx + 1,
-        maxMarks: q.subQuestions.reduce((sum: number, sq: any) => sum + sq.maxMarks, 0),
-        bloomLevel: q.bloomLevel,
-        coId: q.coId,
-        isOptional: q.isOptional,
-        subQuestions: q.subQuestions.map((sq: any) => ({
-          label: sq.label,
-          maxMarks: sq.maxMarks,
-          bloomLevel: sq.bloomLevel,
-          coId: sq.coId,
-        })),
-      })),
+  // Transform existing marks to the format expected by MarksEntryGrid
+  const formattedMarks = useMemo(() => {
+    return (existingMarks || []).map((m: any) => ({
+      student_id: m.student_id,
+      sub_question_id: m.sub_question_id,
+      marks: m.marks,
     }));
-
-    await createStructureMutation.mutateAsync({ 
-      examId: selectedExamId, 
-      sections: transformedSections 
-    });
-  };
-
-  const isLoading = examsLoading || detailsLoading || studentsLoading || marksLoading || cosLoading;
-  const isPublished = examDetails?.exam?.status === 'published';
+  }, [existingMarks]);
 
   return (
-    <AuthenticatedLayout allowedRoles={['teacher', 'hod', 'principal']}>
+    <AuthenticatedLayout allowedRoles={['principal', 'hod', 'teacher']}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Marks Entry</h2>
-            <p className="text-muted-foreground">Create exam structure and enter student marks</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Select 
-              value={selectedExamId || ''} 
-              onValueChange={(value) => setSelectedExamId(value || null)}
-            >
-              <SelectTrigger className="w-80">
-                <SelectValue placeholder="Select an exam" />
-              </SelectTrigger>
-              <SelectContent>
-                {exams?.map(exam => (
-                  <SelectItem key={exam.id} value={exam.id}>
-                    {exam.subject?.code} - {exam.subject?.name} ({exam.exam_type})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <p className="text-muted-foreground">Enter and manage examination marks</p>
           </div>
         </div>
 
-        {!selectedExamId ? (
-          <Card className="p-8 text-center">
-            <p className="text-muted-foreground">
-              {examsLoading ? 'Loading exams...' : 
-               exams?.length === 0 ? 'No exams assigned to you. Create an exam first.' :
-               'Select an exam to start entering marks.'}
-            </p>
-          </Card>
-        ) : isLoading ? (
-          <Card className="p-8 text-center">
-            <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
-            <p className="text-muted-foreground mt-2">Loading exam details...</p>
-          </Card>
-        ) : (
-          <>
-            <Card>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">
-                    {selectedExam?.subject?.name} ({selectedExam?.subject?.code})
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">{selectedExam?.cohort?.name}</Badge>
-                    <Badge variant={isPublished ? 'default' : 'secondary'}>
-                      {selectedExam?.exam_type}
-                    </Badge>
-                    <Badge variant={isPublished ? 'default' : 'outline'}>
-                      {isPublished ? 'Published' : 'Draft'}
-                    </Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Total Students</p>
-                    <p className="font-semibold">{students?.length || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Max Marks</p>
-                    <p className="font-semibold">{selectedExam?.max_marks}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Sections</p>
-                    <p className="font-semibold">{examDetails?.sections?.length || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Questions</p>
-                    <p className="font-semibold">{examDetails?.questions?.length || 0}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Exam Selector */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <label className="font-medium">Select Exam:</label>
+              <Select value={selectedExamId || ''} onValueChange={setSelectedExamId}>
+                <SelectTrigger className="w-96">
+                  <SelectValue placeholder="Select an exam" />
+                </SelectTrigger>
+                <SelectContent>
+                  {exams?.map((exam: any) => (
+                    <SelectItem key={exam.id} value={exam.id}>
+                      {exam.subject?.code || 'Subject'} - {exam.exam_type} ({exam.status})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedExam && (
+                <Badge variant={selectedExam.status === 'published' ? 'default' : 'outline'}>
+                  {selectedExam.status}
+                </Badge>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-            <Tabs defaultValue="structure" className="w-full">
-              <TabsList>
-                <TabsTrigger value="structure">Exam Structure</TabsTrigger>
-                <TabsTrigger value="marks" disabled={subQuestionsForGrid.length === 0}>
-                  Marks Entry
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="structure" className="mt-6">
-                <ExamStructureBuilder
-                  courseOutcomes={courseOutcomes || []}
-                  initialSections={initialSections}
-                  onSave={handleSaveStructure}
-                  isLoading={detailsLoading || cosLoading}
-                />
-              </TabsContent>
-              <TabsContent value="marks" className="mt-6">
+        {isLoading && selectedExamId ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : selectedExamId && examDetails ? (
+          <Tabs defaultValue="marks">
+            <TabsList>
+              <TabsTrigger value="marks">Enter Marks</TabsTrigger>
+              <TabsTrigger value="structure">Exam Structure</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="marks" className="space-y-4">
+              {sections.length === 0 ? (
+                <Card>
+                  <CardContent className="py-12 text-center">
+                    <p className="text-muted-foreground">
+                      No exam structure found. Create the exam structure first in the "Exam Structure" tab.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : studentsLoading || marksLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                </div>
+              ) : (
                 <MarksEntryGrid
-                  students={students || []}
-                  subQuestions={subQuestionsForGrid}
-                  existingMarks={existingMarks || []}
-                  onSave={handleSaveMarks}
-                  onPublish={handlePublish}
-                  isPublished={isPublished}
+                  students={students}
+                  subQuestions={subQuestions}
+                  existingMarks={formattedMarks}
+                  onSave={async (data) => {
+                    await saveMarksMutation.mutateAsync(data);
+                  }}
+                  onPublish={async () => {
+                    await publishMutation.mutateAsync();
+                  }}
                   isSaving={saveMarksMutation.isPending}
+                  isPublished={selectedExam?.status === 'published'}
                 />
-              </TabsContent>
-            </Tabs>
-          </>
+              )}
+            </TabsContent>
+
+            <TabsContent value="structure">
+              <ExamStructureBuilder
+                courseOutcomes={courseOutcomes}
+                initialSections={sections}
+                onSave={async (sections) => {
+                  await saveStructureMutation.mutateAsync(sections);
+                }}
+                isLoading={saveStructureMutation.isPending}
+              />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <p className="text-muted-foreground">Select an exam to enter marks</p>
+            </CardContent>
+          </Card>
         )}
       </div>
     </AuthenticatedLayout>

@@ -1,163 +1,141 @@
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { StudentResultCard } from '@/components/student/StudentResultCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Award, TrendingUp, FileText } from 'lucide-react';
-import { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Award, BookOpen, TrendingUp, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { dashboardApi, gradingApi } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Results() {
-  const [selectedSemester, setSelectedSemester] = useState('3');
+  const { profile } = useAuth();
+  
+  const { data: dashboardData, isLoading } = useQuery({
+    queryKey: ['student-dashboard'],
+    queryFn: () => dashboardApi.getStudentDashboard(),
+    enabled: !!profile,
+  });
+
+  const results = dashboardData?.results || [];
+  const sgpa = dashboardData?.sgpa || 0;
+  const cgpa = dashboardData?.cgpa || 0;
+  const overallAverage = dashboardData?.overall_average || 0;
+
+  if (isLoading) {
+    return (
+      <AuthenticatedLayout allowedRoles={['student']}>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      </AuthenticatedLayout>
+    );
+  }
 
   return (
     <AuthenticatedLayout allowedRoles={['student']}>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-foreground">My Results</h2>
-            <p className="text-muted-foreground">View your examination results and marks</p>
-          </div>
-          <Select value={selectedSemester} onValueChange={setSelectedSemester}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Semester" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">Semester 1</SelectItem>
-              <SelectItem value="2">Semester 2</SelectItem>
-              <SelectItem value="3">Semester 3</SelectItem>
-              <SelectItem value="4">Semester 4</SelectItem>
-            </SelectContent>
-          </Select>
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">My Results</h2>
+          <p className="text-muted-foreground">View your examination results and grades</p>
         </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-primary/10">
-                  <Award className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Semester Average</p>
-                  <p className="text-2xl font-bold">72.5%</p>
-                </div>
-              </div>
+          <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Award className="w-4 h-4" />
+                Current SGPA
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold text-primary">{sgpa.toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground mt-1">This semester</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-green-500/10">
-                  <TrendingUp className="w-6 h-6 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Class Rank</p>
-                  <p className="text-2xl font-bold">12 / 60</p>
-                </div>
-              </div>
+
+          <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <TrendingUp className="w-4 h-4" />
+                CGPA
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold text-green-600">{cgpa.toFixed(2)}</p>
+              <p className="text-xs text-muted-foreground mt-1">Cumulative</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-secondary">
-                  <FileText className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Subjects</p>
-                  <p className="text-2xl font-bold">5 / 5 Pass</p>
-                </div>
-              </div>
+
+          <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <BookOpen className="w-4 h-4" />
+                Overall Average
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold text-blue-600">{overallAverage.toFixed(1)}%</p>
+              <p className="text-xs text-muted-foreground mt-1">All subjects</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Result Cards */}
-        <div>
-          <h3 className="text-lg font-semibold mb-4">Internal Examination Results</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <StudentResultCard
-              subject="Data Structures"
-              examType="Internal 1"
-              totalMarks={45}
-              maxMarks={60}
-              rank={8}
-              totalStudents={60}
-              classAverage={42.5}
-              coScores={[
-                { co: 'CO1', score: 9, max: 12 },
-                { co: 'CO2', score: 10, max: 12 },
-                { co: 'CO3', score: 8, max: 12 },
-                { co: 'CO4', score: 10, max: 12 },
-                { co: 'CO5', score: 8, max: 12 },
-              ]}
-            />
-            <StudentResultCard
-              subject="Database Management"
-              examType="Internal 1"
-              totalMarks={38}
-              maxMarks={60}
-              rank={15}
-              totalStudents={60}
-              classAverage={40.2}
-              coScores={[
-                { co: 'CO1', score: 8, max: 12 },
-                { co: 'CO2', score: 7, max: 12 },
-                { co: 'CO3', score: 8, max: 12 },
-                { co: 'CO4', score: 8, max: 12 },
-                { co: 'CO5', score: 7, max: 12 },
-              ]}
-            />
-            <StudentResultCard
-              subject="Operating Systems"
-              examType="Internal 1"
-              totalMarks={52}
-              maxMarks={60}
-              rank={3}
-              totalStudents={60}
-              classAverage={44.8}
-              coScores={[
-                { co: 'CO1', score: 11, max: 12 },
-                { co: 'CO2', score: 10, max: 12 },
-                { co: 'CO3', score: 11, max: 12 },
-                { co: 'CO4', score: 10, max: 12 },
-                { co: 'CO5', score: 10, max: 12 },
-              ]}
-            />
-            <StudentResultCard
-              subject="Computer Networks"
-              examType="Internal 1"
-              totalMarks={41}
-              maxMarks={60}
-              rank={12}
-              totalStudents={60}
-              classAverage={39.5}
-              coScores={[
-                { co: 'CO1', score: 9, max: 12 },
-                { co: 'CO2', score: 8, max: 12 },
-                { co: 'CO3', score: 8, max: 12 },
-                { co: 'CO4', score: 8, max: 12 },
-                { co: 'CO5', score: 8, max: 12 },
-              ]}
-            />
-            <StudentResultCard
-              subject="Software Engineering"
-              examType="Internal 1"
-              totalMarks={48}
-              maxMarks={60}
-              rank={6}
-              totalStudents={60}
-              classAverage={43.2}
-              coScores={[
-                { co: 'CO1', score: 10, max: 12 },
-                { co: 'CO2', score: 9, max: 12 },
-                { co: 'CO3', score: 10, max: 12 },
-                { co: 'CO4', score: 10, max: 12 },
-                { co: 'CO5', score: 9, max: 12 },
-              ]}
-            />
-          </div>
-        </div>
+        {/* Subject Results */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Subject-wise Results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {results.length > 0 ? (
+              <div className="space-y-4">
+                {results.map((result: any, index: number) => (
+                  <div key={index} className="p-4 border border-border rounded-lg hover:bg-secondary/20 transition-colors">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="font-medium text-lg">{result.subject_name}</p>
+                        <p className="text-sm text-muted-foreground">{result.subject_code}</p>
+                      </div>
+                      <Badge 
+                        variant={result.grade && result.grade !== 'F' ? 'default' : 'destructive'}
+                        className="text-lg px-3 py-1"
+                      >
+                        {result.grade || 'Pending'}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Internal 1</p>
+                        <p className="font-medium">{result.internal_1 || '-'} / 30</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Internal 2</p>
+                        <p className="font-medium">{result.internal_2 || '-'} / 30</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Best Internal</p>
+                        <p className="font-medium">{result.best_internal || '-'} / 30</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Percentage</p>
+                        <p className="font-medium">{result.percentage?.toFixed(1) || '-'}%</p>
+                      </div>
+                    </div>
+                    {result.percentage && (
+                      <Progress value={result.percentage} className="h-2 mt-3" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No results available yet</p>
+                <p className="text-sm mt-1">Results will appear here once your exams are graded</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AuthenticatedLayout>
   );

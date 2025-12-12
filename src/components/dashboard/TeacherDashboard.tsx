@@ -1,66 +1,61 @@
 import { StatsCard } from './StatsCard';
-import { examPerformanceData } from '@/lib/mock-data';
-import { Users, BookOpen, ClipboardList, TrendingUp, Clock, CheckCircle } from 'lucide-react';
+import { BookOpen, Users, Clock, TrendingUp, Plus, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { dashboardApi } from '@/lib/api';
+import { useNavigate } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export function TeacherDashboard() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
-
-  const { data: teacherAssignments = [] } = useQuery({
-    queryKey: ['teacher-my-assignments', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase.from('teacher_assignments').select(`
-        *,
-        subjects(id, name, code, credits, semester),
-        cohorts(name)
-      `).eq('teacher_id', user.id);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user?.id
+  
+  const { data: dashboardData, isLoading } = useQuery({
+    queryKey: ['teacher-dashboard'],
+    queryFn: () => dashboardApi.getTeacherDashboard(),
   });
 
-  const { data: exams = [] } = useQuery({
-    queryKey: ['teacher-exams', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase.from('exams').select(`
-        *,
-        subjects(name, code)
-      `).eq('teacher_id', user.id);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user?.id
-  });
+  const assignedSubjects = dashboardData?.assigned_subjects || 0;
+  const totalStudents = dashboardData?.total_students || 0;
+  const pendingEvaluations = dashboardData?.pending_evaluations || 0;
+  const classAverage = dashboardData?.class_average || 0;
+  const subjects = dashboardData?.subjects || [];
 
-  const assignedSubjects = teacherAssignments.map(a => a.subjects).filter(Boolean);
-  const pendingExams = exams.filter(e => e.status === 'draft').length;
-  const totalStudents = teacherAssignments.length * 60; // Approximate
-  const classAverage = 71;
+  // Performance comparison data from real subject data
+  const comparisonData = subjects.map((s: any) => ({
+    name: s.code || s.name?.substring(0, 10),
+    average: s.average || 0,
+    target: 70,
+  }));
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Teacher Dashboard</h2>
-        <p className="text-muted-foreground">Welcome back, {profile?.full_name || 'Teacher'}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Teacher Dashboard</h2>
+          <p className="text-muted-foreground">Manage your subjects and evaluations</p>
+        </div>
+        <Button onClick={() => navigate('/exams')}>
+          <Plus className="w-4 h-4 mr-2" />
+          Create Exam
+        </Button>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
           title="Assigned Subjects"
-          value={assignedSubjects.length.toString()}
-          subtitle="This semester"
+          value={assignedSubjects.toString()}
+          subtitle="Current semester"
           icon={BookOpen}
           variant="primary"
         />
@@ -72,134 +67,107 @@ export function TeacherDashboard() {
         />
         <StatsCard
           title="Pending Evaluations"
-          value={pendingExams.toString()}
-          subtitle="Exams pending"
-          icon={ClipboardList}
-          variant="warning"
+          value={pendingEvaluations.toString()}
+          subtitle="Exams to grade"
+          icon={Clock}
+          variant={pendingEvaluations > 0 ? 'warning' : 'default'}
         />
         <StatsCard
           title="Class Average"
           value={`${classAverage}%`}
-          subtitle="All subjects"
+          subtitle="Overall performance"
           icon={TrendingUp}
-          trend={{ value: 6, isPositive: true }}
+          variant="success"
         />
       </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            <Button onClick={() => navigate('/marks-entry')}>
-              <ClipboardList className="w-4 h-4 mr-2" />
+      {/* Quick Actions & Subjects */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Quick Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/exams')}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create New Exam
+            </Button>
+            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/marks-entry')}>
+              <FileText className="w-4 h-4 mr-2" />
               Enter Marks
             </Button>
-            <Button variant="outline" onClick={() => navigate('/exams')}>
-              <BookOpen className="w-4 h-4 mr-2" />
-              Create Exam Structure
-            </Button>
-            <Button variant="outline" onClick={() => navigate('/co-po-analytics')}>
+            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/analytics')}>
               <TrendingUp className="w-4 h-4 mr-2" />
               View Analytics
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* My Subjects */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">My Subjects</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {assignedSubjects.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
-              No subjects assigned yet. Contact your HOD for subject assignments.
-            </div>
-          ) : (
-            assignedSubjects.map((subject: any) => {
-              const subjectExams = exams.filter(e => e.subject_id === subject.id);
-              const int1Done = subjectExams.some(e => e.exam_type === 'I1' && e.status === 'published');
-              const int2Done = subjectExams.some(e => e.exam_type === 'I2' && e.status === 'published');
-              return (
-                <div key={subject.id} className="p-4 border border-border">
-                  <div className="flex items-start justify-between mb-3">
+        {/* Subject List */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">My Subjects</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {subjects.length > 0 ? (
+              <div className="space-y-3">
+                {subjects.map((subject: any) => (
+                  <div key={subject.id} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
                     <div>
-                      <h4 className="font-medium text-foreground">{subject.name}</h4>
-                      <p className="text-sm text-muted-foreground">{subject.code} • Semester {subject.semester}</p>
+                      <p className="font-medium">{subject.name}</p>
+                      <p className="text-xs text-muted-foreground">{subject.code} • {subject.exams_count || 0} exams</p>
                     </div>
-                    <Badge variant="outline">{subject.credits} Credits</Badge>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Internal 1</span>
-                      <div className="flex items-center gap-2">
-                        {int1Done ? (
-                          <>
-                            <CheckCircle className="w-4 h-4 text-green-500" />
-                            <span className="text-sm text-green-500">Published</span>
-                          </>
-                        ) : (
-                          <>
-                            <Clock className="w-4 h-4 text-yellow-500" />
-                            <span className="text-sm text-yellow-500">Pending</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Internal 2</span>
-                      <div className="flex items-center gap-2">
-                        {int2Done ? (
-                          <>
-                            <CheckCircle className="w-4 h-4 text-green-500" />
-                            <span className="text-sm text-green-500">Published</span>
-                          </>
-                        ) : (
-                          <>
-                            <Clock className="w-4 h-4 text-yellow-500" />
-                            <span className="text-sm text-yellow-500">Pending</span>
-                          </>
-                        )}
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={subject.exams_count > 0 ? 'default' : 'outline'}>
+                        {subject.exams_count > 0 ? 'Active' : 'No Exams'}
+                      </Badge>
+                      <Button size="sm" variant="ghost" onClick={() => navigate('/marks-entry')}>
+                        <FileText className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
-                </div>
-              );
-            })
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <BookOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>No subjects assigned yet</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Performance Comparison */}
+      {/* Performance Chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-semibold">Internal 1 vs Internal 2 Performance</CardTitle>
+          <CardTitle className="text-base font-semibold">Subject Performance Comparison</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={examPerformanceData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '0',
-                  }}
-                />
-                <Legend />
-                <Bar dataKey="average" name="Class Average" fill="hsl(var(--chart-2))" />
-                <Bar dataKey="highest" name="Highest" fill="hsl(var(--chart-3))" />
-                <Bar dataKey="lowest" name="Lowest" fill="hsl(var(--chart-5))" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {comparisonData.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={comparisonData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} domain={[0, 100]} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                    }}
+                  />
+                  <Bar dataKey="average" fill="hsl(var(--primary))" name="Class Average" />
+                  <Bar dataKey="target" fill="hsl(var(--muted))" name="Target" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="text-center py-8 text-muted-foreground">
+              Performance chart will appear after exams are graded.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

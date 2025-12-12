@@ -22,6 +22,9 @@ import TeacherAssignments from "./pages/TeacherAssignments";
 import GradeManagement from "./pages/GradeManagement";
 import COPOAnalytics from "./pages/COPOAnalytics";
 import AuditLogs from "./pages/AuditLogs";
+import UserSeeder from "./pages/UserSeeder";
+import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,7 +54,10 @@ const App = () => (
           <Route path="/teacher-assignments" element={<TeacherAssignments />} />
           <Route path="/grade-management" element={<GradeManagement />} />
           <Route path="/co-po-analytics" element={<COPOAnalytics />} />
+          <Route path="/seed-users" element={<UserSeeder />} />
           <Route path="/audit-logs" element={<AuditLogs />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/settings" element={<Settings />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

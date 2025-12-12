@@ -1,150 +1,142 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { supabase } from '@/integrations/supabase/client';
+import { subjectsApi } from '@/lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Target, Loader2, BookOpen } from 'lucide-react';
+import { Target, Plus, Loader2, BookOpen, Pencil, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useSearchParams } from 'react-router-dom';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
-interface CourseOutcome {
-  id: string;
-  co_number: number;
-  description: string;
-  bloom_level: string;
-  subject_id: string;
-  created_at: string;
-  subjects?: {
-    name: string;
-    code: string;
-  };
-}
-
-interface Subject {
-  id: string;
-  name: string;
-  code: string;
-}
-
-const bloomLevels = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'];
-
-const bloomColors: Record<string, string> = {
-  Remember: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
-  Understand: 'bg-green-500/10 text-green-600 border-green-500/20',
-  Apply: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
-  Analyze: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
-  Evaluate: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
-  Create: 'bg-pink-500/10 text-pink-600 border-pink-500/20',
-};
+const BLOOM_LEVELS = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'];
 
 export default function CourseOutcomes() {
-  const [courseOutcomes, setCourseOutcomes] = useState<CourseOutcome[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSubject, setSelectedSubject] = useState<string>('all');
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const subjectFromUrl = searchParams.get('subject');
+  const [selectedSubject, setSelectedSubject] = useState<string>(subjectFromUrl || '');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newCO, setNewCO] = useState({
-    subject_id: '',
+  const [editingCO, setEditingCO] = useState<any>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; co: any | null }>({ open: false, co: null });
+  const [formData, setFormData] = useState({
     co_number: 1,
     description: '',
     bloom_level: 'Remember',
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      const [cosRes, subjectsRes] = await Promise.all([
-        supabase.from('course_outcomes').select('*, subjects(name, code)').order('subject_id').order('co_number'),
-        supabase.from('subjects').select('*').order('code'),
-      ]);
-
-      if (cosRes.error) throw cosRes.error;
-      if (subjectsRes.error) throw subjectsRes.error;
-
-      setCourseOutcomes(cosRes.data || []);
-      setSubjects(subjectsRes.data || []);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch course outcomes.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCreateCO = async () => {
-    if (!newCO.subject_id || !newCO.description) {
-      toast({
-        title: 'Validation Error',
-        description: 'Please fill in all required fields.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const { error } = await supabase.from('course_outcomes').insert({
-        subject_id: newCO.subject_id,
-        co_number: newCO.co_number,
-        description: newCO.description,
-        bloom_level: newCO.bloom_level,
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: 'Course Outcome created',
-        description: `CO${newCO.co_number} has been created successfully.`,
-      });
-
-      setIsDialogOpen(false);
-      setNewCO({ subject_id: '', co_number: 1, description: '', bloom_level: 'Remember' });
-      fetchData();
-    } catch (error: any) {
-      console.error('Error creating CO:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to create course outcome.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const filteredCOs = courseOutcomes.filter(co => {
-    const matchesSearch = co.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      co.subjects?.code.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSubject = selectedSubject === 'all' || co.subject_id === selectedSubject;
-    return matchesSearch && matchesSubject;
+  const { data: subjects = [] } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: () => subjectsApi.list(),
   });
 
-  // Group COs by subject
-  const groupedCOs = filteredCOs.reduce((acc, co) => {
-    const subjectCode = co.subjects?.code || 'Unknown';
-    if (!acc[subjectCode]) {
-      acc[subjectCode] = {
-        subjectName: co.subjects?.name || 'Unknown',
-        cos: [],
-      };
+  const { data: outcomes = [], isLoading } = useQuery({
+    queryKey: ['course-outcomes', selectedSubject],
+    queryFn: () => subjectsApi.getOutcomes(selectedSubject),
+    enabled: !!selectedSubject,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: { co_number: number; description: string; bloom_level: string }) =>
+      subjectsApi.createOutcome(selectedSubject, data),
+    onSuccess: () => {
+      toast({ title: 'Course outcome created' });
+      closeDialog();
+      queryClient.invalidateQueries({ queryKey: ['course-outcomes', selectedSubject] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error creating CO',
+        description: error.response?.data?.detail || 'Failed to create course outcome',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: { id: string; co_number: number; description: string; bloom_level: string }) =>
+      subjectsApi.updateOutcome(selectedSubject, data.id, {
+        co_number: data.co_number,
+        description: data.description,
+        bloom_level: data.bloom_level,
+      }),
+    onSuccess: () => {
+      toast({ title: 'Course outcome updated' });
+      closeDialog();
+      queryClient.invalidateQueries({ queryKey: ['course-outcomes', selectedSubject] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error updating CO',
+        description: error.response?.data?.detail || 'Failed to update course outcome',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (coId: string) => subjectsApi.deleteOutcome(selectedSubject, coId),
+    onSuccess: () => {
+      toast({ title: 'Course outcome deleted' });
+      setDeleteConfirm({ open: false, co: null });
+      queryClient.invalidateQueries({ queryKey: ['course-outcomes', selectedSubject] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error deleting CO',
+        description: error.response?.data?.detail || 'Failed to delete course outcome',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingCO(null);
+    setFormData({ co_number: outcomes.length + 1, description: '', bloom_level: 'Remember' });
+  };
+
+  const openEditDialog = (co: any) => {
+    setEditingCO(co);
+    setFormData({
+      co_number: co.co_number,
+      description: co.description,
+      bloom_level: co.bloom_level,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = () => {
+    if (!formData.description) {
+      toast({ title: 'Please enter a description', variant: 'destructive' });
+      return;
     }
-    acc[subjectCode].cos.push(co);
-    return acc;
-  }, {} as Record<string, { subjectName: string; cos: CourseOutcome[] }>);
+    if (editingCO) {
+      updateMutation.mutate({ id: editingCO.id, ...formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  const getBloomBadge = (level: string) => {
+    const colors: Record<string, string> = {
+      Remember: 'bg-blue-500',
+      Understand: 'bg-green-500',
+      Apply: 'bg-yellow-500',
+      Analyze: 'bg-orange-500',
+      Evaluate: 'bg-purple-500',
+      Create: 'bg-red-500',
+    };
+    return <Badge className={colors[level] || ''}>{level}</Badge>;
+  };
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
     <AuthenticatedLayout allowedRoles={['principal', 'hod', 'teacher']}>
@@ -152,60 +144,41 @@ export default function CourseOutcomes() {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Course Outcomes</h2>
-            <p className="text-muted-foreground">Manage course outcomes and Bloom's taxonomy mappings</p>
+            <p className="text-muted-foreground">Define and manage course outcomes for subjects</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => open ? setIsDialogOpen(true) : closeDialog()}>
             <DialogTrigger asChild>
-              <Button>
+              <Button disabled={!selectedSubject} onClick={() => setFormData({ co_number: outcomes.length + 1, description: '', bloom_level: 'Remember' })}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add CO
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Create Course Outcome</DialogTitle>
+                <DialogTitle>{editingCO ? 'Edit Course Outcome' : 'Add Course Outcome'}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>Subject</Label>
-                  <Select
-                    value={newCO.subject_id}
-                    onValueChange={(value) => setNewCO({ ...newCO, subject_id: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select subject" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subjects.map((subject) => (
-                        <SelectItem key={subject.id} value={subject.id}>
-                          {subject.code} - {subject.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>CO Number</Label>
                     <Input
                       type="number"
-                      value={newCO.co_number}
-                      onChange={(e) => setNewCO({ ...newCO, co_number: parseInt(e.target.value) || 1 })}
+                      value={formData.co_number}
+                      onChange={(e) => setFormData({ ...formData, co_number: parseInt(e.target.value) || 1 })}
                       min={1}
-                      max={10}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Bloom's Level</Label>
+                    <Label>Bloom Level</Label>
                     <Select
-                      value={newCO.bloom_level}
-                      onValueChange={(value) => setNewCO({ ...newCO, bloom_level: value })}
+                      value={formData.bloom_level}
+                      onValueChange={(v) => setFormData({ ...formData, bloom_level: v })}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {bloomLevels.map((level) => (
+                        {BLOOM_LEVELS.map((level) => (
                           <SelectItem key={level} value={level}>
                             {level}
                           </SelectItem>
@@ -216,107 +189,116 @@ export default function CourseOutcomes() {
                 </div>
                 <div className="space-y-2">
                   <Label>Description</Label>
-                  <Textarea
-                    value={newCO.description}
-                    onChange={(e) => setNewCO({ ...newCO, description: e.target.value })}
-                    placeholder="Describe what the student should be able to do..."
-                    rows={3}
+                  <Input
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Students will be able to..."
                   />
                 </div>
-                <Button className="w-full" onClick={handleCreateCO} disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    'Create Course Outcome'
-                  )}
+                <Button className="w-full" onClick={handleSubmit} disabled={isPending}>
+                  {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  {editingCO ? 'Update Course Outcome' : 'Add Course Outcome'}
                 </Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search course outcomes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filter by subject" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Subjects</SelectItem>
-              {subjects.map((subject) => (
-                <SelectItem key={subject.id} value={subject.id}>
-                  {subject.code}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Subject Selector */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <Label>Subject:</Label>
+              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                <SelectTrigger className="w-96">
+                  <SelectValue placeholder="Select a subject" />
+                </SelectTrigger>
+                <SelectContent>
+                  {subjects.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.code} - {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : Object.keys(groupedCOs).length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Target className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">No course outcomes yet</h3>
-              <p className="text-muted-foreground mb-4">Create course outcomes to define learning objectives.</p>
-              <Button onClick={() => setIsDialogOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Course Outcome
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-6">
-            {Object.entries(groupedCOs).map(([subjectCode, { subjectName, cos }]) => (
-              <Card key={subjectCode}>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 flex items-center justify-center">
-                      <BookOpen className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{subjectName}</CardTitle>
-                      <p className="text-sm text-muted-foreground">{subjectCode}</p>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {cos.map((co) => (
-                      <div
-                        key={co.id}
-                        className="flex items-start gap-4 p-3 border border-border bg-background"
-                      >
-                        <Badge variant="outline" className="shrink-0">
-                          CO{co.co_number}
-                        </Badge>
-                        <p className="text-sm text-foreground flex-1">{co.description}</p>
-                        <Badge className={bloomColors[co.bloom_level] || ''}>
-                          {co.bloom_level}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        {/* Course Outcomes Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Target className="w-4 h-4" />
+              Course Outcomes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!selectedSubject ? (
+              <div className="py-12 text-center text-muted-foreground">
+                <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>Select a subject to view course outcomes</p>
+              </div>
+            ) : isLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : outcomes.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground">
+                <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No course outcomes defined for this subject</p>
+                <Button className="mt-4" onClick={() => { setFormData({ co_number: 1, description: '', bloom_level: 'Remember' }); setIsDialogOpen(true); }}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add First CO
+                </Button>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>CO #</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Bloom Level</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {outcomes.map((co: any) => (
+                    <TableRow key={co.id}>
+                      <TableCell className="font-medium">CO{co.co_number}</TableCell>
+                      <TableCell>{co.description}</TableCell>
+                      <TableCell>{getBloomBadge(co.bloom_level)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="sm" onClick={() => openEditDialog(co)}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteConfirm({ open: true, co })}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      <ConfirmDialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => setDeleteConfirm({ open, co: deleteConfirm.co })}
+        title="Delete Course Outcome"
+        description={`Are you sure you want to delete CO${deleteConfirm.co?.co_number}? This action cannot be undone.`}
+        onConfirm={() => deleteConfirm.co && deleteMutation.mutate(deleteConfirm.co.id)}
+        isLoading={deleteMutation.isPending}
+      />
     </AuthenticatedLayout>
   );
 }

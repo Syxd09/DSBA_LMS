@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { supabase } from '@/integrations/supabase/client';
+import { examsApi, subjectsApi, cohortsApi } from '@/lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Plus, ClipboardList, Loader2, FileEdit, Eye, CheckCircle } from 'lucide-react';
@@ -22,36 +24,14 @@ interface Exam {
   created_at: string;
   subject_id: string;
   cohort_id: string;
-  teacher_id: string | null;
-  subjects?: {
-    name: string;
-    code: string;
-  };
-  cohorts?: {
-    name: string;
-    year: number;
-  };
-}
-
-interface Subject {
-  id: string;
-  name: string;
-  code: string;
-}
-
-interface Cohort {
-  id: string;
-  name: string;
-  year: number;
+  subject?: { name: string; code: string };
+  cohort?: { name: string; year: number };
 }
 
 export default function Exams() {
-  const { user, role } = useAuth();
+  const { profile, role } = useAuth();
   const navigate = useNavigate();
-  const [exams, setExams] = useState<Exam[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [cohorts, setCohorts] = useState<Cohort[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newExam, setNewExam] = useState({
@@ -60,118 +40,104 @@ export default function Exams() {
     exam_type: 'internal1',
     max_marks: 30,
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, [user]);
+  const { data: exams = [], isLoading: examsLoading } = useQuery({
+    queryKey: ['exams'],
+    queryFn: () => examsApi.list(),
+  });
 
-  const fetchData = async () => {
-    try {
-      let examsQuery = supabase
-        .from('exams')
-        .select('*, subjects(name, code), cohorts(name, year)')
-        .order('created_at', { ascending: false });
+  const { data: subjects = [] } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: () => subjectsApi.list(),
+  });
 
-      // Teachers only see their own exams
-      if (role === 'teacher' && user) {
-        examsQuery = examsQuery.eq('teacher_id', user.id);
-      }
+  const { data: cohorts = [] } = useQuery({
+    queryKey: ['cohorts'],
+    queryFn: () => cohortsApi.list(),
+  });
 
-      const [examsRes, subjectsRes, cohortsRes] = await Promise.all([
-        examsQuery,
-        supabase.from('subjects').select('*').order('code'),
-        supabase.from('cohorts').select('*').order('year', { ascending: false }),
-      ]);
-
-      if (examsRes.error) throw examsRes.error;
-      if (subjectsRes.error) throw subjectsRes.error;
-      if (cohortsRes.error) throw cohortsRes.error;
-
-      setExams(examsRes.data || []);
-      setSubjects(subjectsRes.data || []);
-      setCohorts(cohortsRes.data || []);
-    } catch (error) {
-      console.error('Error fetching data:', error);
+  const createMutation = useMutation({
+    mutationFn: (data: { subject_id: string; cohort_id: string; exam_type: string; max_marks: number }) =>
+      examsApi.create(data),
+    onSuccess: () => {
+      toast({ title: 'Exam created successfully' });
+      setIsDialogOpen(false);
+      setNewExam({ subject_id: '', cohort_id: '', exam_type: 'internal1', max_marks: 30 });
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error: any) => {
       toast({
-        title: 'Error',
-        description: 'Failed to fetch exams.',
+        title: 'Error creating exam',
+        description: error.response?.data?.detail || 'Failed to create exam',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+  });
 
-  const handleCreateExam = async () => {
+  const publishMutation = useMutation({
+    mutationFn: (examId: string) => examsApi.publish(examId),
+    onSuccess: () => {
+      toast({ title: 'Exam published successfully' });
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error publishing exam',
+        description: error.response?.data?.detail || 'Failed to publish exam',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleCreateExam = () => {
     if (!newExam.subject_id || !newExam.cohort_id) {
       toast({
         title: 'Validation Error',
-        description: 'Please fill in all required fields.',
+        description: 'Please select a subject and cohort.',
         variant: 'destructive',
       });
       return;
     }
-
-    setIsSubmitting(true);
-    try {
-      const { error } = await supabase.from('exams').insert({
-        subject_id: newExam.subject_id,
-        cohort_id: newExam.cohort_id,
-        exam_type: newExam.exam_type,
-        max_marks: newExam.max_marks,
-        teacher_id: user?.id,
-        status: 'draft',
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: 'Exam created',
-        description: 'Exam has been created successfully.',
-      });
-
-      setIsDialogOpen(false);
-      setNewExam({ subject_id: '', cohort_id: '', exam_type: 'internal1', max_marks: 30 });
-      fetchData();
-    } catch (error: any) {
-      console.error('Error creating exam:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to create exam.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    createMutation.mutate(newExam);
   };
+
+  const filteredExams = exams.filter((exam: Exam) =>
+    exam.subject?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    exam.subject?.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    exam.exam_type.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'draft':
-        return <Badge variant="outline">Draft</Badge>;
       case 'published':
-        return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Published</Badge>;
+        return <Badge className="bg-green-500">Published</Badge>;
       case 'locked':
-        return <Badge variant="secondary">Locked</Badge>;
+        return <Badge className="bg-blue-500">Locked</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline">Draft</Badge>;
     }
   };
 
-  const filteredExams = exams.filter(exam =>
-    exam.subjects?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    exam.subjects?.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    exam.cohorts?.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const getExamTypeBadge = (type: string) => {
+    switch (type) {
+      case 'internal1':
+        return <Badge variant="outline">Internal 1</Badge>;
+      case 'internal2':
+        return <Badge variant="outline">Internal 2</Badge>;
+      case 'external':
+        return <Badge>External</Badge>;
+      default:
+        return <Badge variant="outline">{type}</Badge>;
+    }
+  };
 
   return (
-    <AuthenticatedLayout allowedRoles={['teacher', 'hod', 'principal']}>
+    <AuthenticatedLayout allowedRoles={['principal', 'hod', 'teacher']}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Exams</h2>
-            <p className="text-muted-foreground">Manage exams and evaluations</p>
+            <p className="text-muted-foreground">Create and manage examinations</p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -195,7 +161,7 @@ export default function Exams() {
                       <SelectValue placeholder="Select subject" />
                     </SelectTrigger>
                     <SelectContent>
-                      {subjects.map((subject) => (
+                      {subjects.map((subject: any) => (
                         <SelectItem key={subject.id} value={subject.id}>
                           {subject.code} - {subject.name}
                         </SelectItem>
@@ -213,7 +179,7 @@ export default function Exams() {
                       <SelectValue placeholder="Select cohort" />
                     </SelectTrigger>
                     <SelectContent>
-                      {cohorts.map((cohort) => (
+                      {cohorts.map((cohort: any) => (
                         <SelectItem key={cohort.id} value={cohort.id}>
                           {cohort.name}
                         </SelectItem>
@@ -234,6 +200,7 @@ export default function Exams() {
                       <SelectContent>
                         <SelectItem value="internal1">Internal 1</SelectItem>
                         <SelectItem value="internal2">Internal 2</SelectItem>
+                        <SelectItem value="external">External</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -243,13 +210,11 @@ export default function Exams() {
                       type="number"
                       value={newExam.max_marks}
                       onChange={(e) => setNewExam({ ...newExam, max_marks: parseInt(e.target.value) || 30 })}
-                      min={10}
-                      max={100}
                     />
                   </div>
                 </div>
-                <Button className="w-full" onClick={handleCreateExam} disabled={isSubmitting}>
-                  {isSubmitting ? (
+                <Button className="w-full" onClick={handleCreateExam} disabled={createMutation.isPending}>
+                  {createMutation.isPending ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Creating...
@@ -263,79 +228,86 @@ export default function Exams() {
           </Dialog>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search exams..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
+        {/* Search */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search exams..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="border border-border bg-card">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : filteredExams.length === 0 ? (
-            <div className="py-12 text-center">
-              <ClipboardList className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">No exams found</h3>
-              <p className="text-muted-foreground">Create your first exam to get started.</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Cohort</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Max Marks</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredExams.map((exam) => (
-                  <TableRow key={exam.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{exam.subjects?.name || '—'}</p>
-                        <p className="text-sm text-muted-foreground">{exam.subjects?.code}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>{exam.cohorts?.name || '—'}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {exam.exam_type.replace('internal', 'Internal ')}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{exam.max_marks}</TableCell>
-                    <TableCell>{getStatusBadge(exam.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {exam.status === 'draft' ? (
-                          <Button variant="ghost" size="sm" onClick={() => navigate(`/marks-entry?exam=${exam.id}`)}>
-                            <FileEdit className="w-4 h-4 mr-1" />
-                            Edit
-                          </Button>
-                        ) : (
-                          <Button variant="ghost" size="sm">
-                            <Eye className="w-4 h-4 mr-1" />
-                            View
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
+        {/* Exams Table */}
+        <Card>
+          <CardContent className="p-0">
+            {examsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredExams.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground">
+                <ClipboardList className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No exams found</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Cohort</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Max Marks</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
+                </TableHeader>
+                <TableBody>
+                  {filteredExams.map((exam: Exam) => (
+                    <TableRow key={exam.id}>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{exam.subject?.name || 'N/A'}</p>
+                          <p className="text-xs text-muted-foreground">{exam.subject?.code}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>{exam.cohort?.name || 'N/A'}</TableCell>
+                      <TableCell>{getExamTypeBadge(exam.exam_type)}</TableCell>
+                      <TableCell>{exam.max_marks}</TableCell>
+                      <TableCell>{getStatusBadge(exam.status)}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/marks-entry?exam=${exam.id}`)}
+                          >
+                            <FileEdit className="w-4 h-4" />
+                          </Button>
+                          {exam.status === 'draft' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => publishMutation.mutate(exam.id)}
+                              disabled={publishMutation.isPending}
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AuthenticatedLayout>
   );

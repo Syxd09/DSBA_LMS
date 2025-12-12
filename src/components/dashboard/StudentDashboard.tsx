@@ -1,144 +1,113 @@
 import { StatsCard } from './StatsCard';
-import { BloomTaxonomyChart } from './BloomTaxonomyChart';
-import { StudentResultCard } from '@/components/student/StudentResultCard';
-import { mockBloomPerformance, bloomDistributionData } from '@/lib/mock-data';
-import { Award, TrendingUp, BookOpen, Target, Brain, Lightbulb } from 'lucide-react';
+import { GraduationCap, BookOpen, TrendingUp, Award, Brain, Target } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
-
-const radarData = [
-  { subject: 'Remember', A: 85, fullMark: 100 },
-  { subject: 'Understand', A: 78, fullMark: 100 },
-  { subject: 'Apply', A: 72, fullMark: 100 },
-  { subject: 'Analyze', A: 65, fullMark: 100 },
-  { subject: 'Evaluate', A: 58, fullMark: 100 },
-  { subject: 'Create', A: 52, fullMark: 100 },
-];
+import { dashboardApi } from '@/lib/api';
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
 export function StudentDashboard() {
-  const { user, profile } = useAuth();
-
-  const { data: enrollment } = useQuery({
-    queryKey: ['student-enrollment', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      const { data, error } = await supabase.from('student_enrollments').select(`
-        *,
-        cohorts(name, current_semester, programs(name, code))
-      `).eq('student_id', user.id).single();
-      if (error && error.code !== 'PGRST116') throw error;
-      return data;
-    },
-    enabled: !!user?.id
+  const { data: dashboardData, isLoading } = useQuery({
+    queryKey: ['student-dashboard'],
+    queryFn: () => dashboardApi.getStudentDashboard(),
   });
 
-  const { data: finalMarks = [] } = useQuery({
-    queryKey: ['student-final-marks', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase.from('final_marks').select(`
-        *,
-        subjects(name, code)
-      `).eq('student_id', user.id);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user?.id
-  });
+  const overallAverage = dashboardData?.overall_average || 0;
+  const sgpa = dashboardData?.sgpa || 0;
+  const cgpa = dashboardData?.cgpa || 0;
+  const subjectsEnrolled = dashboardData?.subjects_enrolled || 0;
+  const results = dashboardData?.results || [];
+  const bloomPerformance = dashboardData?.bloom_performance || [];
 
-  const { data: semesterResults = [] } = useQuery({
-    queryKey: ['student-semester-results', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase.from('semester_results').select('*').eq('student_id', user.id);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user?.id
-  });
+  // Prepare radar chart data from real bloom performance
+  const radarData = bloomPerformance.length > 0
+    ? bloomPerformance.map((b: any) => ({
+        subject: b.level,
+        A: b.percentage,
+        fullMark: 100,
+      }))
+    : [];
 
-  const overallAverage = finalMarks.length > 0 
-    ? Math.round(finalMarks.reduce((acc, m) => acc + (Number(m.percentage) || 0), 0) / finalMarks.length)
-    : 0;
-
-  const latestSemResult = semesterResults.sort((a, b) => b.semester - a.semester)[0];
-  const sgpa = latestSemResult?.sgpa || 0;
-  const cgpa = latestSemResult?.cgpa || 0;
-
-  const cohortName = enrollment?.cohorts?.name || '';
-  const programName = (enrollment?.cohorts as any)?.programs?.name || '';
-  const semester = enrollment?.cohorts?.current_semester || 1;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">My Performance</h2>
-        <p className="text-muted-foreground">
-          {profile?.full_name || 'Student'} • {enrollment?.roll_number || 'N/A'} • {programName} Semester {semester}
-        </p>
+        <h2 className="text-2xl font-bold text-foreground">Student Dashboard</h2>
+        <p className="text-muted-foreground">Track your academic performance and progress</p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
           title="Overall Average"
-          value={`${overallAverage}%`}
-          subtitle="Current semester"
-          icon={Award}
-          trend={{ value: 8, isPositive: true }}
+          value={`${overallAverage.toFixed(1)}%`}
+          subtitle="Across all subjects"
+          icon={TrendingUp}
           variant="primary"
         />
         <StatsCard
-          title="SGPA"
+          title="Current SGPA"
           value={sgpa.toFixed(2)}
           subtitle="This semester"
-          icon={TrendingUp}
+          icon={Award}
         />
         <StatsCard
           title="CGPA"
           value={cgpa.toFixed(2)}
           subtitle="Cumulative"
-          icon={Award}
+          icon={GraduationCap}
+          variant="success"
         />
         <StatsCard
           title="Subjects Enrolled"
-          value={finalMarks.length.toString()}
-          subtitle="This semester"
+          value={subjectsEnrolled.toString()}
+          subtitle="Current semester"
           icon={BookOpen}
         />
       </div>
 
-      {/* Result Cards */}
-      {finalMarks.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {finalMarks.slice(0, 6).map((mark: any) => (
-            <StudentResultCard
-              key={mark.id}
-              subject={mark.subjects?.name || 'Subject'}
-              examType={mark.exam_id ? 'Internal' : 'Overall'}
-              totalMarks={Number(mark.total_marks) || 0}
-              maxMarks={100}
-              rank={0}
-              totalStudents={60}
-              classAverage={70}
-              coScores={[]}
-            />
-          ))}
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            No results available yet. Check back after your exams are evaluated.
-          </CardContent>
-        </Card>
-      )}
+      {/* Results Grid */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-semibold">Subject Results</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {results.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {results.map((result: any, index: number) => (
+                <div key={index} className="p-4 border rounded-lg bg-secondary/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-medium">{result.subject_name}</p>
+                    <Badge variant={result.grade && result.grade !== 'F' ? 'default' : 'destructive'}>
+                      {result.grade || 'Pending'}
+                    </Badge>
+                  </div>
+                  <div className="text-sm text-muted-foreground mb-2">
+                    Marks: {result.total_marks}/{result.max_marks}
+                  </div>
+                  <Progress value={(result.total_marks / result.max_marks) * 100} className="h-2" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center py-8 text-muted-foreground">
+              No exam results available yet. Results will appear after exams are graded.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
-      {/* Bloom Performance */}
+      {/* Learning Analysis */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Bloom's Taxonomy Performance */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -147,76 +116,90 @@ export function StudentDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart data={radarData}>
-                  <PolarGrid stroke="hsl(var(--border))" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-                  <Radar name="Performance" dataKey="A" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.3} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
+            {radarData.length > 0 ? (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart data={radarData}>
+                    <PolarGrid stroke="hsl(var(--border))" />
+                    <PolarAngleAxis dataKey="subject" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
+                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
+                    <Radar name="Performance" dataKey="A" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.5} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="text-center py-8 text-muted-foreground">
+                Bloom's taxonomy analysis will appear after exams are completed.
+              </p>
+            )}
           </CardContent>
         </Card>
 
+        {/* CO Attainment */}
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-semibold flex items-center gap-2">
               <Target className="w-4 h-4" />
-              Cognitive Level Breakdown
+              Course Outcome Attainment
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {mockBloomPerformance.map((bloom) => (
-              <div key={bloom.level} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{bloom.level}</span>
-                  <span className="font-medium">{bloom.percentage}%</span>
-                </div>
-                <Progress value={bloom.percentage} className="h-2" />
-                <p className="text-xs text-muted-foreground">
-                  {bloom.questionsAttempted} of {bloom.totalQuestions} questions
-                </p>
+          <CardContent>
+            {results.length > 0 ? (
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={results.slice(0, 6).map((r: any, i: number) => ({
+                    name: r.subject_code || `S${i + 1}`,
+                    score: ((r.total_marks / r.max_marks) * 100) || 0,
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} domain={[0, 100]} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                      }}
+                    />
+                    <Bar dataKey="score" fill="hsl(var(--primary))" name="Score %" />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            ))}
+            ) : (
+              <p className="text-center py-8 text-muted-foreground">
+                Performance chart will appear after exams are completed.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* AI Recommendations */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Lightbulb className="w-4 h-4 text-yellow-500" />
-            Personalized Recommendations
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="p-4 bg-secondary/30 border border-border">
-              <p className="font-medium text-sm mb-1">Focus on Higher-Order Thinking</p>
-              <p className="text-sm text-muted-foreground">
-                Practice more case-study based problems to improve your analytical skills.
-              </p>
-            </div>
-            <div className="p-4 bg-secondary/30 border border-border">
-              <p className="font-medium text-sm mb-1">Review Course Outcomes</p>
-              <p className="text-sm text-muted-foreground">
-                Check your CO attainment in each subject to identify areas for improvement.
-              </p>
-            </div>
-            {overallAverage >= 70 && (
-              <div className="p-4 bg-green-500/10 border border-green-500/20">
-                <p className="font-medium text-sm mb-1 text-green-700">Great Progress!</p>
+      {/* Recommendations */}
+      {bloomPerformance.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold">Learning Recommendations</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {bloomPerformance
+                .filter((b: any) => b.percentage < 70)
+                .map((b: any, index: number) => (
+                  <div key={index} className="flex items-center gap-3 p-3 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full" />
+                    <span className="text-sm">
+                      Focus on improving <strong>{b.level}</strong> skills (currently at {b.percentage}%)
+                    </span>
+                  </div>
+                ))}
+              {bloomPerformance.filter((b: any) => b.percentage < 70).length === 0 && (
                 <p className="text-sm text-muted-foreground">
-                  You're performing well. Keep up the consistent effort!
+                  Great job! Your performance across all Bloom's taxonomy levels is above 70%.
                 </p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

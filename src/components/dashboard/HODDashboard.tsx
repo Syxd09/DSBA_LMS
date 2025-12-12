@@ -1,85 +1,56 @@
 import { StatsCard } from './StatsCard';
 import { COAttainmentChart } from './COAttainmentChart';
 import { BloomTaxonomyChart } from './BloomTaxonomyChart';
-import { mockCOAttainment, bloomDistributionData } from '@/lib/mock-data';
-import { Users, BookOpen, AlertTriangle, TrendingUp, CheckCircle } from 'lucide-react';
+import { Users, GraduationCap, TrendingUp, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { dashboardApi } from '@/lib/api';
 
 export function HODDashboard() {
-  const { user } = useAuth();
-
-  const { data: subjects = [] } = useQuery({
-    queryKey: ['hod-subjects'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('subjects').select('*');
-      if (error) throw error;
-      return data;
-    }
+  const { data: dashboardData, isLoading } = useQuery({
+    queryKey: ['hod-dashboard'],
+    queryFn: () => dashboardApi.getHODDashboard(),
   });
 
-  const { data: teacherAssignments = [] } = useQuery({
-    queryKey: ['hod-teacher-assignments'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('teacher_assignments').select(`
-        *,
-        subjects(name, code),
-        cohorts(name),
-        profiles:teacher_id(full_name)
-      `);
-      if (error) throw error;
-      return data;
-    }
-  });
+  const deptStudents = dashboardData?.department_students || 0;
+  const deptTeachers = dashboardData?.department_teachers || 0;
+  const passRate = dashboardData?.pass_rate || 0;
+  const atRiskCount = dashboardData?.at_risk_students || 0;
+  const subjectPerformance = dashboardData?.subject_performance || [];
+  const coAttainment = dashboardData?.co_attainment || [];
+  const bloomData = dashboardData?.bloom_distribution || [];
 
-  const { data: studentEnrollments = [] } = useQuery({
-    queryKey: ['hod-enrollments'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('student_enrollments').select('*');
-      if (error) throw error;
-      return data;
-    }
-  });
-
-  const { data: userRoles = [] } = useQuery({
-    queryKey: ['hod-user-roles'],
-    queryFn: async () => {
-      const { data, error } = await supabase.from('user_roles').select('*').eq('role', 'teacher');
-      if (error) throw error;
-      return data;
-    }
-  });
-
-  const studentCount = studentEnrollments.length;
-  const teacherCount = userRoles.length;
-  const atRiskCount = Math.floor(studentCount * 0.08);
-  const passRate = 87;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-foreground">Department Dashboard</h2>
-        <p className="text-muted-foreground">Department Overview</p>
+        <h2 className="text-2xl font-bold text-foreground">HOD Dashboard</h2>
+        <p className="text-muted-foreground">Department overview and academic performance</p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
           title="Department Students"
-          value={studentCount.toString()}
-          subtitle="Active enrollment"
-          icon={Users}
+          value={deptStudents.toLocaleString()}
+          subtitle="Active enrollments"
+          icon={GraduationCap}
           variant="primary"
         />
         <StatsCard
-          title="Faculty Members"
-          value={teacherCount.toString()}
-          subtitle="Teaching this semester"
+          title="Department Faculty"
+          value={deptTeachers.toString()}
+          subtitle="Teaching staff"
           icon={Users}
         />
         <StatsCard
@@ -87,101 +58,95 @@ export function HODDashboard() {
           value={`${passRate}%`}
           subtitle="Current semester"
           icon={TrendingUp}
-          trend={{ value: 3.2, isPositive: true }}
           variant="success"
         />
         <StatsCard
           title="At-Risk Students"
           value={atRiskCount.toString()}
-          subtitle="Need intervention"
+          subtitle="Need attention"
           icon={AlertTriangle}
-          variant="warning"
+          variant="danger"
         />
       </div>
 
-      {/* Charts */}
+      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <COAttainmentChart data={mockCOAttainment} />
-        <BloomTaxonomyChart data={bloomDistributionData} />
+        <COAttainmentChart data={coAttainment.length > 0 ? coAttainment.map((co: any) => ({
+          co: `CO${co.co_number || co.co}`,
+          attainment: co.attainment || 0,
+          target: co.target || 70,
+        })) : []} />
+        <BloomTaxonomyChart data={bloomData} />
       </div>
 
-      {/* Subject Performance */}
+      {/* Subject Performance Table */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base font-semibold">Subject Performance</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Subject</TableHead>
-                <TableHead>Code</TableHead>
-                <TableHead>Credits</TableHead>
-                <TableHead>Pass Rate</TableHead>
-                <TableHead>Avg Score</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {subjects.slice(0, 5).map((subject) => {
-                const passRate = 70 + Math.random() * 25;
-                const avgScore = 55 + Math.random() * 25;
-                return (
-                  <TableRow key={subject.id}>
-                    <TableCell className="font-medium">{subject.name}</TableCell>
-                    <TableCell className="font-mono text-sm">{subject.code}</TableCell>
-                    <TableCell>{subject.credits}</TableCell>
+          {subjectPerformance.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Average</TableHead>
+                  <TableHead>Pass Rate</TableHead>
+                  <TableHead>Students</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {subjectPerformance.map((subject: any) => (
+                  <TableRow key={subject.subject_code || subject.subject_id}>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Progress value={passRate} className="w-16 h-2" />
-                        <span className="text-sm">{passRate.toFixed(0)}%</span>
+                      <div>
+                        <p className="font-medium">{subject.subject_name}</p>
+                        <p className="text-xs text-muted-foreground">{subject.subject_code}</p>
                       </div>
                     </TableCell>
-                    <TableCell>{avgScore.toFixed(1)}</TableCell>
                     <TableCell>
-                      <Badge variant={passRate >= 80 ? 'default' : passRate >= 70 ? 'secondary' : 'destructive'}>
-                        {passRate >= 80 ? 'Excellent' : passRate >= 70 ? 'Good' : 'Review'}
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{subject.average?.toFixed(1)}%</span>
+                        <Progress value={subject.average} className="w-16 h-2" />
+                      </div>
+                    </TableCell>
+                    <TableCell>{subject.pass_rate?.toFixed(1)}%</TableCell>
+                    <TableCell>{subject.total_students}</TableCell>
+                    <TableCell>
+                      <Badge variant={subject.pass_rate >= 70 ? 'default' : 'destructive'}>
+                        {subject.pass_rate >= 70 ? 'On Track' : 'Needs Attention'}
                       </Badge>
                     </TableCell>
                   </TableRow>
-                );
-              })}
-              {subjects.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    No subjects found. Add subjects to see performance data.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="text-center py-8 text-muted-foreground">
+              No subject performance data available yet. Data will appear after exams are graded.
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {/* At-Risk Students */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-destructive" />
-            At-Risk Students
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {atRiskCount === 0 ? (
-              <div className="flex items-center gap-2 p-4 bg-green-500/5 border border-green-500/20">
-                <CheckCircle className="w-5 h-5 text-green-500" />
-                <span className="text-sm">No students at immediate risk based on current internal scores</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 p-4 bg-destructive/5 border border-destructive/20">
-                <AlertTriangle className="w-5 h-5 text-destructive" />
-                <span className="text-sm">{atRiskCount} students identified as at-risk. Review their performance in the Analytics section.</span>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* At-Risk Alert */}
+      {atRiskCount > 0 && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold flex items-center gap-2 text-destructive">
+              <AlertTriangle className="w-4 h-4" />
+              At-Risk Students Alert
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-2">
+              {atRiskCount} students in your department have been identified as at-risk based on their current performance.
+            </p>
+            <Badge variant="destructive">Immediate Action Required</Badge>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
