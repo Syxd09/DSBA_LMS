@@ -4,7 +4,7 @@ Student enrollment management endpoints
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from uuid import UUID
 import uuid as uuid_lib
 
@@ -24,7 +24,10 @@ async def list_enrollments(
     student_id: UUID = None
 ):
     """List student enrollments."""
-    query = db.query(StudentEnrollment)
+    query = db.query(StudentEnrollment).options(
+        joinedload(StudentEnrollment.student),
+        joinedload(StudentEnrollment.cohort)
+    )
     if cohort_id:
         query = query.filter(StudentEnrollment.cohort_id == cohort_id)
     if student_id:

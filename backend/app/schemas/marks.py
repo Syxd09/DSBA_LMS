@@ -7,6 +7,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from uuid import UUID
 from decimal import Decimal
+from app.schemas.user import ProfileResponse
 
 
 # Student marks schemas
@@ -77,6 +78,7 @@ class FinalMarksResponse(FinalMarksBase):
     grade: Optional[str] = None
     grade_point: Optional[float] = None
     created_at: datetime
+    student: Optional[ProfileResponse] = None
     
     class Config:
         from_attributes = True

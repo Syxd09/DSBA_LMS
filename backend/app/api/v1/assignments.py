@@ -4,7 +4,7 @@ Teacher assignment management endpoints
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from uuid import UUID
 import uuid as uuid_lib
 
@@ -26,7 +26,11 @@ async def list_assignments(
     cohort_id: UUID = None
 ):
     """List teacher assignments."""
-    query = db.query(TeacherAssignment)
+    query = db.query(TeacherAssignment).options(
+        joinedload(TeacherAssignment.teacher),
+        joinedload(TeacherAssignment.subject),
+        joinedload(TeacherAssignment.cohort)
+    )
     
     # Teachers can only see their own assignments
     if role == "teacher":

@@ -6,6 +6,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 from uuid import UUID
 from decimal import Decimal
 
@@ -13,17 +14,18 @@ from app.database import get_db
 from app.api.deps import require_teacher_or_above, require_hod_or_above
 from app.models import (
     Profile, Exam, StudentMarks, SubQuestion, Question, ExamSection,
-    CourseOutcome, Subject, StudentEnrollment, Cohort, Department, Program
+    CourseOutcome, Subject, StudentEnrollment, Cohort, Department, Program,
+    COPOMapping, ProgramOutcome
 )
 from app.schemas import (
     COAttainmentData, BloomDistribution, SubjectPerformance, 
-    DepartmentStats, AtRiskStudent
+    DepartmentStats, AtRiskStudent, COAttainmentResponse, POContribution
 )
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 
-@router.get("/co-attainment/{subject_id}", response_model=List[COAttainmentData])
+@router.get("/co-attainment/{subject_id}", response_model=COAttainmentResponse)
 async def get_co_attainment(
     subject_id: UUID,
     db: Session = Depends(get_db),
@@ -76,7 +78,39 @@ async def get_co_attainment(
             achieved=attainment >= target
         ))
     
-    return results
+    # Calculate PO Contribution
+    po_stats = {}  # po_id -> {num, den, po}
+    co_attainment_map = {r.co_number: r.attainment for r in results}
+    
+    for co in cos:
+        attainment = co_attainment_map.get(co.co_number, 0)
+        # Fetch mappings
+        mappings = db.query(COPOMapping).filter(COPOMapping.co_id == co.id).options(joinedload(COPOMapping.program_outcome)).all()
+        
+        for mapping in mappings:
+            po = mapping.program_outcome
+            if not po:
+                continue
+                
+            if po.id not in po_stats:
+                po_stats[po.id] = {"num": 0.0, "den": 0.0, "po": po}
+            
+            # Correlation 1, 2, 3
+            weight = float(mapping.correlation_level)
+            po_stats[po.id]["num"] += float(attainment) * weight
+            po_stats[po.id]["den"] += weight
+            
+    po_contribution = []
+    for stats in po_stats.values():
+        val = stats["num"] / stats["den"] if stats["den"] > 0 else 0
+        po = stats["po"]
+        po_contribution.append(POContribution(
+            po_number=po.po_number,
+            description=po.description,
+            contribution=round(val, 1)
+        ))
+
+    return COAttainmentResponse(outcomes=results, po_contribution=po_contribution)
 
 
 @router.get("/bloom/{exam_id}", response_model=List[BloomDistribution])

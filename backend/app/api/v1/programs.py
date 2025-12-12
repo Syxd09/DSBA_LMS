@@ -4,7 +4,7 @@ Program management endpoints
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from uuid import UUID
 import uuid as uuid_lib
 
@@ -23,7 +23,7 @@ async def list_programs(
     department_id: UUID = None
 ):
     """List all programs."""
-    query = db.query(Program)
+    query = db.query(Program).options(joinedload(Program.department))
     if department_id:
         query = query.filter(Program.department_id == department_id)
     programs = query.order_by(Program.name).all()

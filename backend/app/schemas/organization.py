@@ -94,6 +94,8 @@ class CohortResponse(CohortBase):
     id: UUID
     created_at: datetime
     program: Optional[ProgramResponse] = None
+    student_count: int = 0
+    exam_count: int = 0
     
     class Config:
         from_attributes = True

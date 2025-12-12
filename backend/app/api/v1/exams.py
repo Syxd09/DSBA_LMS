@@ -4,7 +4,7 @@ Exam management endpoints
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from uuid import UUID
 import uuid as uuid_lib
 from datetime import datetime
@@ -30,7 +30,10 @@ async def list_exams(
     status_filter: Optional[str] = None
 ):
     """List exams (filtered by role)."""
-    query = db.query(Exam)
+    query = db.query(Exam).options(
+        joinedload(Exam.subject),
+        joinedload(Exam.cohort)
+    )
     
     # Filter by teacher's own exams if teacher
     if role == "teacher":

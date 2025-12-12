@@ -6,6 +6,8 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel
 from uuid import UUID
+from app.schemas.user import ProfileResponse
+from app.schemas.organization import CohortResponse
 
 
 # Subject schemas
@@ -86,6 +88,8 @@ class StudentEnrollmentResponse(StudentEnrollmentBase):
     """Student enrollment response schema."""
     id: UUID
     created_at: datetime
+    student: Optional[ProfileResponse] = None
+    cohort: Optional[CohortResponse] = None
     
     class Config:
         from_attributes = True
@@ -110,6 +114,8 @@ class TeacherAssignmentResponse(TeacherAssignmentBase):
     id: UUID
     created_at: datetime
     subject: Optional[SubjectResponse] = None
+    teacher: Optional[ProfileResponse] = None
+    cohort: Optional[CohortResponse] = None
     
     class Config:
         from_attributes = True

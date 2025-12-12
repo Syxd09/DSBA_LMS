@@ -17,6 +17,19 @@ class COAttainmentData(BaseModel):
     achieved: bool = False
 
 
+class POContribution(BaseModel):
+    """PO contribution data."""
+    po_number: int
+    description: str
+    contribution: float
+
+
+class COAttainmentResponse(BaseModel):
+    """Combined CO attainment and PO contribution."""
+    outcomes: List[COAttainmentData]
+    po_contribution: List[POContribution]
+
+
 class BloomDistribution(BaseModel):
     """Bloom's taxonomy distribution."""
     level: str

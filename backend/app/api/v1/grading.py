@@ -4,7 +4,7 @@ Grade calculation and management endpoints
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from uuid import UUID
 import uuid as uuid_lib
 from decimal import Decimal
@@ -235,7 +235,7 @@ async def get_final_marks(
     subject_id: UUID = None
 ):
     """Get final marks with optional filters."""
-    query = db.query(FinalMarks)
+    query = db.query(FinalMarks).options(joinedload(FinalMarks.student))
     
     if cohort_id:
         query = query.filter(FinalMarks.cohort_id == cohort_id)

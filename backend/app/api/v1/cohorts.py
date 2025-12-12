@@ -4,13 +4,13 @@ Cohort management endpoints
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from uuid import UUID
 import uuid as uuid_lib
 
 from app.database import get_db
 from app.api.deps import require_authenticated, require_hod_or_above
-from app.models import Profile, Cohort, Program
+from app.models import Profile, Cohort, Program, StudentEnrollment, Exam
 from app.schemas import CohortCreate, CohortUpdate, CohortResponse
 
 router = APIRouter(prefix="/cohorts", tags=["Cohorts"])
@@ -23,10 +23,15 @@ async def list_cohorts(
     program_id: UUID = None
 ):
     """List all cohorts."""
-    query = db.query(Cohort)
+    query = db.query(Cohort).options(joinedload(Cohort.program))
     if program_id:
         query = query.filter(Cohort.program_id == program_id)
     cohorts = query.order_by(Cohort.year.desc()).all()
+    
+    for cohort in cohorts:
+        cohort.student_count = db.query(StudentEnrollment).filter(StudentEnrollment.cohort_id == cohort.id).count()
+        cohort.exam_count = db.query(Exam).filter(Exam.cohort_id == cohort.id).count()
+        
     return cohorts
 
 
