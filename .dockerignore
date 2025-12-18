@@ -1,0 +1,32 @@
+# Node
+node_modules/
+dist/
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.production
+
+# Docker
+postgres_data/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# Test
+coverage/
+
+# Build artifacts
+*.tsbuildinfo

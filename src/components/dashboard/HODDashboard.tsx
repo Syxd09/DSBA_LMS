@@ -1,14 +1,14 @@
 import { StatsCard } from './StatsCard';
 import { COAttainmentChart } from './COAttainmentChart';
 import { BloomTaxonomyChart } from './BloomTaxonomyChart';
-import { mockCOAttainment, bloomDistributionData } from '@/lib/mock-data';
-import { Users, BookOpen, AlertTriangle, TrendingUp, CheckCircle } from 'lucide-react';
+// import { mockCOAttainment, bloomDistributionData } from '@/lib/mock-data'; // REMOVED MOCK
+import { Users, AlertTriangle, TrendingUp, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import api from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 
 export function HODDashboard() {
@@ -17,48 +17,39 @@ export function HODDashboard() {
   const { data: subjects = [] } = useQuery({
     queryKey: ['hod-subjects'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('subjects').select('*');
-      if (error) throw error;
-      return data;
+      const { data } = await api.get('/subjects');
+      return data || [];
     }
   });
 
   const { data: teacherAssignments = [] } = useQuery({
     queryKey: ['hod-teacher-assignments'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('teacher_assignments').select(`
-        *,
-        subjects(name, code),
-        cohorts(name),
-        profiles:teacher_id(full_name)
-      `);
-      if (error) throw error;
-      return data;
+      const { data } = await api.get('/assignments');
+      return data || [];
     }
   });
 
   const { data: studentEnrollments = [] } = useQuery({
     queryKey: ['hod-enrollments'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('student_enrollments').select('*');
-      if (error) throw error;
-      return data;
+      const { data } = await api.get('/enrollments');
+      return data || [];
     }
   });
 
-  const { data: userRoles = [] } = useQuery({
-    queryKey: ['hod-user-roles'],
+  const { data: users = [] } = useQuery({
+    queryKey: ['hod-users'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('user_roles').select('*').eq('role', 'teacher');
-      if (error) throw error;
-      return data;
+      const { data } = await api.get('/users');
+      return data || [];
     }
   });
 
   const studentCount = studentEnrollments.length;
-  const teacherCount = userRoles.length;
-  const atRiskCount = Math.floor(studentCount * 0.08);
-  const passRate = 87;
+  const teacherCount = users.filter((u: any) => u.role === 'TEACHER').length;
+  const atRiskCount = 0; // No real analysis yet
+  const passRate = 0;    // No real analysis yet
 
   return (
     <div className="space-y-6">
@@ -101,8 +92,8 @@ export function HODDashboard() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <COAttainmentChart data={mockCOAttainment} />
-        <BloomTaxonomyChart data={bloomDistributionData} />
+        <COAttainmentChart data={[]} />
+        <BloomTaxonomyChart data={[]} />
       </div>
 
       {/* Subject Performance */}
@@ -123,9 +114,9 @@ export function HODDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {subjects.slice(0, 5).map((subject) => {
-                const passRate = 70 + Math.random() * 25;
-                const avgScore = 55 + Math.random() * 25;
+              {subjects.slice(0, 5).map((subject: any) => {
+                const passRate = 0;
+                const avgScore = 0;
                 return (
                   <TableRow key={subject.id}>
                     <TableCell className="font-medium">{subject.name}</TableCell>

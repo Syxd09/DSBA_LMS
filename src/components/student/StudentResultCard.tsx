@@ -17,6 +17,7 @@ interface StudentResultCardProps {
   internal1?: number | null;
   internal2?: number | null;
   external?: number | null;
+  feedback?: string | null;
 }
 
 export function StudentResultCard({
@@ -33,6 +34,7 @@ export function StudentResultCard({
   internal1,
   internal2,
   external,
+  feedback,
 }: StudentResultCardProps) {
   const percentage = maxMarks > 0 ? (totalMarks / maxMarks) * 100 : 0;
   const isAboveAverage = totalMarks > classAverage;
@@ -146,6 +148,13 @@ export function StudentResultCard({
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {feedback && (
+          <div className="p-3 bg-muted rounded-md border text-sm">
+            <span className="font-semibold block mb-1">Teacher's Feedback:</span>
+            <p className="text-muted-foreground">{feedback}</p>
           </div>
         )}
 

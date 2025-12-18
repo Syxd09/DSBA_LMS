@@ -1,23 +1,14 @@
 import { StatsCard } from './StatsCard';
-import { BloomTaxonomyChart } from './BloomTaxonomyChart';
-import { StudentResultCard } from '@/components/student/StudentResultCard';
-import { mockBloomPerformance, bloomDistributionData } from '@/lib/mock-data';
+// import { mockBloomPerformance } from '@/lib/mock-data'; // REMOVED MOCK
 import { Award, TrendingUp, BookOpen, Target, Brain, Lightbulb } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import api from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 
-const radarData = [
-  { subject: 'Remember', A: 85, fullMark: 100 },
-  { subject: 'Understand', A: 78, fullMark: 100 },
-  { subject: 'Apply', A: 72, fullMark: 100 },
-  { subject: 'Analyze', A: 65, fullMark: 100 },
-  { subject: 'Evaluate', A: 58, fullMark: 100 },
-  { subject: 'Create', A: 52, fullMark: 100 },
-];
+const radarData: any[] = []; // No mock data
 
 export function StudentDashboard() {
   const { user, profile } = useAuth();
@@ -26,59 +17,35 @@ export function StudentDashboard() {
     queryKey: ['student-enrollment', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      const { data, error } = await supabase.from('student_enrollments').select(`
-        *,
-        cohorts(name, current_semester, programs(name, code))
-      `).eq('student_id', user.id).single();
-      if (error && error.code !== 'PGRST116') throw error;
-      return data;
+      const { data } = await api.get('/enrollments');
+      const myEnrollment = data.find((e: any) => e.studentId === user.id);
+      return myEnrollment || null;
     },
     enabled: !!user?.id
   });
 
-  const { data: finalMarks = [] } = useQuery({
-    queryKey: ['student-final-marks', user?.id],
+  const { data: subjects = [] } = useQuery({
+    queryKey: ['student-subjects'],
     queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase.from('final_marks').select(`
-        *,
-        subjects(name, code)
-      `).eq('student_id', user.id);
-      if (error) throw error;
+      const { data } = await api.get('/subjects');
       return data;
-    },
-    enabled: !!user?.id
+    }
   });
 
-  const { data: semesterResults = [] } = useQuery({
-    queryKey: ['student-semester-results', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase.from('semester_results').select('*').eq('student_id', user.id);
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user?.id
-  });
+  const overallAverage = 0;
+  const sgpa = 0;
+  const cgpa = 0;
 
-  const overallAverage = finalMarks.length > 0 
-    ? Math.round(finalMarks.reduce((acc, m) => acc + (Number(m.percentage) || 0), 0) / finalMarks.length)
-    : 0;
-
-  const latestSemResult = semesterResults.sort((a, b) => b.semester - a.semester)[0];
-  const sgpa = latestSemResult?.sgpa || 0;
-  const cgpa = latestSemResult?.cgpa || 0;
-
-  const cohortName = enrollment?.cohorts?.name || '';
-  const programName = (enrollment?.cohorts as any)?.programs?.name || '';
-  const semester = enrollment?.cohorts?.current_semester || 1;
+  const cohortName = enrollment?.cohort?.name || '';
+  const programName = enrollment?.cohort?.program?.name || '';
+  const semester = enrollment?.cohort?.currentSemester || 1;
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-foreground">My Performance</h2>
         <p className="text-muted-foreground">
-          {profile?.full_name || 'Student'} • {enrollment?.roll_number || 'N/A'} • {programName} Semester {semester}
+          {profile?.full_name || 'Student'} • {enrollment?.rollNumber || 'N/A'} • {programName} Semester {semester}
         </p>
       </div>
 
@@ -106,36 +73,18 @@ export function StudentDashboard() {
         />
         <StatsCard
           title="Subjects Enrolled"
-          value={finalMarks.length.toString()}
+          value={subjects.length.toString()}
           subtitle="This semester"
           icon={BookOpen}
         />
       </div>
 
       {/* Result Cards */}
-      {finalMarks.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {finalMarks.slice(0, 6).map((mark: any) => (
-            <StudentResultCard
-              key={mark.id}
-              subject={mark.subjects?.name || 'Subject'}
-              examType={mark.exam_id ? 'Internal' : 'Overall'}
-              totalMarks={Number(mark.total_marks) || 0}
-              maxMarks={100}
-              rank={0}
-              totalStudents={60}
-              classAverage={70}
-              coScores={[]}
-            />
-          ))}
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">
-            No results available yet. Check back after your exams are evaluated.
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardContent className="py-8 text-center text-muted-foreground">
+          Results will appear here once exams are evaluated.
+        </CardContent>
+      </Card>
 
       {/* Bloom Performance */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -168,18 +117,10 @@ export function StudentDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {mockBloomPerformance.map((bloom) => (
-              <div key={bloom.level} className="space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{bloom.level}</span>
-                  <span className="font-medium">{bloom.percentage}%</span>
-                </div>
-                <Progress value={bloom.percentage} className="h-2" />
-                <p className="text-xs text-muted-foreground">
-                  {bloom.questionsAttempted} of {bloom.totalQuestions} questions
-                </p>
-              </div>
-            ))}
+            {/* Empty State for now */}
+            <div className="text-center text-sm text-muted-foreground py-4">
+              No cognitive tracking data available yet.
+            </div>
           </CardContent>
         </Card>
       </div>

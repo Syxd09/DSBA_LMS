@@ -6,63 +6,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Award, TrendingUp, FileText, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import api from '@/lib/api';
 
 export default function Results() {
   const { user } = useAuth();
   const [selectedSemester, setSelectedSemester] = useState<string>('all');
 
-  // Fetch student enrollment to get cohort info
-  const { data: enrollment } = useQuery({
-    queryKey: ['student-enrollment', user?.id],
+  const { data, isLoading: marksLoading } = useQuery({
+    queryKey: ['student-results', user?.id],
     queryFn: async () => {
-      if (!user?.id) return null;
-      const { data, error } = await supabase
-        .from('student_enrollments')
-        .select('*, cohorts(name, current_semester, program_id)')
-        .eq('student_id', user.id)
-        .maybeSingle();
-      if (error) throw error;
+      const { data } = await api.get('/results');
       return data;
     },
     enabled: !!user?.id,
   });
 
-  // Fetch final marks
-  const { data: finalMarks = [], isLoading: marksLoading } = useQuery({
-    queryKey: ['student-final-marks', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from('final_marks')
-        .select('*, subjects(name, code, semester, credits)')
-        .eq('student_id', user.id);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!user?.id,
-  });
-
-  // Fetch semester results
-  const { data: semesterResults = [] } = useQuery({
-    queryKey: ['student-semester-results', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from('semester_results')
-        .select('*')
-        .eq('student_id', user.id)
-        .order('semester', { ascending: false });
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!user?.id,
-  });
+  const finalMarks = data?.finalMarks || [];
+  const semesterResults = data?.semesterResults || [];
 
   // Filter marks by semester
   const filteredMarks = selectedSemester === 'all'
     ? finalMarks
-    : finalMarks.filter((m: any) => m.subjects?.semester === parseInt(selectedSemester));
+    : finalMarks.filter((m: any) => m.subject?.semester === parseInt(selectedSemester));
 
   // Calculate stats
   const overallAverage = filteredMarks.length > 0
@@ -73,7 +38,7 @@ export default function Results() {
   const latestResult = semesterResults[0];
 
   // Get unique semesters from marks
-  const semesters = [...new Set(finalMarks.map((m: any) => m.subjects?.semester).filter(Boolean))].sort();
+  const semesters = [...new Set(finalMarks.map((m: any) => m.subject?.semester).filter(Boolean))].sort();
 
   return (
     <AuthenticatedLayout allowedRoles={['student']}>
@@ -90,7 +55,7 @@ export default function Results() {
             <SelectContent>
               <SelectItem value="all">All Semesters</SelectItem>
               {semesters.map((sem) => (
-                <SelectItem key={sem} value={String(sem)}>
+                <SelectItem key={String(sem)} value={String(sem)}>
                   Semester {sem}
                 </SelectItem>
               ))}
@@ -161,19 +126,20 @@ export default function Results() {
               {filteredMarks.map((mark: any) => (
                 <StudentResultCard
                   key={mark.id}
-                  subject={mark.subjects?.name || 'Subject'}
-                  examType={`Semester ${mark.subjects?.semester || '—'}`}
-                  totalMarks={Number(mark.total_marks) || 0}
+                  subject={mark.subject?.name || 'Subject'}
+                  examType={`Semester ${mark.subject?.semester || '—'}`}
+                  totalMarks={Number(mark.totalMarks) || 0}
                   maxMarks={100}
                   rank={0}
                   totalStudents={60}
                   classAverage={70}
                   coScores={[]}
                   grade={mark.grade}
-                  gradePoint={mark.grade_point}
-                  internal1={mark.internal_1}
-                  internal2={mark.internal_2}
-                  external={mark.external_marks}
+                  gradePoint={mark.gradePoint}
+                  internal1={mark.internal1}
+                  internal2={mark.internal2}
+                  external={mark.externalMarks}
+                  feedback={mark.feedback}
                 />
               ))}
             </div>

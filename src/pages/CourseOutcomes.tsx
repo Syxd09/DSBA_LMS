@@ -1,25 +1,27 @@
 import { useState, useEffect } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { supabase } from '@/integrations/supabase/client';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Search, Plus, Target, Loader2, BookOpen } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
 
 interface CourseOutcome {
   id: string;
-  co_number: number;
+  coNumber: number;
   description: string;
-  bloom_level: string;
-  subject_id: string;
-  created_at: string;
-  subjects?: {
+  bloomLevel: string;
+  subjectId: string;
+  createdAt: string;
+  subject?: {
+    id: string;
     name: string;
     code: string;
   };
@@ -50,10 +52,10 @@ export default function CourseOutcomes() {
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newCO, setNewCO] = useState({
-    subject_id: '',
-    co_number: 1,
+    subjectId: '',
+    coNumber: 1,
     description: '',
-    bloom_level: 'Remember',
+    bloomLevel: 'Remember',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -64,12 +66,9 @@ export default function CourseOutcomes() {
   const fetchData = async () => {
     try {
       const [cosRes, subjectsRes] = await Promise.all([
-        supabase.from('course_outcomes').select('*, subjects(name, code)').order('subject_id').order('co_number'),
-        supabase.from('subjects').select('*').order('code'),
+        api.get('/course-outcomes'),
+        api.get('/subjects'),
       ]);
-
-      if (cosRes.error) throw cosRes.error;
-      if (subjectsRes.error) throw subjectsRes.error;
 
       setCourseOutcomes(cosRes.data || []);
       setSubjects(subjectsRes.data || []);
@@ -86,7 +85,7 @@ export default function CourseOutcomes() {
   };
 
   const handleCreateCO = async () => {
-    if (!newCO.subject_id || !newCO.description) {
+    if (!newCO.subjectId || !newCO.description) {
       toast({
         title: 'Validation Error',
         description: 'Please fill in all required fields.',
@@ -97,28 +96,26 @@ export default function CourseOutcomes() {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from('course_outcomes').insert({
-        subject_id: newCO.subject_id,
-        co_number: newCO.co_number,
+      await api.post('/course-outcomes', {
+        subjectId: newCO.subjectId,
+        coNumber: newCO.coNumber,
         description: newCO.description,
-        bloom_level: newCO.bloom_level,
+        bloomLevel: newCO.bloomLevel,
       });
-
-      if (error) throw error;
 
       toast({
         title: 'Course Outcome created',
-        description: `CO${newCO.co_number} has been created successfully.`,
+        description: `CO${newCO.coNumber} has been created successfully.`,
       });
 
       setIsDialogOpen(false);
-      setNewCO({ subject_id: '', co_number: 1, description: '', bloom_level: 'Remember' });
+      setNewCO({ subjectId: '', coNumber: 1, description: '', bloomLevel: 'Remember' });
       fetchData();
     } catch (error: any) {
       console.error('Error creating CO:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to create course outcome.',
+        description: error.response?.data?.message || 'Failed to create course outcome.',
         variant: 'destructive',
       });
     } finally {
@@ -126,25 +123,72 @@ export default function CourseOutcomes() {
     }
   };
 
+  // Fetch POs for the selected subject's program
+  const { data: programOutcomes = [] } = useQuery({
+      queryKey: ['program-outcomes-mapping', selectedSubject],
+      queryFn: async () => {
+          if (!selectedSubject || selectedSubject === 'all') return [];
+          const subject = subjects.find(s => s.id === selectedSubject);
+          if (!subject) return [];
+          
+          // We need the program ID. Backend subject response has curriculum -> program. 
+          // Assuming subject list includes this structure or we fetch subject details.
+          // Let's try fetching subject details or getting program from subject list if available.
+          // Actually, our getSubjects controller returns curriculum.program. Let's verify subjects structure.
+          // For now, assume subject object has what we need or fetch it.
+          // Better: fetch program outcomes by subject's program.
+          
+          // Hack: we need programId. Let's assume we can get it from subject list if we update getSubjects to include it effectively.
+          // Or just fetch specific subject to get programId.
+          const { data: subjectDetails } = await api.get(`/subjects?id=${selectedSubject}`); 
+          // Actually getSubjects returns a list.
+          
+          const targetSubject = (subjects as any[]).find(s => s.id === selectedSubject);
+           if (targetSubject?.curriculum?.program?.id) {
+               const { data } = await api.get('/program-outcomes', { params: { programId: targetSubject.curriculum.program.id } });
+               return data || [];
+           }
+          return [];
+      },
+      enabled: selectedSubject !== 'all'
+  });
+
+  const handleMappingChange = async (coId: string, poId: string, level: string) => {
+      try {
+          // Optimistic update could go here
+          await api.put('/course-outcomes/mapping', {
+              coId,
+              poId,
+              correlationLevel: parseInt(level)
+          });
+          
+          // Refetch to ensure sync
+          fetchData();
+          toast({ title: 'Mapping updated', description: 'Correlation saved successfully.' });
+      } catch (error) {
+          toast({ title: 'Error', description: 'Failed to update mapping', variant: 'destructive' });
+      }
+  };
+
   const filteredCOs = courseOutcomes.filter(co => {
     const matchesSearch = co.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      co.subjects?.code.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesSubject = selectedSubject === 'all' || co.subject_id === selectedSubject;
+      co.subject?.code.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSubject = selectedSubject === 'all' || co.subjectId === selectedSubject;
     return matchesSearch && matchesSubject;
   });
 
   // Group COs by subject
   const groupedCOs = filteredCOs.reduce((acc, co) => {
-    const subjectCode = co.subjects?.code || 'Unknown';
+    const subjectCode = co.subject?.code || 'Unknown';
     if (!acc[subjectCode]) {
       acc[subjectCode] = {
-        subjectName: co.subjects?.name || 'Unknown',
+        subjectName: co.subject?.name || 'Unknown',
         cos: [],
       };
     }
     acc[subjectCode].cos.push(co);
     return acc;
-  }, {} as Record<string, { subjectName: string; cos: CourseOutcome[] }>);
+  }, {} as Record<string, { subjectName: string; cos: any[] }>);
 
   return (
     <AuthenticatedLayout allowedRoles={['principal', 'hod', 'teacher']}>
@@ -161,16 +205,19 @@ export default function CourseOutcomes() {
                 Add CO
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent aria-describedby="create-co-desc">
               <DialogHeader>
                 <DialogTitle>Create Course Outcome</DialogTitle>
+                <DialogDescription id="create-co-desc">
+                  Define a new course outcome with Bloom's taxonomy level.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
                   <Label>Subject</Label>
                   <Select
-                    value={newCO.subject_id}
-                    onValueChange={(value) => setNewCO({ ...newCO, subject_id: value })}
+                    value={newCO.subjectId}
+                    onValueChange={(value) => setNewCO({ ...newCO, subjectId: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select subject" />
@@ -189,8 +236,8 @@ export default function CourseOutcomes() {
                     <Label>CO Number</Label>
                     <Input
                       type="number"
-                      value={newCO.co_number}
-                      onChange={(e) => setNewCO({ ...newCO, co_number: parseInt(e.target.value) || 1 })}
+                      value={newCO.coNumber}
+                      onChange={(e) => setNewCO({ ...newCO, coNumber: parseInt(e.target.value) || 1 })}
                       min={1}
                       max={10}
                     />
@@ -198,8 +245,8 @@ export default function CourseOutcomes() {
                   <div className="space-y-2">
                     <Label>Bloom's Level</Label>
                     <Select
-                      value={newCO.bloom_level}
-                      onValueChange={(value) => setNewCO({ ...newCO, bloom_level: value })}
+                      value={newCO.bloomLevel}
+                      onValueChange={(value) => setNewCO({ ...newCO, bloomLevel: value })}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -294,23 +341,79 @@ export default function CourseOutcomes() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-6">
+                  {/* CO List */}
                   <div className="space-y-3">
+                    <h3 className="font-semibold text-sm">Course Outcomes</h3>
                     {cos.map((co) => (
                       <div
                         key={co.id}
                         className="flex items-start gap-4 p-3 border border-border bg-background"
                       >
                         <Badge variant="outline" className="shrink-0">
-                          CO{co.co_number}
+                          CO{co.coNumber}
                         </Badge>
                         <p className="text-sm text-foreground flex-1">{co.description}</p>
-                        <Badge className={bloomColors[co.bloom_level] || ''}>
-                          {co.bloom_level}
+                        <Badge className={bloomColors[co.bloomLevel] || ''}>
+                          {co.bloomLevel}
                         </Badge>
                       </div>
                     ))}
                   </div>
+
+                  {/* Mapping Matrix - Only show if subject specific view is active or we have POs */}
+                  {selectedSubject !== 'all' && programOutcomes.length > 0 && (
+                      <div className="pt-4 border-t">
+                          <h3 className="font-semibold text-sm mb-4">CO-PO Mapping Matrix</h3>
+                          <div className="overflow-x-auto">
+                              <table className="w-full text-sm border-collapse">
+                                  <thead>
+                                      <tr>
+                                          <th className="p-2 border text-left bg-muted/50">CO \ PO</th>
+                                          {programOutcomes.map((po: any) => (
+                                              <th key={po.id} className="p-2 border text-center bg-muted/50" title={po.description}>
+                                                  PO{po.poNumber}
+                                              </th>
+                                          ))}
+                                      </tr>
+                                  </thead>
+                                  <tbody>
+                                      {cos.map((co) => (
+                                          <tr key={co.id}>
+                                              <td className="p-2 border font-medium">CO{co.coNumber}</td>
+                                              {programOutcomes.map((po: any) => {
+                                                  const mapping = co.poMappings?.find((m: any) => m.poId === po.id);
+                                                  const level = mapping?.correlationLevel || 0;
+                                                  
+                                                  return (
+                                                      <td key={po.id} className="p-2 border text-center">
+                                                          <select 
+                                                              className={`w-12 p-1 rounded border text-center ${
+                                                                  level === 3 ? 'bg-green-100 dark:bg-green-900/30 font-bold' :
+                                                                  level === 2 ? 'bg-yellow-50 dark:bg-yellow-900/30' :
+                                                                  level === 1 ? 'bg-gray-50 dark:bg-gray-900/10' : ''
+                                                              }`}
+                                                              value={level}
+                                                              onChange={(e) => handleMappingChange(co.id, po.id, e.target.value)}
+                                                          >
+                                                              <option value="0">-</option>
+                                                              <option value="1">1</option>
+                                                              <option value="2">2</option>
+                                                              <option value="3">3</option>
+                                                          </select>
+                                                      </td>
+                                                  );
+                                              })}
+                                          </tr>
+                                      ))}
+                                  </tbody>
+                              </table>
+                              <p className="text-xs text-muted-foreground mt-2">
+                                  correlation levels: 1 (Low), 2 (Medium), 3 (High). '-' indicates no correlation.
+                              </p>
+                          </div>
+                      </div>
+                  )}
                 </CardContent>
               </Card>
             ))}

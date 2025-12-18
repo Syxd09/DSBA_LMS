@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
+import { useAcademicContext } from '@/contexts/AcademicContext';
 import { useGradingRules, useFinalMarks, useCalculateGrades } from '@/hooks/useGrading';
-import { supabase } from '@/integrations/supabase/client';
+import api from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -9,34 +10,38 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calculator, Award, Settings, Loader2, TrendingUp } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Calculator, Award, Settings, Loader2, MessageSquare, Save } from 'lucide-react';
 
 export default function GradeManagement() {
-  const [selectedCohort, setSelectedCohort] = useState<string>('');
+  const { departmentId, cohortId } = useAcademicContext();
+  const [selectedCohort, setSelectedCohort] = useState<string>(cohortId || '');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   
+  // Sync local state with context when context changes
+  useEffect(() => {
+    if (cohortId) setSelectedCohort(cohortId);
+  }, [cohortId]);
+
   const { data: gradingRules, isLoading: rulesLoading } = useGradingRules();
   
-  const { data: cohorts } = useQuery({
+  const { data: rawCohorts } = useQuery({
     queryKey: ['cohorts-list'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('cohorts')
-        .select('*, program:programs(name)')
-        .order('year', { ascending: false });
-      if (error) throw error;
+      const { data } = await api.get('/cohorts');
       return data || [];
     },
   });
+
+  const cohorts = departmentId 
+    ? (rawCohorts || []).filter((c: any) => c.program?.departmentId === departmentId)
+    : (rawCohorts || []);
   
   const { data: subjects } = useQuery({
     queryKey: ['subjects-list'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('subjects')
-        .select('*')
-        .order('name');
-      if (error) throw error;
+      const { data } = await api.get('/subjects');
       return data || [];
     },
   });
@@ -46,16 +51,11 @@ export default function GradeManagement() {
     subject_id: selectedSubject || undefined,
   });
   
-  const { data: profiles } = useQuery({
-    queryKey: ['student-profiles', finalMarks],
+  const { data: users } = useQuery({
+    queryKey: ['student-users', finalMarks],
     queryFn: async () => {
       if (!finalMarks?.length) return [];
-      const studentIds = [...new Set(finalMarks.map(m => m.student_id))];
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('user_id, full_name, email')
-        .in('user_id', studentIds);
-      if (error) throw error;
+      const { data } = await api.get('/users');
       return data || [];
     },
     enabled: !!finalMarks?.length,
@@ -82,7 +82,35 @@ export default function GradeManagement() {
   };
   
   const getStudentName = (studentId: string) => {
-    return profiles?.find(p => p.user_id === studentId)?.full_name || 'Unknown';
+    const user = users?.find((u: any) => u.id === studentId);
+    return user?.fullName || 'Unknown';
+  };
+
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [selectedMark, setSelectedMark] = useState<any>(null);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [isSavingFeedback, setIsSavingFeedback] = useState(false);
+
+  const openFeedbackDialog = (mark: any) => {
+    setSelectedMark(mark);
+    setFeedbackText(mark.feedback || '');
+    setFeedbackOpen(true);
+  };
+
+  const handleSaveFeedback = async () => {
+    if (!selectedMark) return;
+    setIsSavingFeedback(true);
+    try {
+      await api.put(`/grading/final-marks/${selectedMark.id}/feedback`, {
+        feedback: feedbackText
+      });
+      setFeedbackOpen(false);
+      refetchMarks();
+    } catch (error) {
+      console.error('Failed to save feedback', error);
+    } finally {
+      setIsSavingFeedback(false);
+    }
   };
 
   return (
@@ -118,9 +146,9 @@ export default function GradeManagement() {
                       <SelectValue placeholder="Select cohort" />
                     </SelectTrigger>
                     <SelectContent>
-                      {cohorts?.map((cohort) => (
+                      {cohorts?.map((cohort: any) => (
                         <SelectItem key={cohort.id} value={cohort.id}>
-                          {cohort.name} ({cohort.program?.name})
+                          {cohort.name} ({cohort.program?.name || cohort.program?.code || 'N/A'})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -131,7 +159,7 @@ export default function GradeManagement() {
                       <SelectValue placeholder="Select subject" />
                     </SelectTrigger>
                     <SelectContent>
-                      {subjects?.map((subject) => (
+                      {subjects?.map((subject: any) => (
                         <SelectItem key={subject.id} value={subject.id}>
                           {subject.name} ({subject.code})
                         </SelectItem>
@@ -184,26 +212,37 @@ export default function GradeManagement() {
                           <TableHead className="text-right">%</TableHead>
                           <TableHead className="text-center">Grade</TableHead>
                           <TableHead className="text-right">Points</TableHead>
+                          <TableHead className="text-center">Feedback</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {finalMarks.map((mark) => (
+                        {finalMarks.map((mark: any) => (
                           <TableRow key={mark.id}>
                             <TableCell className="font-medium">
-                              {getStudentName(mark.student_id)}
+                              {getStudentName(mark.studentId || mark.student_id)}
                             </TableCell>
-                            <TableCell className="text-right">{mark.internal_1}</TableCell>
-                            <TableCell className="text-right">{mark.internal_2}</TableCell>
-                            <TableCell className="text-right font-medium">{mark.best_internal}</TableCell>
-                            <TableCell className="text-right">{mark.external_marks}</TableCell>
-                            <TableCell className="text-right font-medium">{mark.total_marks}</TableCell>
+                            <TableCell className="text-right">{mark.internal1 || mark.internal_1}</TableCell>
+                            <TableCell className="text-right">{mark.internal2 || mark.internal_2}</TableCell>
+                            <TableCell className="text-right font-medium">{mark.bestInternal || mark.best_internal}</TableCell>
+                            <TableCell className="text-right">{mark.externalMarks || mark.external_marks}</TableCell>
+                            <TableCell className="text-right font-medium">{mark.totalMarks || mark.total_marks}</TableCell>
                             <TableCell className="text-right">{mark.percentage}%</TableCell>
                             <TableCell className="text-center">
                               <Badge variant={getGradeBadgeVariant(mark.grade || 'F')}>
                                 {mark.grade || 'F'}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-right">{mark.grade_point}</TableCell>
+                            <TableCell className="text-right">{mark.gradePoint || mark.grade_point}</TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openFeedbackDialog(mark)}
+                                title={mark.feedback ? "Edit Feedback" : "Add Feedback"}
+                              >
+                                <MessageSquare className={`w-4 h-4 ${mark.feedback ? 'text-primary fill-primary/20' : 'text-muted-foreground'}`} />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -235,7 +274,7 @@ export default function GradeManagement() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {gradingRules?.map((rule) => (
+                      {gradingRules?.map((rule: any) => (
                         <TableRow key={rule.id}>
                           <TableCell>
                             <Badge variant={getGradeBadgeVariant(rule.grade)}>
@@ -243,9 +282,9 @@ export default function GradeManagement() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {rule.min_percentage}% - {rule.max_percentage}%
+                            {rule.minPercentage || rule.min_percentage}% - {rule.maxPercentage || rule.max_percentage}%
                           </TableCell>
-                          <TableCell>{rule.grade_point}</TableCell>
+                          <TableCell>{rule.gradePoint || rule.grade_point}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -255,6 +294,33 @@ export default function GradeManagement() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Student Feedback</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm font-medium mb-2">
+                Remarks for {getStudentName(selectedMark?.studentId || selectedMark?.student_id)}
+              </p>
+              <Textarea
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                placeholder="Enter performance feedback, strengths, and areas for improvement..."
+                className="h-32"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setFeedbackOpen(false)}>Cancel</Button>
+              <Button onClick={handleSaveFeedback} disabled={isSavingFeedback}>
+                {isSavingFeedback && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                <Save className="w-4 h-4 mr-2" />
+                Save Feedback
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AuthenticatedLayout>
   );

@@ -1,5 +1,5 @@
 import { StatsCard } from './StatsCard';
-import { examPerformanceData } from '@/lib/mock-data';
+// import { examPerformanceData } from '@/lib/mock-data'; // REMOVED MOCK
 import { Users, BookOpen, ClipboardList, TrendingUp, Clock, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import api from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 
 export function TeacherDashboard() {
@@ -18,13 +18,8 @@ export function TeacherDashboard() {
     queryKey: ['teacher-my-assignments', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase.from('teacher_assignments').select(`
-        *,
-        subjects(id, name, code, credits, semester),
-        cohorts(name)
-      `).eq('teacher_id', user.id);
-      if (error) throw error;
-      return data;
+      const { data } = await api.get('/assignments');
+      return data.filter((a: any) => a.teacherId === user.id);
     },
     enabled: !!user?.id
   });
@@ -33,20 +28,16 @@ export function TeacherDashboard() {
     queryKey: ['teacher-exams', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase.from('exams').select(`
-        *,
-        subjects(name, code)
-      `).eq('teacher_id', user.id);
-      if (error) throw error;
+      const { data } = await api.get('/exams');
       return data;
     },
     enabled: !!user?.id
   });
 
-  const assignedSubjects = teacherAssignments.map(a => a.subjects).filter(Boolean);
-  const pendingExams = exams.filter(e => e.status === 'draft').length;
-  const totalStudents = teacherAssignments.length * 60; // Approximate
-  const classAverage = 71;
+  const assignedSubjects = teacherAssignments.map((a: any) => a.subject).filter(Boolean);
+  const pendingExams = exams.filter((e: any) => e.status === 'DRAFT').length;
+  const totalStudents = 0; // No enrollment data linked here yet
+  const classAverage = 0;
 
   return (
     <div className="space-y-6">
@@ -121,17 +112,17 @@ export function TeacherDashboard() {
             </div>
           ) : (
             assignedSubjects.map((subject: any) => {
-              const subjectExams = exams.filter(e => e.subject_id === subject.id);
-              const int1Done = subjectExams.some(e => e.exam_type === 'I1' && e.status === 'published');
-              const int2Done = subjectExams.some(e => e.exam_type === 'I2' && e.status === 'published');
+              const subjectExams = exams.filter((e: any) => e.subjectId === subject?.id);
+              const int1Done = subjectExams.some((e: any) => e.examType === 'I1' && e.status === 'PUBLISHED');
+              const int2Done = subjectExams.some((e: any) => e.examType === 'I2' && e.status === 'PUBLISHED');
               return (
-                <div key={subject.id} className="p-4 border border-border">
+                <div key={subject?.id} className="p-4 border border-border">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h4 className="font-medium text-foreground">{subject.name}</h4>
-                      <p className="text-sm text-muted-foreground">{subject.code} • Semester {subject.semester}</p>
+                      <h4 className="font-medium text-foreground">{subject?.name}</h4>
+                      <p className="text-sm text-muted-foreground">{subject?.code} • Semester {subject?.semester}</p>
                     </div>
-                    <Badge variant="outline">{subject.credits} Credits</Badge>
+                    <Badge variant="outline">{subject?.credits} Credits</Badge>
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -174,27 +165,20 @@ export function TeacherDashboard() {
         </CardContent>
       </Card>
 
-      {/* Performance Comparison */}
-      <Card>
+      {/* Performance Overview */}
+      <Card className="md:col-span-4">
         <CardHeader>
-          <CardTitle className="text-base font-semibold">Internal 1 vs Internal 2 Performance</CardTitle>
+          <CardTitle className="text-base font-semibold">Class Performance Overview</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64">
+          <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={examPerformanceData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '0',
-                  }}
-                />
+              <BarChart data={[]}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="subject" />
+                <YAxis />
+                <Tooltip />
                 <Legend />
-                <Bar dataKey="average" name="Class Average" fill="hsl(var(--chart-2))" />
                 <Bar dataKey="highest" name="Highest" fill="hsl(var(--chart-3))" />
                 <Bar dataKey="lowest" name="Lowest" fill="hsl(var(--chart-5))" />
               </BarChart>

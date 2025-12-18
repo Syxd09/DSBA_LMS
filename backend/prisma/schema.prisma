@@ -1,0 +1,626 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  PRINCIPAL
+  HOD
+  TEACHER
+  STUDENT
+}
+
+enum ExamStatus {
+  DRAFT
+  PENDING_APPROVAL
+  PUBLISHED
+  LOCKED
+}
+
+enum SelectionMode {
+  FIRST_N
+  BEST_N
+}
+
+enum BloomLevel {
+  Remember
+  Understand
+  Apply
+  Analyze
+  Evaluate
+  Create
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum WorkflowType {
+  MARKS_APPROVAL
+  PROMOTION_APPROVAL
+  COPO_APPROVAL
+}
+
+enum MessageType {
+  TEXT
+  ANNOUNCEMENT
+}
+
+enum AttainmentStatus {
+  DRAFT
+  CALCULATED
+  UNDER_REVIEW
+  APPROVED
+  LOCKED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  fullName  String
+  role      Role     @default(STUDENT)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Profile fields (merged)
+  avatarUrl    String?
+  mobileNumber String? // Mobile phone number
+  departmentId String? // For HOD/Teacher/Student linkage
+
+  // Relations
+  departmentLed Department? @relation("DepartmentHod")
+  department    Department? @relation("UserDepartment", fields: [departmentId], references: [id])
+
+  studentEnrollments StudentEnrollment[]
+  teacherAssignments TeacherAssignment[]
+
+  marksEntered  StudentMark[] @relation("MarksEnteredBy")
+  marksReceived StudentMark[] @relation("StudentMarks")
+
+  computedMarks MarksComputed[]
+
+  snapshotsCreated ExamSnapshot[]
+  auditLogs        AuditLog[]
+
+  sentMessages  Message[]
+  messageGroups MessageGroupMember[]
+
+  approvalRequests  ApprovalRequest[] @relation("Requester")
+  approvalDecisions ApprovalRequest[] @relation("Approver")
+
+  feedbacksGiven    Feedback[] @relation("TeacherFeedback")
+  feedbacksReceived Feedback[] @relation("StudentFeedback")
+
+  finalMarks      FinalMark[]
+  semesterResults SemesterResult[]
+
+  attainmentsApproved   COAttainment[] @relation("AttainmentApprover")
+  poAttainmentsApproved POAttainment[] @relation("POAttainmentApprover")
+
+  unlockRequestsCreated   MarksUnlockRequest[] @relation("UnlockRequester")
+  unlockRequestsHOD       MarksUnlockRequest[] @relation("UnlockHOD")
+  unlockRequestsPrincipal MarksUnlockRequest[] @relation("UnlockPrincipal")
+}
+
+model Department {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  code      String    @unique
+  hodId     String?   @unique
+  isActive  Boolean   @default(true)
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  hod          User?         @relation("DepartmentHod", fields: [hodId], references: [id])
+  users        User[]        @relation("UserDepartment")
+  programs     Program[]
+  gradingRules GradingRule[]
+
+  studentEnrollments StudentEnrollment[]
+  teacherAssignments TeacherAssignment[]
+}
+
+model Program {
+  id            String    @id @default(uuid())
+  name          String
+  code          String    @unique
+  departmentId  String
+  durationYears Int       @default(3)
+  isActive      Boolean   @default(true)
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  department    Department          @relation(fields: [departmentId], references: [id])
+  cohorts       Cohort[]
+  curriculums   CurriculumVersion[]
+  outcomes      ProgramOutcome[]
+  poAttainments POAttainment[]
+}
+
+model Cohort {
+  id              String    @id @default(uuid())
+  programId       String
+  year            Int
+  name            String
+  currentSemester Int       @default(1)
+  isActive        Boolean   @default(true)
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  program            Program             @relation(fields: [programId], references: [id])
+  enrollments        StudentEnrollment[]
+  exams              Exam[]
+  teacherAssignments TeacherAssignment[]
+  finalMarks         FinalMark[]
+  semesterResults    SemesterResult[]
+  coAttainments      COAttainment[]
+  poAttainments      POAttainment[]
+
+  @@unique([programId, year])
+}
+
+model CurriculumVersion {
+  id            String   @id @default(uuid())
+  programId     String
+  versionName   String
+  effectiveFrom Int
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  program  Program   @relation(fields: [programId], references: [id])
+  subjects Subject[]
+}
+
+model Subject {
+  id                  String    @id @default(uuid())
+  name                String
+  code                String    @unique
+  credits             Int       @default(3)
+  semester            Int
+  curriculumVersionId String
+  isActive            Boolean   @default(true)
+  deletedAt           DateTime?
+  createdAt           DateTime  @default(now())
+
+  curriculum         CurriculumVersion   @relation(fields: [curriculumVersionId], references: [id])
+  courseOutcomes     CourseOutcome[]
+  exams              Exam[]
+  teacherAssignments TeacherAssignment[]
+  finalMarks         FinalMark[]
+  coAttainments      COAttainment[]
+}
+
+model CourseOutcome {
+  id          String     @id @default(uuid())
+  subjectId   String
+  coNumber    Int
+  description String
+  bloomLevel  BloomLevel // Fixed: Use enum instead of String
+  createdAt   DateTime   @default(now())
+
+  subject       Subject        @relation(fields: [subjectId], references: [id])
+  poMappings    CoPoMapping[]
+  questions     Question[]
+  subQuestions  SubQuestion[]
+  coAttainments COAttainment[]
+
+  @@unique([subjectId, coNumber])
+}
+
+model ProgramOutcome {
+  id          String   @id @default(uuid())
+  programId   String
+  poNumber    Int
+  description String
+  createdAt   DateTime @default(now())
+
+  program       Program        @relation(fields: [programId], references: [id])
+  coMappings    CoPoMapping[]
+  poAttainments POAttainment[]
+
+  @@unique([programId, poNumber])
+}
+
+model CoPoMapping {
+  id               String @id @default(uuid())
+  coId             String
+  poId             String
+  correlationLevel Int
+
+  co CourseOutcome  @relation(fields: [coId], references: [id])
+  po ProgramOutcome @relation(fields: [poId], references: [id])
+
+  @@unique([coId, poId])
+}
+
+model COAttainment {
+  id              String           @id @default(uuid())
+  subjectId       String
+  cohortId        String
+  coId            String
+  semester        Int
+  academicYear    String
+  targetPercent   Float            @default(60)
+  achievedPercent Float            @default(0)
+  studentCount    Int              @default(0)
+  passCount       Int              @default(0)
+  status          AttainmentStatus @default(DRAFT)
+  calculatedAt    DateTime?
+  submittedAt     DateTime?
+  approvedBy      String?
+  approvedAt      DateTime?
+  lockedAt        DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  subject  Subject       @relation(fields: [subjectId], references: [id])
+  cohort   Cohort        @relation(fields: [cohortId], references: [id])
+  co       CourseOutcome @relation(fields: [coId], references: [id])
+  approver User?         @relation("AttainmentApprover", fields: [approvedBy], references: [id])
+
+  @@unique([subjectId, cohortId, coId, semester, academicYear])
+}
+
+// PO Attainment - aggregated from CO attainments via CO-PO mapping weights
+model POAttainment {
+  id              String           @id @default(uuid())
+  programId       String
+  cohortId        String
+  poId            String
+  semester        Int
+  academicYear    String
+  targetPercent   Float            @default(60)
+  achievedPercent Float            @default(0)
+  weightedSum     Float            @default(0) // Sum of (CO attainment × CO-PO weight)
+  totalWeight     Float            @default(0) // Sum of CO-PO weights
+  coCount         Int              @default(0) // Number of COs contributing
+  status          AttainmentStatus @default(DRAFT)
+  calculatedAt    DateTime?
+  submittedAt     DateTime?
+  approvedBy      String?
+  approvedAt      DateTime?
+  lockedAt        DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  program  Program        @relation(fields: [programId], references: [id])
+  cohort   Cohort         @relation(fields: [cohortId], references: [id])
+  po       ProgramOutcome @relation(fields: [poId], references: [id])
+  approver User?          @relation("POAttainmentApprover", fields: [approvedBy], references: [id])
+
+  @@unique([programId, cohortId, poId, semester, academicYear])
+}
+
+model Exam {
+  id          String     @id @default(uuid())
+  subjectId   String
+  cohortId    String
+  examType    String
+  maxMarks    Int        @default(30)
+  status      ExamStatus @default(DRAFT)
+  teacherId   String?
+  createdAt   DateTime   @default(now())
+  publishedAt DateTime?
+
+  subject        Subject              @relation(fields: [subjectId], references: [id])
+  cohort         Cohort               @relation(fields: [cohortId], references: [id])
+  sections       ExamSection[]
+  studentMarks   StudentMark[]
+  computedMarks  MarksComputed[]
+  snapshots      ExamSnapshot[]
+  feedbacks      Feedback[]
+  unlockRequests MarksUnlockRequest[]
+
+  @@unique([subjectId, cohortId, examType])
+  @@index([subjectId, status]) // Performance: query exams by subject
+  @@index([teacherId, status]) // Performance: get teacher's exams
+}
+
+model ExamSection {
+  id                String        @id @default(uuid())
+  examId            String
+  name              String
+  sequence          Int
+  requiredQuestions Int           @default(1)
+  selectionMode     SelectionMode @default(FIRST_N)
+  maxMarks          Int
+  createdAt         DateTime      @default(now())
+
+  exam      Exam       @relation(fields: [examId], references: [id])
+  questions Question[]
+}
+
+model Question {
+  id         String     @id @default(uuid())
+  sectionId  String
+  sequence   Int
+  maxMarks   Int
+  coId       String?
+  bloomLevel BloomLevel
+  isOptional Boolean    @default(false)
+  groupKey   String?
+  createdAt  DateTime   @default(now())
+
+  section      ExamSection    @relation(fields: [sectionId], references: [id])
+  co           CourseOutcome? @relation(fields: [coId], references: [id])
+  subQuestions SubQuestion[]
+}
+
+model SubQuestion {
+  id         String     @id @default(uuid())
+  questionId String
+  label      String
+  maxMarks   Int
+  coId       String?
+  bloomLevel BloomLevel
+  createdAt  DateTime   @default(now())
+
+  question     Question       @relation(fields: [questionId], references: [id])
+  co           CourseOutcome? @relation(fields: [coId], references: [id])
+  studentMarks StudentMark[]
+}
+
+model StudentEnrollment {
+  id           String   @id @default(uuid())
+  studentId    String
+  cohortId     String
+  departmentId String
+  semester     Int      @default(1)
+  rollNumber   String   @unique
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+
+  student    User       @relation(fields: [studentId], references: [id])
+  cohort     Cohort     @relation(fields: [cohortId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@unique([studentId, cohortId, semester])
+  @@index([cohortId, semester]) // Performance: query students by cohort+semester
+  @@index([departmentId, status]) // Performance: query by department
+}
+
+model TeacherAssignment {
+  id           String   @id @default(uuid())
+  teacherId    String
+  subjectId    String
+  cohortId     String
+  departmentId String
+  semester     Int      @default(1)
+  academicYear String
+  createdAt    DateTime @default(now())
+
+  teacher    User       @relation(fields: [teacherId], references: [id])
+  subject    Subject    @relation(fields: [subjectId], references: [id])
+  cohort     Cohort     @relation(fields: [cohortId], references: [id])
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@unique([teacherId, subjectId, cohortId])
+}
+
+model StudentMark {
+  id            String   @id @default(uuid())
+  examId        String
+  studentId     String
+  subQuestionId String
+  marks         Decimal
+  enteredBy     String?
+  enteredAt     DateTime @default(now())
+
+  exam          Exam  @relation(fields: [examId], references: [id])
+  enteredByUser User? @relation("MarksEnteredBy", fields: [enteredBy], references: [id])
+  student       User  @relation("StudentMarks", fields: [studentId], references: [id])
+
+  subQuestion SubQuestion @relation(fields: [subQuestionId], references: [id])
+
+  @@unique([examId, studentId, subQuestionId])
+  @@index([examId, studentId]) // Performance: get all marks for student in exam
+}
+
+model MarksComputed {
+  id                String   @id @default(uuid())
+  examId            String
+  studentId         String
+  totalMarks        Decimal
+  selectedQuestions Json
+  computedAt        DateTime @default(now())
+
+  exam    Exam @relation(fields: [examId], references: [id])
+  student User @relation(fields: [studentId], references: [id])
+
+  @@unique([examId, studentId])
+}
+
+model ExamSnapshot {
+  id           String   @id @default(uuid())
+  examId       String
+  snapshotData Json
+  createdAt    DateTime @default(now())
+  createdBy    String?
+
+  exam    Exam  @relation(fields: [examId], references: [id])
+  creator User? @relation(fields: [createdBy], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  tableName String
+  recordId  String?
+  oldData   Json?
+  newData   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+}
+
+// --- NEW MODULES ---
+
+model ApprovalRequest {
+  id           String         @id @default(uuid())
+  workflowType WorkflowType
+  entityId     String // ID of the mark sheet, COPO, or student list
+  requesterId  String
+  approverId   String? // Can be null if assigned to a Role not a specific User initially? Or needs specific approver.
+  status       ApprovalStatus @default(PENDING)
+  comments     String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  requester User  @relation("Requester", fields: [requesterId], references: [id])
+  approver  User? @relation("Approver", fields: [approverId], references: [id])
+}
+
+// Marks Unlock Request - for freeze/unfreeze workflow
+model MarksUnlockRequest {
+  id                  String       @id @default(uuid())
+  examId              String
+  requesterId         String // Teacher requesting unlock
+  reason              String // Reason for unlock request
+  hodApprovedAt       DateTime?
+  hodApprovedBy       String?
+  hodComments         String?
+  principalApprovedAt DateTime?
+  principalApprovedBy String?
+  principalComments   String?
+  status              UnlockStatus @default(PENDING)
+  unlockExpiresAt     DateTime? // Time-bound unlock window
+  unlockedAt          DateTime?
+  relockedAt          DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  exam              Exam  @relation(fields: [examId], references: [id])
+  requester         User  @relation("UnlockRequester", fields: [requesterId], references: [id])
+  hodApprover       User? @relation("UnlockHOD", fields: [hodApprovedBy], references: [id])
+  principalApprover User? @relation("UnlockPrincipal", fields: [principalApprovedBy], references: [id])
+}
+
+enum UnlockStatus {
+  PENDING
+  HOD_APPROVED
+  HOD_REJECTED
+  PRINCIPAL_APPROVED
+  PRINCIPAL_REJECTED
+  UNLOCKED
+  EXPIRED
+  RELOCKED
+}
+
+model Feedback {
+  id           String   @id @default(uuid())
+  studentId    String
+  teacherId    String
+  examId       String
+  rating       Int // 1-10
+  improvements String[] // Array of strings
+  comment      String? // Detailed comment (hidden)
+  isPublished  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  student User @relation("StudentFeedback", fields: [studentId], references: [id])
+  teacher User @relation("TeacherFeedback", fields: [teacherId], references: [id])
+  exam    Exam @relation(fields: [examId], references: [id])
+
+  @@unique([studentId, examId])
+}
+
+model MessageGroup {
+  id        String   @id @default(uuid())
+  name      String
+  type      String // DEPT, ALL, CUSTOM
+  createdAt DateTime @default(now())
+
+  members  MessageGroupMember[]
+  messages Message[]
+}
+
+model MessageGroupMember {
+  id       String   @id @default(uuid())
+  groupId  String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  group MessageGroup @relation(fields: [groupId], references: [id])
+  user  User         @relation(fields: [userId], references: [id])
+
+  @@unique([groupId, userId])
+}
+
+model Message {
+  id        String      @id @default(uuid())
+  groupId   String
+  senderId  String
+  content   String
+  type      MessageType @default(TEXT)
+  createdAt DateTime    @default(now())
+  reads     Json? // Array of userIds who read it
+
+  group  MessageGroup @relation(fields: [groupId], references: [id])
+  sender User         @relation(fields: [senderId], references: [id])
+}
+
+model GradingRule {
+  id            String   @id @default(uuid())
+  departmentId  String?
+  minPercentage Float
+  maxPercentage Float
+  grade         String
+  gradePoint    Float
+  createdAt     DateTime @default(now())
+
+  department Department? @relation(fields: [departmentId], references: [id])
+}
+
+model FinalMark {
+  id            String   @id @default(uuid())
+  studentId     String
+  subjectId     String
+  cohortId      String
+  internal1     Float    @default(0)
+  internal2     Float    @default(0)
+  bestInternal  Float    @default(0)
+  externalMarks Float    @default(0)
+  totalMarks    Float    @default(0)
+  percentage    Float    @default(0)
+  grade         String   @default("PENDING") // Fixed: Made nullable with default
+  gradePoint    Float    @default(0)
+  feedback      String?  // Teacher's remarks
+  coAttainment  Json?
+  status        String   @default("calculated")
+  computedAt    DateTime @default(now())
+
+  student User    @relation(fields: [studentId], references: [id])
+  subject Subject @relation(fields: [subjectId], references: [id])
+  cohort  Cohort  @relation(fields: [cohortId], references: [id])
+
+  @@unique([studentId, subjectId, cohortId])
+}
+
+model SemesterResult {
+  id            String   @id @default(uuid())
+  studentId     String
+  cohortId      String
+  semester      Int
+  totalCredits  Int
+  earnedCredits Int
+  sgpa          Float
+  cgpa          Float
+  status        String
+  createdAt     DateTime @default(now())
+
+  student User   @relation(fields: [studentId], references: [id])
+  cohort  Cohort @relation(fields: [cohortId], references: [id])
+
+  @@unique([studentId, cohortId, semester])
+}

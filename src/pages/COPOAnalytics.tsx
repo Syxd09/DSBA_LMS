@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { useCOAttainment, useBloomDistribution, useSubjectPerformance, useDepartmentStats } from '@/hooks/useAnalytics';
-import { supabase } from '@/integrations/supabase/client';
+import api from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Target, Brain, BarChart3, Building2, TrendingUp, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { Target, Brain, BarChart3, Building2, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, PieChart, Pie, Cell } from 'recharts';
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
@@ -20,11 +20,7 @@ export default function COPOAnalytics() {
   const { data: subjects } = useQuery({
     queryKey: ['subjects-list'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('subjects')
-        .select('*')
-        .order('name');
-      if (error) throw error;
+      const { data } = await api.get('/subjects');
       return data || [];
     },
   });
@@ -32,11 +28,7 @@ export default function COPOAnalytics() {
   const { data: cohorts } = useQuery({
     queryKey: ['cohorts-list'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('cohorts')
-        .select('*, program:programs(name)')
-        .order('year', { ascending: false });
-      if (error) throw error;
+      const { data } = await api.get('/cohorts');
       return data || [];
     },
   });
@@ -45,13 +37,8 @@ export default function COPOAnalytics() {
     queryKey: ['published-exams', selectedSubject],
     queryFn: async () => {
       if (!selectedSubject) return [];
-      const { data, error } = await supabase
-        .from('exams')
-        .select('id, exam_type')
-        .eq('subject_id', selectedSubject)
-        .eq('status', 'published');
-      if (error) throw error;
-      return data || [];
+      const { data } = await api.get('/exams');
+      return data.filter((e: any) => e.subjectId === selectedSubject && e.status === 'PUBLISHED') || [];
     },
     enabled: !!selectedSubject,
   });
@@ -106,7 +93,7 @@ export default function COPOAnalytics() {
                     <SelectValue placeholder="Select a subject" />
                   </SelectTrigger>
                   <SelectContent>
-                    {subjects?.map((subject) => (
+                    {subjects?.map((subject: any) => (
                       <SelectItem key={subject.id} value={subject.id}>
                         {subject.name} ({subject.code})
                       </SelectItem>
@@ -280,7 +267,7 @@ export default function COPOAnalytics() {
                     <SelectValue placeholder="Select a cohort" />
                   </SelectTrigger>
                   <SelectContent>
-                    {cohorts?.map((cohort) => (
+                    {cohorts?.map((cohort: any) => (
                       <SelectItem key={cohort.id} value={cohort.id}>
                         {cohort.name} ({cohort.program?.name})
                       </SelectItem>

@@ -10,6 +10,8 @@ export default function Dashboard() {
 
   const getDashboard = () => {
     switch (role) {
+      case 'admin':
+        return <PrincipalDashboard />;
       case 'principal':
         return <PrincipalDashboard />;
       case 'hod':
@@ -25,3 +27,4 @@ export default function Dashboard() {
 
   return <AuthenticatedLayout>{getDashboard()}</AuthenticatedLayout>;
 }
+

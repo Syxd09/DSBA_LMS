@@ -1,139 +1,263 @@
 import { useState, useEffect } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { supabase } from '@/integrations/supabase/client';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import api from '@/lib/api';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Search, UserPlus, Edit, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
+import { UserPlus, Search, Loader2, Trash2, Pencil } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { AppRole } from '@/hooks/useAuth';
 
-interface UserWithRole {
+interface User {
   id: string;
-  user_id: string;
+  fullName: string;
   email: string;
-  full_name: string;
-  department: string | null;
-  role: AppRole;
+  role: string;
+  isActive?: boolean;
+  createdAt: string;
+  department?: { id: string; name: string; code: string };
+}
+
+interface Department {
+  id: string;
+  name: string;
+  code: string;
 }
 
 export default function Users() {
-  const [users, setUsers] = useState<UserWithRole[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
-  const [newRole, setNewRole] = useState<AppRole>('student');
+  
+  // Dialog states
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    role: 'STUDENT',
+    departmentId: 'none',
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchUsers();
+    fetchData();
   }, []);
 
-  const fetchUsers = async () => {
+  const fetchData = async () => {
     try {
-      // Fetch profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*');
-
-      if (profilesError) throw profilesError;
-
-      // Fetch roles
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('*');
-
-      if (rolesError) throw rolesError;
-
-      // Combine data
-      const usersWithRoles: UserWithRole[] = (profiles || []).map(profile => {
-        const userRole = roles?.find(r => r.user_id === profile.user_id);
-        return {
-          id: profile.id,
-          user_id: profile.user_id,
-          email: profile.email,
-          full_name: profile.full_name,
-          department: profile.department,
-          role: (userRole?.role as AppRole) || 'student',
-        };
-      });
-
-      setUsers(usersWithRoles);
+      const [usersRes, departmentsRes] = await Promise.all([
+        api.get('/users'),
+        api.get('/departments'),
+      ]);
+      setUsers(usersRes.data || []);
+      setDepartments(departmentsRes.data || []);
     } catch (error) {
-      console.error('Error fetching users:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch users.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to fetch users.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleUpdateRole = async () => {
-    if (!selectedUser) return;
+  const resetForm = () => {
+    setFormData({ fullName: '', email: '', password: '', role: 'STUDENT', departmentId: 'none' });
+    setIsEditMode(false);
+    setEditingUser(null);
+  };
 
+  const handleOpenCreate = () => {
+    resetForm();
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenEdit = (user: User) => {
+    setFormData({
+      fullName: user.fullName,
+      email: user.email,
+      password: '',
+      role: user.role,
+      departmentId: user.department?.id || 'none',
+    });
+    setEditingUser(user);
+    setIsEditMode(true);
+    setIsDialogOpen(true);
+  };
+
+  const handleOpenDelete = (user: User) => {
+    setDeletingUser(user);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.fullName || !formData.email || (!isEditMode && !formData.password) || !formData.role) {
+      toast({ title: 'Validation Error', description: 'Please fill in all required fields.', variant: 'destructive' });
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('user_roles')
-        .update({ role: newRole })
-        .eq('user_id', selectedUser.user_id);
+      const payload = {
+        ...formData,
+        departmentId: formData.departmentId === 'none' ? null : formData.departmentId
+      };
 
-      if (error) throw error;
+      if (isEditMode && editingUser) {
+        await api.put(`/users/${editingUser.id}`, payload);
+        toast({ title: 'User updated', description: `${formData.fullName} has been updated.` });
+      } else {
+        await api.post('/users', payload);
+        toast({ title: 'User created', description: `${formData.fullName} has been created.` });
+      }
 
-      toast({
-        title: 'Role updated',
-        description: `${selectedUser.full_name}'s role has been updated to ${newRole}.`,
-      });
-
-      setIsEditDialogOpen(false);
-      fetchUsers();
-    } catch (error) {
-      console.error('Error updating role:', error);
+      setIsDialogOpen(false);
+      resetForm();
+      fetchData();
+    } catch (error: any) {
       toast({
         title: 'Error',
-        description: 'Failed to update user role.',
+        description: error.response?.data?.message || 'Operation failed.',
         variant: 'destructive',
       });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingUser) return;
+    
+    setIsSubmitting(true);
+    try {
+      await api.delete(`/users/${deletingUser.id}`);
+      toast({ title: 'User deleted', description: `${deletingUser.fullName} has been removed.` });
+      setDeleteDialogOpen(false);
+      setDeletingUser(null);
+      fetchData();
+    } catch (error: any) {
+      toast({ title: 'Error', description: 'Failed to delete user.', variant: 'destructive' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const filteredUsers = users.filter(user =>
-    user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchQuery.toLowerCase())
+    (user.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (user.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (user.role || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getRoleBadgeVariant = (role: AppRole) => {
-    switch (role) {
-      case 'principal':
-        return 'default';
-      case 'hod':
-        return 'secondary';
-      case 'teacher':
-        return 'outline';
-      default:
-        return 'outline';
-    }
-  };
-
   return (
-    <AuthenticatedLayout allowedRoles={['principal']}>
+    <AuthenticatedLayout allowedRoles={['principal', 'admin']}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-foreground">User Management</h2>
-            <p className="text-muted-foreground">Manage users and their roles</p>
+            <p className="text-muted-foreground">Manage faculty, students, and staff access</p>
           </div>
-          <Button>
+          <Button onClick={handleOpenCreate}>
             <UserPlus className="w-4 h-4 mr-2" />
-            Invite User
+            Add User
           </Button>
         </div>
+
+        {/* Create/Edit Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{isEditMode ? 'Edit User' : 'Add New User'}</DialogTitle>
+              <DialogDescription>
+                {isEditMode ? 'Update user details.' : 'Create a new user account.'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Full Name *</Label>
+                <Input
+                  value={formData.fullName}
+                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                  placeholder="e.g., John Doe"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Email *</Label>
+                <Input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="john@college.edu"
+                  disabled={isEditMode}
+                />
+              </div>
+              {!isEditMode && (
+                <div className="space-y-2">
+                  <Label>Password *</Label>
+                  <Input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    placeholder="••••••••"
+                  />
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Role *</Label>
+                  <Select value={formData.role} onValueChange={(value) => setFormData({ ...formData, role: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="STUDENT">Student</SelectItem>
+                      <SelectItem value="TEACHER">Teacher</SelectItem>
+                      <SelectItem value="HOD">HOD</SelectItem>
+                      <SelectItem value="PRINCIPAL">Principal</SelectItem>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Department</Label>
+                  <Select value={formData.departmentId} onValueChange={(value) => setFormData({ ...formData, departmentId: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select dept" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.id}>{dept.code}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button className="w-full" onClick={handleSubmit} disabled={isSubmitting}>
+                {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : (isEditMode ? 'Update User' : 'Create Account')}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDeleteDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          title="Delete User"
+          description={`This will permanently delete "${deletingUser?.fullName}" and all associated data.`}
+          confirmText={deletingUser?.email?.split('@')[0] || ''}
+          onConfirm={handleDelete}
+          isLoading={isSubmitting}
+        />
 
         <div className="flex items-center gap-4">
           <div className="relative flex-1 max-w-md">
@@ -147,91 +271,40 @@ export default function Users() {
           </div>
         </div>
 
-        <div className="border border-border bg-card">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      No users found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.full_name}</TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.department || '—'}</TableCell>
-                      <TableCell>
-                        <Badge variant={getRoleBadgeVariant(user.role)} className="capitalize">
-                          {user.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Dialog open={isEditDialogOpen && selectedUser?.id === user.id} onOpenChange={(open) => {
-                          setIsEditDialogOpen(open);
-                          if (open) {
-                            setSelectedUser(user);
-                            setNewRole(user.role);
-                          }
-                        }}>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit Role
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Edit User Role</DialogTitle>
-                            </DialogHeader>
-                            <div className="space-y-4 py-4">
-                              <div>
-                                <p className="text-sm text-muted-foreground">User</p>
-                                <p className="font-medium">{user.full_name}</p>
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Role</Label>
-                                <Select value={newRole} onValueChange={(v) => setNewRole(v as AppRole)}>
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="student">Student</SelectItem>
-                                    <SelectItem value="teacher">Teacher</SelectItem>
-                                    <SelectItem value="hod">Head of Department</SelectItem>
-                                    <SelectItem value="principal">Principal</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <Button className="w-full" onClick={handleUpdateRole}>
-                                Save Changes
-                              </Button>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </div>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredUsers.map((user) => (
+              <Card key={user.id}>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{user.fullName}</CardTitle>
+                  <Badge variant={
+                    user.role === 'PRINCIPAL' ? 'destructive' :
+                    user.role === 'HOD' ? 'default' :
+                    user.role === 'TEACHER' ? 'secondary' : 'outline'
+                  }>{user.role}</Badge>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xs text-muted-foreground mb-2">{user.email}</div>
+                  {user.department && (
+                    <div className="text-xs font-medium mb-4">Dept: {user.department.code}</div>
+                  )}
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => handleOpenEdit(user)}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleOpenDelete(user)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </AuthenticatedLayout>
   );

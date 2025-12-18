@@ -2,45 +2,25 @@ import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Brain, Target, Lightbulb, TrendingUp, Loader2 } from 'lucide-react';
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import api from '@/lib/api';
 
 export default function Performance() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
 
-  // Fetch final marks for performance trends
-  const { data: finalMarks = [], isLoading: marksLoading } = useQuery({
-    queryKey: ['student-final-marks', user?.id],
+  const { data, isLoading: marksLoading } = useQuery({
+    queryKey: ['student-results', user?.id],
     queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from('final_marks')
-        .select('*, subjects(name, code, semester)')
-        .eq('student_id', user.id)
-        .order('computed_at', { ascending: true });
-      if (error) throw error;
-      return data || [];
+      const { data } = await api.get('/results');
+      return data;
     },
     enabled: !!user?.id,
   });
 
-  // Fetch semester results for trend
-  const { data: semesterResults = [] } = useQuery({
-    queryKey: ['student-semester-results', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-      const { data, error } = await supabase
-        .from('semester_results')
-        .select('*')
-        .eq('student_id', user.id)
-        .order('semester', { ascending: true });
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!user?.id,
-  });
+  const finalMarks = data?.finalMarks || [];
+  const semesterResults = data?.semesterResults || [];
 
   // Calculate Bloom's performance (mock based on marks for now)
   const bloomPerformance = [
@@ -65,16 +45,16 @@ export default function Performance() {
         score: Number(r.sgpa) * 10 || 0,
       }))
     : finalMarks.slice(0, 5).map((m: any, idx: number) => ({
-        exam: m.subjects?.code || `Exam ${idx + 1}`,
+        exam: m.subject?.code || `Exam ${idx + 1}`,
         score: Number(m.percentage) || 0,
       }));
 
-  // Calculate CO attainment from final marks co_attainment field
+  // Calculate CO attainment from final marks coAttainment field
   const coAttainment = finalMarks
-    .filter((m: any) => m.co_attainment && Object.keys(m.co_attainment).length > 0)
+    .filter((m: any) => m.coAttainment && Object.keys(m.coAttainment).length > 0)
     .slice(0, 1)
     .flatMap((m: any) => {
-      const att = m.co_attainment as Record<string, number>;
+      const att = m.coAttainment as Record<string, number>;
       return Object.entries(att).slice(0, 5).map(([co, value]) => ({
         co,
         attainment: value,

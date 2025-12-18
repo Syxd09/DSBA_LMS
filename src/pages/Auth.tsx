@@ -49,10 +49,11 @@ export default function Auth() {
     const { error } = await signIn(email, password);
     
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
+      const msg = error.message || 'An unexpected error occurred';
+      if (msg.includes('Invalid login credentials')) {
         setError('Invalid email or password. Please try again.');
       } else {
-        setError(error.message);
+        setError(msg);
       }
       setIsLoading(false);
       return;

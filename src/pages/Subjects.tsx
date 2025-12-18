@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { supabase } from '@/integrations/supabase/client';
+import api from '@/lib/api';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Plus, BookOpen, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
 
 interface Subject {
   id: string;
@@ -16,7 +18,19 @@ interface Subject {
   code: string;
   credits: number;
   semester: number;
-  created_at: string;
+  curriculumVersionId?: string;
+  curriculum?: {
+    id: string;
+    versionName: string;
+    program?: { name: string; code: string };
+  };
+  createdAt: string;
+}
+
+interface CurriculumVersion {
+  id: string;
+  versionName: string;
+  program?: { name: string; code: string };
 }
 
 export default function Subjects() {
@@ -29,8 +43,24 @@ export default function Subjects() {
     code: '',
     credits: 3,
     semester: 1,
+    curriculumVersionId: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Fetch curriculum versions for the dropdown
+  const { data: curriculumVersions = [] } = useQuery({
+    queryKey: ['curriculum-versions'],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get('/curriculum-versions');
+        return data || [];
+      } catch (error) {
+        // Fallback: if no curriculum versions, show empty
+        console.warn('Could not fetch curriculum versions:', error);
+        return [];
+      }
+    },
+  });
 
   useEffect(() => {
     fetchSubjects();
@@ -38,13 +68,7 @@ export default function Subjects() {
 
   const fetchSubjects = async () => {
     try {
-      const { data, error } = await supabase
-        .from('subjects')
-        .select('*')
-        .order('semester')
-        .order('code');
-
-      if (error) throw error;
+      const { data } = await api.get('/subjects');
       setSubjects(data || []);
     } catch (error) {
       console.error('Error fetching subjects:', error);
@@ -59,10 +83,10 @@ export default function Subjects() {
   };
 
   const handleCreateSubject = async () => {
-    if (!newSubject.name || !newSubject.code) {
+    if (!newSubject.name || !newSubject.code || !newSubject.curriculumVersionId) {
       toast({
         title: 'Validation Error',
-        description: 'Please fill in all required fields.',
+        description: 'Please fill in all required fields including Curriculum Version.',
         variant: 'destructive',
       });
       return;
@@ -70,16 +94,13 @@ export default function Subjects() {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('subjects')
-        .insert({
-          name: newSubject.name,
-          code: newSubject.code.toUpperCase(),
-          credits: newSubject.credits,
-          semester: newSubject.semester,
-        });
-
-      if (error) throw error;
+      await api.post('/subjects', {
+        name: newSubject.name,
+        code: newSubject.code.toUpperCase(),
+        credits: newSubject.credits,
+        semester: newSubject.semester,
+        curriculumVersionId: newSubject.curriculumVersionId,
+      });
 
       toast({
         title: 'Subject created',
@@ -87,13 +108,13 @@ export default function Subjects() {
       });
 
       setIsDialogOpen(false);
-      setNewSubject({ name: '', code: '', credits: 3, semester: 1 });
+      setNewSubject({ name: '', code: '', credits: 3, semester: 1, curriculumVersionId: '' });
       fetchSubjects();
     } catch (error: any) {
       console.error('Error creating subject:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to create subject.',
+        description: error.response?.data?.message || 'Failed to create subject.',
         variant: 'destructive',
       });
     } finally {
@@ -121,13 +142,16 @@ export default function Subjects() {
                 Add Subject
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent aria-describedby="create-subject-desc">
               <DialogHeader>
                 <DialogTitle>Create New Subject</DialogTitle>
+                <DialogDescription id="create-subject-desc">
+                  Enter the details for the new subject.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Subject Name</Label>
+                  <Label>Subject Name *</Label>
                   <Input
                     value={newSubject.name}
                     onChange={(e) => setNewSubject({ ...newSubject, name: e.target.value })}
@@ -135,12 +159,30 @@ export default function Subjects() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Subject Code</Label>
+                  <Label>Subject Code *</Label>
                   <Input
                     value={newSubject.code}
                     onChange={(e) => setNewSubject({ ...newSubject, code: e.target.value })}
                     placeholder="e.g., CS201"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>Curriculum Version *</Label>
+                  <Select 
+                    value={newSubject.curriculumVersionId} 
+                    onValueChange={(value) => setNewSubject({ ...newSubject, curriculumVersionId: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select curriculum" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {curriculumVersions.map((cv: CurriculumVersion) => (
+                        <SelectItem key={cv.id} value={cv.id}>
+                          {cv.versionName} {cv.program ? `(${cv.program.code})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -208,6 +250,7 @@ export default function Subjects() {
                 <TableRow>
                   <TableHead>Code</TableHead>
                   <TableHead>Name</TableHead>
+                  <TableHead>Curriculum</TableHead>
                   <TableHead>Semester</TableHead>
                   <TableHead>Credits</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -218,6 +261,14 @@ export default function Subjects() {
                   <TableRow key={subject.id}>
                     <TableCell className="font-mono">{subject.code}</TableCell>
                     <TableCell className="font-medium">{subject.name}</TableCell>
+                    <TableCell>
+                      {subject.curriculum?.versionName || 'N/A'}
+                      {subject.curriculum?.program && (
+                        <span className="text-muted-foreground ml-1">
+                          ({subject.curriculum.program.code})
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline">Sem {subject.semester}</Badge>
                     </TableCell>

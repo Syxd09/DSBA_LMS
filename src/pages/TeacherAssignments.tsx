@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { useTeacherAssignments, useTeachers, useCreateTeacherAssignment, useDeleteTeacherAssignment } from '@/hooks/useTeacherAssignments';
-import { supabase } from '@/integrations/supabase/client';
+import { useTeacherAssignments, useTeachers } from '@/hooks/useTeacherAssignments';
 import { useQuery } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -11,8 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { UserPlus, Trash2, Loader2, BookOpen } from 'lucide-react';
+import { UserPlus, Trash2, Loader2, BookOpen, ChevronDown, ChevronUp, Filter } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import api from '@/lib/api';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 export default function TeacherAssignments() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -21,17 +22,17 @@ export default function TeacherAssignments() {
   const [selectedCohort, setSelectedCohort] = useState('');
   const [academicYear, setAcademicYear] = useState(new Date().getFullYear().toString());
   
-  const { data: assignments, isLoading } = useTeacherAssignments();
+  // New state for filtering and expansion
+  const [filterSubjectId, setFilterSubjectId] = useState('all');
+  const [expandedTeacherId, setExpandedTeacherId] = useState<string | null>(null);
+  
+  const { assignments, isLoading, assignTeacher, removeAssignment } = useTeacherAssignments();
   const { data: teachers } = useTeachers();
   
   const { data: subjects } = useQuery({
     queryKey: ['subjects-list'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('subjects')
-        .select('*')
-        .order('name');
-      if (error) throw error;
+      const { data } = await api.get('/subjects');
       return data || [];
     },
   });
@@ -39,29 +40,31 @@ export default function TeacherAssignments() {
   const { data: cohorts } = useQuery({
     queryKey: ['cohorts-list'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('cohorts')
-        .select('*, program:programs(name)')
-        .order('year', { ascending: false });
-      if (error) throw error;
+      const { data } = await api.get('/cohorts');
       return data || [];
     },
   });
-  
-  const createAssignment = useCreateTeacherAssignment();
-  const deleteAssignment = useDeleteTeacherAssignment();
-  
+
   const handleCreate = async () => {
     if (!selectedTeacher || !selectedSubject || !selectedCohort || !academicYear) {
       toast({ title: 'Error', description: 'Please fill all fields', variant: 'destructive' });
       return;
     }
-    
-    await createAssignment.mutateAsync({
-      teacher_id: selectedTeacher,
-      subject_id: selectedSubject,
-      cohort_id: selectedCohort,
-      academic_year: academicYear,
+
+    const subject = subjects.find((s: any) => s.id === selectedSubject);
+    if (!subject) {
+      toast({ title: 'Error', description: 'Subject not found', variant: 'destructive' });
+      return;
+    }
+
+    await assignTeacher.mutateAsync({
+      teacherId: selectedTeacher,
+      subjectId: selectedSubject,
+      cohortId: selectedCohort,
+      departmentId: subject.departmentId, // Required by backend
+      academicYear: academicYear,
+      section: 'A',
+      semester: subject.semester || 1
     });
     
     setIsDialogOpen(false);
@@ -69,6 +72,23 @@ export default function TeacherAssignments() {
     setSelectedSubject('');
     setSelectedCohort('');
   };
+
+  // Filter and Group Logic
+  const filteredAssignments = assignments?.filter((a: any) => 
+      filterSubjectId === 'all' || a.subjectId === filterSubjectId
+  ) || [];
+
+  const groupedAssignments = filteredAssignments.reduce((acc: any, curr: any) => {
+      const teacherId = curr.teacherId;
+      if (!acc[teacherId]) {
+          acc[teacherId] = {
+              teacher: curr.teacher,
+              assignments: []
+          };
+      }
+      acc[teacherId].assignments.push(curr);
+      return acc;
+  }, {});
 
   return (
     <AuthenticatedLayout allowedRoles={['principal', 'hod']}>
@@ -97,9 +117,9 @@ export default function TeacherAssignments() {
                       <SelectValue placeholder="Select teacher" />
                     </SelectTrigger>
                     <SelectContent>
-                      {teachers?.map((teacher) => (
-                        <SelectItem key={teacher.user_id} value={teacher.user_id}>
-                          {teacher.full_name} ({teacher.email})
+                      {teachers?.map((teacher: any) => (
+                        <SelectItem key={teacher.id} value={teacher.id}>
+                          {teacher.fullName} ({teacher.email})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -113,7 +133,7 @@ export default function TeacherAssignments() {
                       <SelectValue placeholder="Select subject" />
                     </SelectTrigger>
                     <SelectContent>
-                      {subjects?.map((subject) => (
+                      {subjects?.map((subject: any) => (
                         <SelectItem key={subject.id} value={subject.id}>
                           {subject.name} ({subject.code})
                         </SelectItem>
@@ -129,9 +149,9 @@ export default function TeacherAssignments() {
                       <SelectValue placeholder="Select cohort" />
                     </SelectTrigger>
                     <SelectContent>
-                      {cohorts?.map((cohort) => (
+                      {cohorts?.map((cohort: any) => (
                         <SelectItem key={cohort.id} value={cohort.id}>
-                          {cohort.name} - {cohort.program?.name}
+                          {cohort.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -151,9 +171,9 @@ export default function TeacherAssignments() {
                 <Button 
                   className="w-full" 
                   onClick={handleCreate}
-                  disabled={createAssignment.isPending}
+                  disabled={assignTeacher.isPending}
                 >
-                  {createAssignment.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {assignTeacher.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   Assign Teacher
                 </Button>
               </div>
@@ -161,71 +181,103 @@ export default function TeacherAssignments() {
           </Dialog>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <BookOpen className="w-4 h-4" />
-              Current Assignments
-              <Badge variant="secondary" className="ml-2">
-                {assignments?.length || 0} total
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        {/* Filter Bar */}
+        <div className="flex items-center gap-2 bg-card p-3 rounded-md border">
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Filter by Subject:</span>
+            <Select value={filterSubjectId} onValueChange={setFilterSubjectId}>
+                <SelectTrigger className="w-[250px] h-8">
+                    <SelectValue placeholder="All Subjects" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">All Subjects</SelectItem>
+                    {subjects?.map((s: any) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name} ({s.code})</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+
+        <div className="space-y-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
-            ) : !assignments?.length ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No teacher assignments yet
+            ) : Object.keys(groupedAssignments).length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground bg-muted/30 rounded-lg">
+                No assignments found for the selected criteria
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Teacher</TableHead>
-                    <TableHead>Subject</TableHead>
-                    <TableHead>Cohort</TableHead>
-                    <TableHead>Academic Year</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {assignments.map((assignment) => (
-                    <TableRow key={assignment.id}>
-                      <TableCell className="font-medium">
-                        {assignment.teacher?.full_name || 'Unknown'}
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <span className="font-medium">{assignment.subject?.name}</span>
-                          <span className="text-muted-foreground ml-2">
-                            ({assignment.subject?.code})
-                          </span>
+                Object.values(groupedAssignments).map((group: any) => (
+                    <Collapsible 
+                        key={group.teacher.id} 
+                        open={expandedTeacherId === group.teacher.id}
+                        onOpenChange={() => setExpandedTeacherId(expandedTeacherId === group.teacher.id ? null : group.teacher.id)}
+                        className="bg-card border rounded-lg shadow-sm"
+                    >
+                        <div className="flex items-center justify-between p-4 cursor-pointer" onClick={() => setExpandedTeacherId(expandedTeacherId === group.teacher.id ? null : group.teacher.id)}>
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                                    {group.teacher.fullName.charAt(0)}
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold">{group.teacher.fullName}</h3>
+                                    <p className="text-sm text-muted-foreground">{group.teacher.email}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Badge variant="secondary">{group.assignments.length} assignments</Badge>
+                                <CollapsibleTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="p-0 h-8 w-8">
+                                        {expandedTeacherId === group.teacher.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                    </Button>
+                                </CollapsibleTrigger>
+                            </div>
                         </div>
-                      </TableCell>
-                      <TableCell>{assignment.cohort?.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{assignment.academic_year}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteAssignment.mutate(assignment.id)}
-                          disabled={deleteAssignment.isPending}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                        
+                        <CollapsibleContent>
+                            <div className="px-4 pb-4">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow className="bg-muted/50">
+                                            <TableHead className="w-[40%]">Subject</TableHead>
+                                            <TableHead>Cohort</TableHead>
+                                            <TableHead>Academic Year</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {group.assignments.map((assignment: any) => (
+                                            <TableRow key={assignment.id}>
+                                                <TableCell>
+                                                    <span className="font-medium">{assignment.subject?.name}</span>
+                                                    <span className="text-xs text-muted-foreground ml-2">({assignment.subject?.code})</span>
+                                                </TableCell>
+                                                <TableCell>{assignment.cohort?.name}</TableCell>
+                                                <TableCell>{assignment.academicYear}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button
+                                                        variant="ghost" 
+                                                        size="sm"
+                                                        className="text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            removeAssignment.mutate(assignment.id);
+                                                        }}
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CollapsibleContent>
+                    </Collapsible>
+                ))
             )}
-          </CardContent>
-        </Card>
+        </div>
       </div>
     </AuthenticatedLayout>
   );

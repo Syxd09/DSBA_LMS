@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { supabase } from '@/integrations/supabase/client';
+import { useTeacherExams, useCreateExam } from '@/hooks/useExams';
+import { useQuery } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,25 +10,27 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Plus, ClipboardList, Loader2, FileEdit, Eye, CheckCircle } from 'lucide-react';
+import { Search, Plus, ClipboardList, Loader2, FileEdit, Eye, BarChart } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import api from '@/lib/api';
+import { FeedbackStats } from '@/components/FeedbackStats';
 
 interface Exam {
   id: string;
-  exam_type: string;
-  max_marks: number;
+  examType: string;
+  maxMarks: number;
   status: string;
-  published_at: string | null;
-  created_at: string;
-  subject_id: string;
-  cohort_id: string;
-  teacher_id: string | null;
-  subjects?: {
+  publishedAt: string | null;
+  createdAt: string;
+  subjectId: string;
+  cohortId: string;
+  teacherId: string | null;
+  subject?: {
     name: string;
     code: string;
   };
-  cohorts?: {
+  cohort?: {
     name: string;
     year: number;
   };
@@ -48,63 +51,37 @@ interface Cohort {
 export default function Exams() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
-  const [exams, setExams] = useState<Exam[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [cohorts, setCohorts] = useState<Cohort[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [viewFeedback, setViewFeedback] = useState<string | null>(null);
   const [newExam, setNewExam] = useState({
-    subject_id: '',
-    cohort_id: '',
-    exam_type: 'internal1',
-    max_marks: 30,
+    subjectId: '',
+    cohortId: '',
+    examType: 'internal1',
+    maxMarks: 30,
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const { data: exams, isLoading } = useTeacherExams();
+  const createExam = useCreateExam();
 
-  useEffect(() => {
-    fetchData();
-  }, [user]);
+  const { data: subjects = [] } = useQuery<Subject[]>({
+    queryKey: ['subjects-list'],
+    queryFn: async () => {
+      const { data } = await api.get('/subjects'); // Assuming /subjects endpoint exists, reused from assignments
+      return data || [];
+    },
+  });
 
-  const fetchData = async () => {
-    try {
-      let examsQuery = supabase
-        .from('exams')
-        .select('*, subjects(name, code), cohorts(name, year)')
-        .order('created_at', { ascending: false });
-
-      // Teachers only see their own exams
-      if (role === 'teacher' && user) {
-        examsQuery = examsQuery.eq('teacher_id', user.id);
-      }
-
-      const [examsRes, subjectsRes, cohortsRes] = await Promise.all([
-        examsQuery,
-        supabase.from('subjects').select('*').order('code'),
-        supabase.from('cohorts').select('*').order('year', { ascending: false }),
-      ]);
-
-      if (examsRes.error) throw examsRes.error;
-      if (subjectsRes.error) throw subjectsRes.error;
-      if (cohortsRes.error) throw cohortsRes.error;
-
-      setExams(examsRes.data || []);
-      setSubjects(subjectsRes.data || []);
-      setCohorts(cohortsRes.data || []);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch exams.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const { data: cohorts = [] } = useQuery<Cohort[]>({
+    queryKey: ['cohorts-list'],
+    queryFn: async () => {
+      const { data } = await api.get('/cohorts');
+      return data || [];
+    },
+  });
 
   const handleCreateExam = async () => {
-    if (!newExam.subject_id || !newExam.cohort_id) {
+    if (!newExam.subjectId || !newExam.cohortId) {
       toast({
         title: 'Validation Error',
         description: 'Please fill in all required fields.',
@@ -113,18 +90,15 @@ export default function Exams() {
       return;
     }
 
-    setIsSubmitting(true);
     try {
-      const { error } = await supabase.from('exams').insert({
-        subject_id: newExam.subject_id,
-        cohort_id: newExam.cohort_id,
-        exam_type: newExam.exam_type,
-        max_marks: newExam.max_marks,
-        teacher_id: user?.id,
+      await createExam.mutateAsync({
+        subjectId: newExam.subjectId,
+        cohortId: newExam.cohortId,
+        examType: newExam.examType,
+        maxMarks: newExam.maxMarks,
+        teacherId: user?.id,
         status: 'draft',
       });
-
-      if (error) throw error;
 
       toast({
         title: 'Exam created',
@@ -132,17 +106,14 @@ export default function Exams() {
       });
 
       setIsDialogOpen(false);
-      setNewExam({ subject_id: '', cohort_id: '', exam_type: 'internal1', max_marks: 30 });
-      fetchData();
+      setNewExam({ subjectId: '', cohortId: '', examType: 'internal1', maxMarks: 30 });
     } catch (error: any) {
       console.error('Error creating exam:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to create exam.',
+        description: error.response?.data?.message || 'Failed to create exam.',
         variant: 'destructive',
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -159,11 +130,11 @@ export default function Exams() {
     }
   };
 
-  const filteredExams = exams.filter(exam =>
-    exam.subjects?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    exam.subjects?.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    exam.cohorts?.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredExams = exams?.filter((exam: any) =>
+    exam.subject?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    exam.subject?.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    exam.cohort?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
 
   return (
     <AuthenticatedLayout allowedRoles={['teacher', 'hod', 'principal']}>
@@ -188,8 +159,8 @@ export default function Exams() {
                 <div className="space-y-2">
                   <Label>Subject</Label>
                   <Select
-                    value={newExam.subject_id}
-                    onValueChange={(value) => setNewExam({ ...newExam, subject_id: value })}
+                    value={newExam.subjectId}
+                    onValueChange={(value) => setNewExam({ ...newExam, subjectId: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select subject" />
@@ -206,8 +177,8 @@ export default function Exams() {
                 <div className="space-y-2">
                   <Label>Cohort</Label>
                   <Select
-                    value={newExam.cohort_id}
-                    onValueChange={(value) => setNewExam({ ...newExam, cohort_id: value })}
+                    value={newExam.cohortId}
+                    onValueChange={(value) => setNewExam({ ...newExam, cohortId: value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select cohort" />
@@ -225,8 +196,8 @@ export default function Exams() {
                   <div className="space-y-2">
                     <Label>Exam Type</Label>
                     <Select
-                      value={newExam.exam_type}
-                      onValueChange={(value) => setNewExam({ ...newExam, exam_type: value })}
+                      value={newExam.examType}
+                      onValueChange={(value) => setNewExam({ ...newExam, examType: value })}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -241,15 +212,15 @@ export default function Exams() {
                     <Label>Max Marks</Label>
                     <Input
                       type="number"
-                      value={newExam.max_marks}
-                      onChange={(e) => setNewExam({ ...newExam, max_marks: parseInt(e.target.value) || 30 })}
+                      value={newExam.maxMarks}
+                      onChange={(e) => setNewExam({ ...newExam, maxMarks: parseInt(e.target.value) || 30 })}
                       min={10}
                       max={100}
                     />
                   </div>
                 </div>
-                <Button className="w-full" onClick={handleCreateExam} disabled={isSubmitting}>
-                  {isSubmitting ? (
+                <Button className="w-full" onClick={handleCreateExam} disabled={createExam.isPending}>
+                  {createExam.isPending ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Creating...
@@ -299,21 +270,21 @@ export default function Exams() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredExams.map((exam) => (
+                {filteredExams.map((exam: any) => (
                   <TableRow key={exam.id}>
                     <TableCell>
                       <div>
-                        <p className="font-medium">{exam.subjects?.name || '—'}</p>
-                        <p className="text-sm text-muted-foreground">{exam.subjects?.code}</p>
+                        <p className="font-medium">{exam.subject?.name || '—'}</p>
+                        <p className="text-sm text-muted-foreground">{exam.subject?.code}</p>
                       </div>
                     </TableCell>
-                    <TableCell>{exam.cohorts?.name || '—'}</TableCell>
+                    <TableCell>{exam.cohort?.name || '—'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="capitalize">
-                        {exam.exam_type.replace('internal', 'Internal ')}
+                        {exam.examType?.replace('internal', 'Internal ') || exam.examType}
                       </Badge>
                     </TableCell>
-                    <TableCell>{exam.max_marks}</TableCell>
+                    <TableCell>{exam.maxMarks}</TableCell>
                     <TableCell>{getStatusBadge(exam.status)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -323,10 +294,16 @@ export default function Exams() {
                             Edit
                           </Button>
                         ) : (
-                          <Button variant="ghost" size="sm">
-                            <Eye className="w-4 h-4 mr-1" />
-                            View
-                          </Button>
+                          <div className="flex gap-2">
+                             <Button variant="ghost" size="sm">
+                                <Eye className="w-4 h-4 mr-1" />
+                                View
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => setViewFeedback(exam.id)}>
+                                <BarChart className="w-4 h-4 mr-1" />
+                                Feedback
+                              </Button>
+                          </div>
                         )}
                       </div>
                     </TableCell>
@@ -336,6 +313,15 @@ export default function Exams() {
             </Table>
           )}
         </div>
+
+        <Dialog open={!!viewFeedback} onOpenChange={(open) => !open && setViewFeedback(null)}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Feedback Statistics</DialogTitle>
+                </DialogHeader>
+                <FeedbackStats examId={viewFeedback} />
+            </DialogContent>
+        </Dialog>
       </div>
     </AuthenticatedLayout>
   );
