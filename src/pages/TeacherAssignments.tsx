@@ -61,7 +61,7 @@ export default function TeacherAssignments() {
       teacherId: selectedTeacher,
       subjectId: selectedSubject,
       cohortId: selectedCohort,
-      departmentId: subject.departmentId, // Required by backend
+      departmentId: subject.curriculum?.program?.departmentId, // Required by backend
       academicYear: academicYear,
       section: 'A',
       semester: subject.semester || 1

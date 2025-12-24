@@ -4,6 +4,9 @@ import { authenticateToken } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/rbac.middleware';
 import { requireAcademicContext } from '../middleware/academic-context.middleware';
 
+import { validate } from '../middleware/validate.middleware';
+import { enrollStudentSchema, bulkEnrollSchema } from '../schemas/enrollment.schema';
+
 const router = Router();
 
 router.use(authenticateToken);
@@ -11,7 +14,7 @@ router.use(authenticateToken);
 // Enrollment routes with context enforcement
 router.get('/',
     requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER', 'STUDENT']),
-    requireAcademicContext({ required: ['cohortId'] }),
+    requireAcademicContext({ required: [] }), // Allow optional context
     getEnrollments
 );
 
@@ -24,12 +27,14 @@ router.get('/students',
 router.post('/',
     requireRole(['ADMIN', 'PRINCIPAL', 'HOD']),
     requireAcademicContext({ required: ['cohortId', 'departmentId'] }),
+    validate(enrollStudentSchema),
     enrollStudent
 );
 
 router.post('/bulk',
     requireRole(['ADMIN', 'PRINCIPAL', 'HOD']),
     requireAcademicContext({ required: ['cohortId', 'departmentId'] }),
+    validate(bulkEnrollSchema),
     bulkEnroll
 );
 

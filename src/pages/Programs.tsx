@@ -246,6 +246,7 @@ export default function Programs() {
   const [isPODialogOpen, setIsPODialogOpen] = useState(false);
   const [selectedProgramId, setSelectedProgramId] = useState<string | null>(null);
   const [newPO, setNewPO] = useState({ poNumber: '', description: '' });
+  const [editingPOId, setEditingPOId] = useState<string | null>(null);
 
   const { data: programOutcomes = [], refetch: refetchPOs } = useQuery({
     queryKey: ['program-outcomes', selectedProgramId],
@@ -265,19 +266,39 @@ export default function Programs() {
     
     setIsSubmitting(true);
     try {
-      await api.post('/program-outcomes', {
-        programId: selectedProgramId,
-        poNumber: newPO.poNumber,
-        description: newPO.description
-      });
-      toast({ title: 'Success', description: 'Program Outcome added' });
-      setNewPO({ poNumber: '', description: '' });
+      if (editingPOId) {
+          // Update PO
+          await api.put(`/program-outcomes/${editingPOId}`, {
+              poNumber: newPO.poNumber,
+              description: newPO.description
+          });
+          toast({ title: 'Success', description: 'Program Outcome updated' });
+      } else {
+          // Create PO
+          await api.post('/program-outcomes', {
+            programId: selectedProgramId,
+            poNumber: newPO.poNumber,
+            description: newPO.description
+          });
+          toast({ title: 'Success', description: 'Program Outcome added' });
+      }
+      resetPOForm();
       refetchPOs();
     } catch (error: any) {
-      toast({ title: 'Error', description: error.response?.data?.message || 'Failed to add PO', variant: 'destructive' });
+      toast({ title: 'Error', description: error.response?.data?.message || 'Failed to save PO', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleEditPO = (po: any) => {
+      setNewPO({ poNumber: String(po.poNumber), description: po.description });
+      setEditingPOId(po.id);
+  };
+
+  const resetPOForm = () => {
+      setNewPO({ poNumber: '', description: '' });
+      setEditingPOId(null);
   };
 
   const handleDeletePO = async (id: string) => {
@@ -577,7 +598,7 @@ export default function Programs() {
                 </DialogHeader>
                 
                 <div className="space-y-6">
-                    {/* Add New PO */}
+                    {/* Add/Edit PO Form */}
                     <div className="flex gap-4 items-end bg-muted/50 p-4 rounded-md">
                         <div className="w-24 space-y-2">
                             <Label>PO #</Label>
@@ -597,8 +618,11 @@ export default function Programs() {
                             />
                         </div>
                         <Button onClick={handleCreatePO} disabled={isSubmitting}>
-                            <Plus className="w-4 h-4" />
+                            {editingPOId ? <Pencil className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                         </Button>
+                        {editingPOId && (
+                            <Button variant="ghost" onClick={resetPOForm}>Cancel</Button>
+                        )}
                     </div>
 
                     {/* PO List */}
@@ -611,14 +635,24 @@ export default function Programs() {
                                 <div key={po.id} className="flex items-start gap-3 p-3 border rounded-md bg-card">
                                     <Badge variant="outline" className="mt-1">PO{po.poNumber}</Badge>
                                     <p className="text-sm flex-1">{po.description}</p>
-                                    <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        className="text-destructive h-6 w-6 p-0"
-                                        onClick={() => handleDeletePO(po.id)}
-                                    >
-                                        <Trash2 className="w-3 h-3" />
-                                    </Button>
+                                    <div className="flex gap-1">
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="h-6 w-6 p-0"
+                                            onClick={() => handleEditPO(po)}
+                                        >
+                                            <Pencil className="w-3 h-3" />
+                                        </Button>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            className="text-destructive h-6 w-6 p-0"
+                                            onClick={() => handleDeletePO(po.id)}
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </Button>
+                                    </div>
                                 </div>
                             ))
                         )}

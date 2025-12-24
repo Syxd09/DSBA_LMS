@@ -1,5 +1,6 @@
 import { StatsCard } from './StatsCard';
 import { DepartmentTable } from './DepartmentTable';
+import { RecentActivity } from './RecentActivity';
 import { COAttainmentChart } from './COAttainmentChart';
 import { PerformanceTrendChart } from './PerformanceTrendChart';
 // import { mockCOAttainment, coTrendData } from '@/lib/mock-data'; // REMOVED MOCK DATA
@@ -26,8 +27,8 @@ export function PrincipalDashboard() {
     }
   });
 
-  const studentCount = stats?.users || 0;
-  const teacherCount = 0; // TODO: Fetch real teacher count if needed, or 0
+  const studentCount = stats?.students || 0;
+  const teacherCount = stats?.teachers || 0;
   const atRiskCount = 0; // TODO: Implement real risk analysis
 
   const departmentStats = departments.map((dept: any) => ({
@@ -43,6 +44,11 @@ export function PrincipalDashboard() {
       <div>
         <h2 className="text-2xl font-bold text-foreground">Principal Dashboard</h2>
         <p className="text-muted-foreground">Institutional overview and academic performance</p>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="mb-6">
+        <RecentActivity limit={3} />
       </div>
 
       {/* Stats Grid */}
@@ -117,8 +123,12 @@ export function PrincipalDashboard() {
         <PerformanceTrendChart data={[]} />
       </div>
 
-      {/* Department Table */}
-      <DepartmentTable departments={departmentStats} />
+      {/* Recent Activity & Departments */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="lg:col-span-2">
+            <DepartmentTable departments={departmentStats} />
+          </div>
+      </div>
     </div>
   );
 }

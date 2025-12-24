@@ -1,10 +1,3 @@
-import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { COAttainmentChart } from '@/components/dashboard/COAttainmentChart';
-import { BloomTaxonomyChart } from '@/components/dashboard/BloomTaxonomyChart';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts';
-import { useState } from 'react';
 
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { COAttainmentChart } from '@/components/dashboard/COAttainmentChart';
@@ -50,10 +43,10 @@ export default function Analytics() {
           // Or better: Update backend to handle 'all'. 
           // For now, let's only fetch if specific subject is selected.
           if(selectedSubject === 'all') {
-              if (subjects.length > 0) return api.get(`/analytics/co-attainment/${subjects[0].id}`).then(r => r.data);
+              if (subjects.length > 0) return api.get(`/analytics/co-attainment/${subjects[0].id}?cohortId=${cohortId || ''}`).then(r => r.data);
               return [];
           }
-          const { data } = await api.get(`/analytics/co-attainment/${selectedSubject}`);
+          const { data } = await api.get(`/analytics/co-attainment/${selectedSubject}?cohortId=${cohortId || ''}`);
           return data;
       },
       enabled: subjects.length > 0
@@ -87,7 +80,7 @@ export default function Analytics() {
       queryKey: ['analytics-performance', cohortId],
       queryFn: async () => {
           if(!cohortId) return [];
-          const { data } = await api.get(`/analytics/performance/${cohortId}`);
+          const { data } = await api.get(`/analytics/subject-performance/${cohortId}`);
           return data;
       },
       enabled: !!cohortId

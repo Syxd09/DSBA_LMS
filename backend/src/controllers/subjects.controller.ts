@@ -49,7 +49,7 @@ export const getSubjects = async (req: AuthRequest, res: Response) => {
                     select: {
                         id: true,
                         versionName: true,
-                        program: { select: { id: true, name: true, code: true } }
+                        program: { select: { id: true, name: true, code: true, departmentId: true } }
                     }
                 }
             }
@@ -60,6 +60,8 @@ export const getSubjects = async (req: AuthRequest, res: Response) => {
         res.status(500).json({ message: 'Error fetching subjects', error: String(error) });
     }
 };
+
+import { AuditService } from '../services/audit.service';
 
 export const createSubject = async (req: AuthRequest, res: Response) => {
     try {
@@ -79,6 +81,14 @@ export const createSubject = async (req: AuthRequest, res: Response) => {
             },
             include: { curriculum: true }
         });
+
+        // Audit Log
+        if (req.user?.userId) {
+            await AuditService.log(req.user.userId, 'SUBJECT_CREATED', 'Subject', subject.id, {
+                code: subject.code,
+                name: subject.name
+            });
+        }
 
         res.status(201).json(subject);
     } catch (error) {

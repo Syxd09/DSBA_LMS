@@ -18,6 +18,12 @@ interface POResult {
  * Calculate PO attainment for a cohort/semester
  * Formula: PO Attainment = Σ(CO Attainment × CO-PO correlation) / Σ(CO-PO correlation)
  */
+import { AttainmentService } from '../services/attainment.service';
+
+/**
+ * Calculate PO attainment for a cohort/semester
+ * Formula: PO Attainment = Σ(CO Attainment × CO-PO correlation) / Σ(CO-PO correlation)
+ */
 export const calculatePOAttainment = async (req: AcademicRequest, res: Response) => {
     try {
         const { cohortId } = req.params;
@@ -29,134 +35,30 @@ export const calculatePOAttainment = async (req: AcademicRequest, res: Response)
             return res.status(400).json({ message: 'cohortId, semester, and academicYear are required' });
         }
 
-        const semesterNum = parseInt(String(semester));
-
-        // Get cohort with program
         const cohort = await prisma.cohort.findUnique({
             where: { id: cohortId },
-            include: { program: true }
+            select: { programId: true }
         });
 
         if (!cohort) return res.status(404).json({ message: 'Cohort not found' });
 
-        // Get all POs for this program
-        const programOutcomes = await prisma.programOutcome.findMany({
-            where: { programId: cohort.programId }
-        });
-
-        if (programOutcomes.length === 0) {
-            return res.status(400).json({ message: 'No Program Outcomes defined for this program' });
-        }
-
-        // Get all approved CO attainments for this cohort/semester
-        const coAttainments = await prisma.cOAttainment.findMany({
-            where: {
-                cohortId,
-                semester: semesterNum,
-                academicYear,
-                status: { in: ['APPROVED', 'LOCKED'] } // Only use approved/locked COs
-            },
-            include: {
-                co: {
-                    include: {
-                        poMappings: true
-                    }
-                }
-            }
-        });
-
-        if (coAttainments.length === 0) {
-            return res.status(400).json({
-                message: 'No approved CO attainments found. Please approve CO attainments first.',
-                hint: 'CO attainments must be in APPROVED or LOCKED status'
-            });
-        }
-
-        // Calculate PO attainment for each PO
-        const poAttainmentResults: POResult[] = [];
-
-        for (const po of programOutcomes) {
-            let weightedSum = 0;
-            let totalWeight = 0;
-            let coCount = 0;
-
-            for (const coAtt of coAttainments) {
-                // Find CO-PO mapping for this CO and PO
-                const mapping = coAtt.co.poMappings.find(m => m.poId === po.id);
-
-                if (mapping) {
-                    const weight = mapping.correlationLevel; // 1, 2, or 3
-                    weightedSum += coAtt.achievedPercent * weight;
-                    totalWeight += weight;
-                    coCount++;
-                }
-            }
-
-            const achievedPercent = totalWeight > 0 ? weightedSum / totalWeight : 0;
-
-            // Upsert PO attainment
-            const poAttainment = await prisma.pOAttainment.upsert({
-                where: {
-                    programId_cohortId_poId_semester_academicYear: {
-                        programId: cohort.programId,
-                        cohortId,
-                        poId: po.id,
-                        semester: semesterNum,
-                        academicYear
-                    }
-                },
-                update: {
-                    achievedPercent: Math.round(achievedPercent * 100) / 100,
-                    weightedSum,
-                    totalWeight,
-                    coCount,
-                    status: 'CALCULATED',
-                    calculatedAt: new Date()
-                },
-                create: {
-                    programId: cohort.programId,
-                    cohortId,
-                    poId: po.id,
-                    semester: semesterNum,
-                    academicYear,
-                    achievedPercent: Math.round(achievedPercent * 100) / 100,
-                    weightedSum,
-                    totalWeight,
-                    coCount,
-                    status: 'CALCULATED',
-                    calculatedAt: new Date()
-                }
-            });
-
-            poAttainmentResults.push({
-                poNumber: po.poNumber,
-                poDescription: po.description,
-                achievedPercent: poAttainment.achievedPercent,
-                targetPercent: poAttainment.targetPercent,
-                isAttained: poAttainment.achievedPercent >= poAttainment.targetPercent,
-                coCount,
-                status: poAttainment.status
-            });
-        }
+        const results = await AttainmentService.calculatePO(
+            cohort.programId,
+            cohortId,
+            parseInt(String(semester)),
+            String(academicYear)
+        );
 
         res.json({
             message: 'PO attainment calculated successfully',
             cohortId,
-            semester: semesterNum,
+            semester,
             academicYear,
-            results: poAttainmentResults,
-            summary: {
-                totalPOs: programOutcomes.length,
-                attainedCount: poAttainmentResults.filter(r => r.isAttained).length,
-                avgAttainment: Math.round(
-                    (poAttainmentResults.reduce((sum: number, r: POResult) => sum + r.achievedPercent, 0) /
-                        poAttainmentResults.length) * 100
-                ) / 100
-            }
+            results
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error calculating PO attainment:', error);
-        res.status(500).json({ message: 'Error calculating PO attainment', error: String(error) });
+        res.status(500).json({ message: error.message || 'Error calculating PO attainment' });
     }
 };
 

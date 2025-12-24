@@ -41,14 +41,18 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
             userCount,
             cohortCount,
             subjectCount,
-            examCount
+            examCount,
+            teacherCount,
+            studentCount
         ] = await Promise.all([
             prisma.department.count(),
             prisma.program.count(),
             prisma.user.count(),
             prisma.cohort.count(),
             prisma.subject.count(),
-            prisma.exam.count()
+            prisma.exam.count(),
+            prisma.user.count({ where: { role: 'TEACHER' } }),
+            prisma.user.count({ where: { role: 'STUDENT' } })
         ]);
 
         res.json({
@@ -57,7 +61,9 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
             users: userCount,
             cohorts: cohortCount,
             subjects: subjectCount,
-            exams: examCount
+            exams: examCount,
+            teachers: teacherCount,
+            students: studentCount
         });
     } catch (error) {
         console.error('Error fetching dashboard stats:', error);

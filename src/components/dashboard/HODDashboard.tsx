@@ -1,4 +1,5 @@
 import { StatsCard } from './StatsCard';
+import { RecentActivity } from './RecentActivity';
 import { COAttainmentChart } from './COAttainmentChart';
 import { BloomTaxonomyChart } from './BloomTaxonomyChart';
 // import { mockCOAttainment, bloomDistributionData } from '@/lib/mock-data'; // REMOVED MOCK
@@ -35,6 +36,7 @@ export function HODDashboard() {
     queryFn: async () => {
       const { data } = await api.get('/enrollments');
       return data || [];
+      return data || [];
     }
   });
 
@@ -56,6 +58,11 @@ export function HODDashboard() {
       <div>
         <h2 className="text-2xl font-bold text-foreground">Department Dashboard</h2>
         <p className="text-muted-foreground">Department Overview</p>
+      </div>
+
+      {/* Recent Activity */}
+      <div className="mb-6">
+        <RecentActivity limit={3} />
       </div>
 
       {/* Stats Grid */}
@@ -173,6 +180,8 @@ export function HODDashboard() {
           </div>
         </CardContent>
       </Card>
+
+
     </div>
   );
 }

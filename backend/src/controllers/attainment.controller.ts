@@ -36,6 +36,8 @@ export const getCOAttainment = async (req: AuthRequest, res: Response) => {
     }
 };
 
+import { AttainmentService } from '../services/attainment.service';
+
 // Calculate CO attainment from marks
 export const calculateCOAttainment = async (req: AuthRequest, res: Response) => {
     try {
@@ -47,151 +49,21 @@ export const calculateCOAttainment = async (req: AuthRequest, res: Response) => 
             });
         }
 
-        // Get all COs for this subject
-        const courseOutcomes = await prisma.courseOutcome.findMany({
-            where: { subjectId },
-            orderBy: { coNumber: 'asc' }
-        });
-
-        if (courseOutcomes.length === 0) {
-            return res.status(400).json({ message: 'No Course Outcomes found for this subject' });
-        }
-
-        // Get all enrolled students for this cohort/semester
-        const enrollments = await prisma.studentEnrollment.findMany({
-            where: { cohortId, semester: Number(semester) },
-            select: { studentId: true }
-        });
-        const studentIds = enrollments.map(e => e.studentId);
-        const totalStudents = studentIds.length;
-
-        if (totalStudents === 0) {
-            return res.status(400).json({ message: 'No students enrolled for this cohort/semester' });
-        }
-
-        // Get exams for this subject/cohort
-        const exams = await prisma.exam.findMany({
-            where: { subjectId, cohortId, status: 'PUBLISHED' },
-            include: {
-                sections: {
-                    include: {
-                        questions: {
-                            include: {
-                                subQuestions: true
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        const results = [];
-
-        // Calculate attainment for each CO
-        for (const co of courseOutcomes) {
-            let maxMarksForCO = 0;
-            let studentScores: { studentId: string; scored: number; max: number }[] = [];
-
-            // Initialize student scores
-            for (const studentId of studentIds) {
-                studentScores.push({ studentId, scored: 0, max: 0 });
-            }
-
-            // Collect marks for questions mapped to this CO
-            for (const exam of exams) {
-                for (const section of exam.sections) {
-                    for (const question of section.questions) {
-                        // Check if question or its subQuestions are mapped to this CO
-                        const relevantSubQuestions = question.subQuestions.filter(
-                            sq => sq.coId === co.id || question.coId === co.id
-                        );
-
-                        for (const sq of relevantSubQuestions) {
-                            maxMarksForCO += sq.maxMarks;
-
-                            // Get marks for this sub-question
-                            const marks = await prisma.studentMark.findMany({
-                                where: {
-                                    examId: exam.id,
-                                    subQuestionId: sq.id,
-                                    studentId: { in: studentIds }
-                                }
-                            });
-
-                            // Add to student scores
-                            for (const mark of marks) {
-                                const student = studentScores.find(s => s.studentId === mark.studentId);
-                                if (student) {
-                                    student.scored += Number(mark.marks);
-                                    student.max += sq.maxMarks;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Calculate how many students achieved target %
-            let passCount = 0;
-            for (const student of studentScores) {
-                if (student.max > 0) {
-                    const percentage = (student.scored / student.max) * 100;
-                    if (percentage >= targetPercent) {
-                        passCount++;
-                    }
-                }
-            }
-
-            // Calculate attainment percentage
-            const achievedPercent = totalStudents > 0 ? (passCount / totalStudents) * 100 : 0;
-
-            // Upsert attainment record
-            const attainment = await prisma.cOAttainment.upsert({
-                where: {
-                    subjectId_cohortId_coId_semester_academicYear: {
-                        subjectId,
-                        cohortId,
-                        coId: co.id,
-                        semester: Number(semester),
-                        academicYear: String(academicYear)
-                    }
-                },
-                update: {
-                    targetPercent,
-                    achievedPercent,
-                    studentCount: totalStudents,
-                    passCount,
-                    status: 'CALCULATED',
-                    calculatedAt: new Date()
-                },
-                create: {
-                    subjectId,
-                    cohortId,
-                    coId: co.id,
-                    semester: Number(semester),
-                    academicYear: String(academicYear),
-                    targetPercent,
-                    achievedPercent,
-                    studentCount: totalStudents,
-                    passCount,
-                    status: 'CALCULATED',
-                    calculatedAt: new Date()
-                },
-                include: {
-                    co: { select: { coNumber: true, description: true } }
-                }
-            });
-
-            results.push(attainment);
-        }
+        const results = await AttainmentService.calculateCO(
+            subjectId,
+            cohortId,
+            Number(semester),
+            String(academicYear),
+            Number(targetPercent)
+        );
 
         res.json({
             message: `Calculated attainment for ${results.length} COs`,
             results
         });
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error calculating CO attainment:', error);
-        res.status(500).json({ message: 'Error calculating attainment', error: String(error) });
+        res.status(500).json({ message: error.message || 'Error calculating attainment' });
     }
 };
 

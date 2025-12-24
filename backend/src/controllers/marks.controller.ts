@@ -116,6 +116,19 @@ export const submitMarksForApproval = async (req: AuthRequest, res: Response) =>
 export const getMarks = async (req: AuthRequest, res: Response) => {
     try {
         const { examId } = req.params;
+        const userId = req.user?.userId;
+        const userRole = req.user?.role?.toUpperCase();
+
+        // Verify Exam Ownership first
+        if (userRole === 'TEACHER') {
+            const exam = await prisma.exam.findUnique({ where: { id: examId }, select: { teacherId: true } });
+            if (!exam) return res.status(404).json({ message: 'Exam not found' });
+
+            if (exam.teacherId !== userId) {
+                return res.status(403).json({ message: 'Access denied' });
+            }
+        }
+
         const marks = await prisma.studentMark.findMany({
             where: { examId }
         });

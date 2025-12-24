@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
-import { Search, Plus, Users, Loader2, Calendar, Pencil, Trash2 } from 'lucide-react';
+import { Search, Plus, Users, Loader2, Calendar, Pencil, Trash2, ArrowUpCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface Cohort {
@@ -41,6 +41,8 @@ export default function Cohorts() {
   const [editingCohort, setEditingCohort] = useState<Cohort | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingCohort, setDeletingCohort] = useState<Cohort | null>(null);
+  const [promoteDialogOpen, setPromoteDialogOpen] = useState(false);
+  const [promotingCohort, setPromotingCohort] = useState<Cohort | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -141,6 +143,28 @@ export default function Cohorts() {
     }
   };
 
+  const handleOpenPromote = (cohort: Cohort) => {
+      setPromotingCohort(cohort);
+      setPromoteDialogOpen(true);
+  };
+
+  const handlePromote = async () => {
+      if (!promotingCohort) return;
+      setIsSubmitting(true);
+      try {
+          await api.post(`/cohorts/${promotingCohort.id}/promote`);
+          toast({ title: 'Success', description: 'Batch promoted successfully.' });
+          setPromoteDialogOpen(false);
+          setPromotingCohort(null);
+          // Refresh data
+          fetchData(); 
+      } catch (error: any) {
+          toast({ title: 'Error', description: error.response?.data?.message || 'Failed to promote batch.', variant: 'destructive' });
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
+
   const filteredCohorts = cohorts.filter(cohort =>
     cohort.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     cohort.program?.code.toLowerCase().includes(searchQuery.toLowerCase())
@@ -151,12 +175,12 @@ export default function Cohorts() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Cohorts</h2>
-            <p className="text-muted-foreground">Manage student batches and cohorts</p>
+            <h2 className="text-2xl font-bold text-foreground">Batches</h2>
+            <p className="text-muted-foreground">Manage student batches</p>
           </div>
           <Button onClick={handleOpenCreate}>
             <Plus className="w-4 h-4 mr-2" />
-            Add Cohort
+            Add Batch
           </Button>
         </div>
 
@@ -164,9 +188,9 @@ export default function Cohorts() {
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{isEditMode ? 'Edit Cohort' : 'Create New Cohort'}</DialogTitle>
+              <DialogTitle>{isEditMode ? 'Edit Batch' : 'Create New Batch'}</DialogTitle>
               <DialogDescription>
-                {isEditMode ? 'Update the cohort details.' : 'Enter the details for the new student cohort.'}
+                {isEditMode ? 'Update the batch details.' : 'Enter the details for the new student batch.'}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -303,6 +327,11 @@ export default function Cohorts() {
                           <Button variant="ghost" size="sm" onClick={() => window.location.href = '/student-enrollments'}>
                             Students
                           </Button>
+                           {isActive && (
+                            <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800" onClick={() => handleOpenPromote(cohort)} title="Promote to Next Semester">
+                              <ArrowUpCircle className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -312,6 +341,26 @@ export default function Cohorts() {
             </Table>
           )}
         </div>
+        
+        {/* Promote Confirmation Dialog */}
+        <Dialog open={promoteDialogOpen} onOpenChange={setPromoteDialogOpen}>
+           <DialogContent>
+             <DialogHeader>
+               <DialogTitle>Promote Batch</DialogTitle>
+               <DialogDescription>
+                 Are you sure you want to promote <strong>{promotingCohort?.name}</strong> to Semester {promotingCohort ? promotingCohort.currentSemester + 1 : ''}?
+                 <br/><br/>
+                 <span className="text-destructive font-semibold">Warning:</span> This action will <strong>LOCK</strong> all exam and attainment data for the current semester. This cannot be undone.
+               </DialogDescription>
+             </DialogHeader>
+             <div className="flex justify-end gap-4 mt-4">
+               <Button variant="outline" onClick={() => setPromoteDialogOpen(false)}>Cancel</Button>
+               <Button onClick={handlePromote} disabled={isSubmitting}>
+                 {isSubmitting ? 'Promoting...' : 'Confirm Promotion'}
+               </Button>
+             </div>
+           </DialogContent>
+        </Dialog>
       </div>
     </AuthenticatedLayout>
   );

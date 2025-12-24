@@ -13,6 +13,14 @@ export function COAttainmentChart({ data }: COAttainmentChartProps) {
     fill: item.attainment >= item.target ? 'hsl(var(--chart-3))' : 'hsl(var(--destructive))',
   }));
 
+  if (!data || data.length === 0) {
+    return (
+      <div className="border border-border bg-card p-6 flex items-center justify-center h-64 text-muted-foreground">
+        No data available
+      </div>
+    );
+  }
+
   return (
     <div className="border border-border bg-card p-6">
       <div className="mb-6">

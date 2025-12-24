@@ -11,7 +11,7 @@ router.use(authenticateToken);
 // Analytics routes with context enforcement
 router.get('/co-attainment/:subjectId',
     requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER']),
-    requireAcademicContext({ required: ['cohortId'] }),
+    requireAcademicContext({ required: [] }), // Relaxed for flexibility
     getCOAttainment
 );
 

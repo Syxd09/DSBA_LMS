@@ -5,6 +5,14 @@ interface BloomTaxonomyChartProps {
 }
 
 export function BloomTaxonomyChart({ data }: BloomTaxonomyChartProps) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="border border-border bg-card p-6 flex items-center justify-center h-64 text-muted-foreground">
+        No data available
+      </div>
+    );
+  }
+
   return (
     <div className="border border-border bg-card p-6">
       <div className="mb-6">

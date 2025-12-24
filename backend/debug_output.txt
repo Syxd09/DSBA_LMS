@@ -1,0 +1,52 @@
+
+--- Debugging Visibility for shivam.9@gmail.com ---
+User ID: 32a87afe-0f94-4403-ac39-6c0a05bb6480
+Role: TEACHER
+Assignments: 1
+
+Assignment: Cohort=f109eedc-2815-40d1-a2aa-12c930b8a07f, Sem=5, Subject=42ca9b27-edd1-468d-ac84-b2e3e319203a, Dept=72ab4821-569e-4953-9a79-c6c8bf4c0954
+Matching Students (Strict Sem Match): 0
+  -> Students in Cohort (Any Sem): 10
+  -> Sample Student Sem: 1
+
+--- Debugging Visibility for shivam.9@gmail.com ---
+User ID: 32a87afe-0f94-4403-ac39-6c0a05bb6480
+Role: TEACHER
+Assignments: 1
+
+Assignment: Cohort=f109eedc-2815-40d1-a2aa-12c930b8a07f, Sem=5, Subject=42ca9b27-edd1-468d-ac84-b2e3e319203a, Dept=72ab4821-569e-4953-9a79-c6c8bf4c0954
+Matching Students (Strict Sem Match): 0
+  -> Students in Cohort (Any Sem): 10
+  -> Sample Student Sem: 1
+  -> Sample Student Dept: 72ab4821-569e-4953-9a79-c6c8bf4c0954
+  -> Assignment Dept: 72ab4821-569e-4953-9a79-c6c8bf4c0954
+  -> Dept Match? true
+
+--- Debugging Visibility for shivam.9@gmail.com ---
+User ID: 32a87afe-0f94-4403-ac39-6c0a05bb6480
+Role: TEACHER
+Assignments: 3
+
+Assignment: Cohort=f109eedc-2815-40d1-a2aa-12c930b8a07f, Sem=5, Subject=42ca9b27-edd1-468d-ac84-b2e3e319203a, Dept=72ab4821-569e-4953-9a79-c6c8bf4c0954
+Matching Students (Strict Sem Match): 0
+  -> Students in Cohort (Any Sem): 11
+  -> Sample Student Sem: 1
+  -> Sample Student Dept: 72ab4821-569e-4953-9a79-c6c8bf4c0954
+  -> Assignment Dept: 72ab4821-569e-4953-9a79-c6c8bf4c0954
+  -> Dept Match? true
+
+Assignment: Cohort=f109eedc-2815-40d1-a2aa-12c930b8a07f, Sem=3, Subject=02372952-b55d-4945-947c-f8dd4c4283ba, Dept=72ab4821-569e-4953-9a79-c6c8bf4c0954
+Matching Students (Strict Sem Match): 0
+  -> Students in Cohort (Any Sem): 11
+  -> Sample Student Sem: 1
+  -> Sample Student Dept: 72ab4821-569e-4953-9a79-c6c8bf4c0954
+  -> Assignment Dept: 72ab4821-569e-4953-9a79-c6c8bf4c0954
+  -> Dept Match? true
+
+Assignment: Cohort=f109eedc-2815-40d1-a2aa-12c930b8a07f, Sem=2, Subject=e86193b0-991f-425a-b29b-0cce479e2509, Dept=72ab4821-569e-4953-9a79-c6c8bf4c0954
+Matching Students (Strict Sem Match): 0
+  -> Students in Cohort (Any Sem): 11
+  -> Sample Student Sem: 1
+  -> Sample Student Dept: 72ab4821-569e-4953-9a79-c6c8bf4c0954
+  -> Assignment Dept: 72ab4821-569e-4953-9a79-c6c8bf4c0954
+  -> Dept Match? true

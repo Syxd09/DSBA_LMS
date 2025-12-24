@@ -75,6 +75,17 @@ export const getExamDetails = async (req: AuthRequest, res: Response) => {
         });
 
         if (!exam) return res.status(404).json({ message: 'Exam not found' });
+
+        // RBAC: Security Check
+        const userRole = req.user?.role?.toUpperCase();
+        const userId = req.user?.userId;
+
+        if (userRole === 'TEACHER' && exam.teacherId !== userId) {
+            return res.status(403).json({ message: 'Access denied: You are not the owner of this exam' });
+        }
+
+        // Note: HODs/Admins implicitly allowed. Students usually don't access this endpoint directly or have restricted view.
+
         res.json(exam);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching exam details' });

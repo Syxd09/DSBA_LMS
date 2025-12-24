@@ -1,6 +1,5 @@
-
 import { Router } from 'express';
-import { getCohorts, createCohort, updateCohort, deleteCohort } from '../controllers/cohorts.controller';
+import { getCohorts, createCohort, updateCohort, deleteCohort, promoteCohort } from '../controllers/cohorts.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/rbac.middleware';
 
@@ -11,6 +10,7 @@ router.use(authenticateToken);
 router.get('/', getCohorts);
 router.post('/', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), createCohort);
 router.put('/:id', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), updateCohort);
-router.delete('/:id', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), deleteCohort);
+router.delete('/:id', requireRole(['ADMIN', 'PRINCIPAL']), deleteCohort);
+router.post('/:id/promote', requireRole(['ADMIN', 'PRINCIPAL']), promoteCohort);
 
 export default router;

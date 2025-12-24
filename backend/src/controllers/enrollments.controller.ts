@@ -13,9 +13,12 @@ export const getEnrollments = async (req: AuthRequest, res: Response) => {
         // Build where clause based on context
         const where: import('@prisma/client').Prisma.StudentEnrollmentWhereInput = {};
 
-        if (cohortId) where.cohortId = String(cohortId);
-        if (departmentId) where.departmentId = String(departmentId);
+        if (cohortId) where.cohortId = cohortId as string;
+        if (departmentId) where.departmentId = departmentId as string;
         if (semester) where.semester = Number(semester);
+
+
+
 
         // RBAC: HOD sees only their department
         if (userRole === 'HOD') {
@@ -28,24 +31,48 @@ export const getEnrollments = async (req: AuthRequest, res: Response) => {
             }
         }
 
-        // RBAC: Teacher sees only students in their assigned cohorts
+        // RBAC: Teacher sees only students in their assigned cohorts AND semesters
         if (userRole === 'TEACHER') {
             const assignments = await prisma.teacherAssignment.findMany({
                 where: { teacherId: userId },
-                select: { cohortId: true }
+                select: { cohortId: true, departmentId: true, semester: true }
             });
-            const assignedCohortIds = assignments.map(a => a.cohortId);
 
-            // If specific cohort requested, ensure it's assigned
-            if (cohortId && !assignedCohortIds.includes(String(cohortId))) {
+
+
+            if (assignments.length === 0 && !userRole.includes('ADMIN')) {
                 return res.json([]);
             }
 
-            // Otherwise filter by all assigned cohorts if no specific cohort requested
-            // Note: If departmentId is provided but no cohort, we still restrict to assigned cohorts within that dept
-            if (!cohortId) {
-                where.cohortId = { in: assignedCohortIds };
+            // STRICT FILTERING: Match both Cohort and Semester.
+            // A teacher assigned to "Cohort A, Sem 2" sees students currently in "Cohort A, Sem 2".
+            const orConditions = assignments.map(a => ({
+                cohortId: a.cohortId,
+                semester: a.semester
+            }));
+
+            if (orConditions.length > 0) {
+                where.OR = orConditions;
             }
+            // If query params are provided, they must ALSO match one of the assignments
+            if (cohortId || semester) {
+                // Check if the requested combination is valid for this teacher
+                const requestedCohort = cohortId ? String(cohortId) : null;
+                const requestedSemester = semester ? Number(semester) : null;
+
+                const isValidRequest = assignments.some(a =>
+                    (!requestedCohort || a.cohortId === requestedCohort) &&
+                    (!requestedSemester || a.semester === requestedSemester)
+                );
+
+                if (!isValidRequest) {
+                    return res.json([]);
+                }
+            }
+
+            // Apply strict filtering to the query (Cohort + Semester)
+            where.OR = orConditions;
+
         }
 
         // RBAC: Student sees only their own enrollments
@@ -121,6 +148,8 @@ export const getStudentsByClass = async (req: AuthRequest, res: Response) => {
     }
 };
 
+import { AuditService } from '../services/audit.service';
+
 // Enroll a single student (with auto-create user)
 export const enrollStudent = async (req: AuthRequest, res: Response) => {
     try {
@@ -148,6 +177,19 @@ export const enrollStudent = async (req: AuthRequest, res: Response) => {
                     departmentId
                 }
             });
+
+            // Audit Log for User Creation
+            if (req.user?.userId) {
+                await AuditService.log(req.user.userId, 'USER_CREATED', 'User', user.id, {
+                    email: user.email,
+                    role: user.role,
+                    reason: 'Auto-created during enrollment'
+                });
+            }
+        }
+
+        if (!user) {
+            return res.status(500).json({ message: 'Failed to create or find user' });
         }
 
         // Check for existing enrollment
@@ -183,6 +225,14 @@ export const enrollStudent = async (req: AuthRequest, res: Response) => {
                 department: { select: { name: true, code: true } }
             }
         });
+
+        // Audit Log for Enrollment
+        if (req.user?.userId) {
+            await AuditService.log(req.user.userId, 'STUDENT_ENROLLED', 'StudentEnrollment', enrollment.id, {
+                rollNumber: enrollment.rollNumber,
+                studentName: enrollment.student.fullName
+            });
+        }
 
         res.status(201).json(enrollment);
     } catch (error: unknown) {
@@ -300,6 +350,13 @@ export const deleteEnrollment = async (req: AuthRequest, res: Response) => {
         await prisma.studentEnrollment.delete({
             where: { id }
         });
+
+        // Audit Log
+        if (req.user?.userId) {
+            await AuditService.log(req.user.userId, 'ENROLLMENT_DELETED', 'StudentEnrollment', id, {
+                deletedEnrollmentId: id
+            });
+        }
 
         res.json({ message: 'Enrollment deleted successfully' });
     } catch (error) {

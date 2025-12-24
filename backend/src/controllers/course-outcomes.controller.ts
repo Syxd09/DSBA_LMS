@@ -100,6 +100,28 @@ export const createCourseOutcome = async (req: AuthRequest, res: Response) => {
     }
 };
 
+export const updateCourseOutcome = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { coNumber, description, bloomLevel } = req.body;
+
+        const courseOutcome = await prisma.courseOutcome.update({
+            where: { id },
+            data: {
+                ...(coNumber && { coNumber: parseInt(coNumber) }),
+                ...(description && { description }),
+                ...(bloomLevel && { bloomLevel })
+            },
+            include: { subject: true }
+        });
+
+        res.json(courseOutcome);
+    } catch (error) {
+        console.error('Error updating course outcome:', error);
+        res.status(500).json({ message: 'Error updating course outcome', error: String(error) });
+    }
+};
+
 export const deleteCourseOutcome = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;

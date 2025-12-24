@@ -19,6 +19,7 @@ import Cohorts from "./pages/Cohorts";
 import Exams from "./pages/Exams";
 import CourseOutcomes from "./pages/CourseOutcomes";
 import StudentEnrollments from "./pages/StudentEnrollments";
+import Students from "./pages/Students";
 import TeacherAssignments from "./pages/TeacherAssignments";
 import GradeManagement from "./pages/GradeManagement";
 import COPOAnalytics from "./pages/COPOAnalytics";
@@ -57,6 +58,7 @@ const App = () => (
             <Route path="/messages" element={<Messages />} />
             <Route path="/course-outcomes" element={<CourseOutcomes />} />
             <Route path="/student-enrollments" element={<StudentEnrollments />} />
+            <Route path="/students" element={<Students />} />
 
             <Route path="/teacher-assignments" element={<TeacherAssignments />} />
             <Route path="/grade-management" element={<GradeManagement />} />

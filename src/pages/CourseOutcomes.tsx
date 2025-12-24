@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Target, Loader2, BookOpen } from 'lucide-react';
+import { Search, Plus, Target, Loader2, BookOpen, Pencil, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 
@@ -58,6 +59,13 @@ export default function CourseOutcomes() {
     bloomLevel: 'Remember',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Edit/Delete State
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingDescription, setDeletingDescription] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -96,31 +104,72 @@ export default function CourseOutcomes() {
 
     setIsSubmitting(true);
     try {
-      await api.post('/course-outcomes', {
-        subjectId: newCO.subjectId,
-        coNumber: newCO.coNumber,
-        description: newCO.description,
-        bloomLevel: newCO.bloomLevel,
-      });
-
-      toast({
-        title: 'Course Outcome created',
-        description: `CO${newCO.coNumber} has been created successfully.`,
-      });
+      if (isEditMode && editingId) {
+        // Update CO
+         await api.put(`/course-outcomes/${editingId}`, {
+            subjectId: newCO.subjectId,
+            coNumber: newCO.coNumber,
+            description: newCO.description,
+            bloomLevel: newCO.bloomLevel,
+         });
+         toast({ title: 'Course Outcome updated', description: 'Changes saved successfully.' });
+      } else {
+        // Create CO
+        await api.post('/course-outcomes', {
+            subjectId: newCO.subjectId,
+            coNumber: newCO.coNumber,
+            description: newCO.description,
+            bloomLevel: newCO.bloomLevel,
+        });
+        toast({ title: 'Course Outcome created', description: `CO${newCO.coNumber} has been created successfully.` });
+      }
 
       setIsDialogOpen(false);
-      setNewCO({ subjectId: '', coNumber: 1, description: '', bloomLevel: 'Remember' });
+      resetForm();
       fetchData();
     } catch (error: any) {
-      console.error('Error creating CO:', error);
+      console.error('Error saving CO:', error);
       toast({
         title: 'Error',
-        description: error.response?.data?.message || 'Failed to create course outcome.',
+        description: error.response?.data?.message || 'Failed to save course outcome.',
         variant: 'destructive',
       });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const resetForm = () => {
+      setNewCO({ subjectId: '', coNumber: 1, description: '', bloomLevel: 'Remember' });
+      setIsEditMode(false);
+      setEditingId(null);
+  };
+
+  const handleOpenEdit = (co: CourseOutcome) => {
+      setNewCO({
+          subjectId: co.subjectId,
+          coNumber: co.coNumber,
+          description: co.description,
+          bloomLevel: co.bloomLevel,
+      });
+      setEditingId(co.id);
+      setIsEditMode(true);
+      setIsDialogOpen(true);
+  };
+
+  const handleDeleteCO = async () => {
+      if (!deletingId) return;
+      setIsSubmitting(true);
+      try {
+          await api.delete(`/course-outcomes/${deletingId}`);
+          toast({ title: 'Success', description: 'Course Outcome deleted.' });
+          setDeleteDialogOpen(false);
+          fetchData();
+      } catch (error: any) {
+          toast({ title: 'Error', description: 'Failed to delete CO.', variant: 'destructive' });
+      } finally {
+          setIsSubmitting(false);
+      }
   };
 
   // Fetch POs for the selected subject's program
@@ -198,7 +247,10 @@ export default function CourseOutcomes() {
             <h2 className="text-2xl font-bold text-foreground">Course Outcomes</h2>
             <p className="text-muted-foreground">Manage course outcomes and Bloom's taxonomy mappings</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) resetForm();
+          }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
@@ -207,9 +259,9 @@ export default function CourseOutcomes() {
             </DialogTrigger>
             <DialogContent aria-describedby="create-co-desc">
               <DialogHeader>
-                <DialogTitle>Create Course Outcome</DialogTitle>
+                <DialogTitle>{isEditMode ? 'Edit Course Outcome' : 'Create Course Outcome'}</DialogTitle>
                 <DialogDescription id="create-co-desc">
-                  Define a new course outcome with Bloom's taxonomy level.
+                  {isEditMode ? 'Update existing course outcome details.' : 'Define a new course outcome with Bloom\'s taxonomy level.'}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -277,7 +329,7 @@ export default function CourseOutcomes() {
                       Creating...
                     </>
                   ) : (
-                    'Create Course Outcome'
+                    isEditMode ? 'Update Course Outcome' : 'Create Course Outcome'
                   )}
                 </Button>
               </div>
@@ -354,9 +406,21 @@ export default function CourseOutcomes() {
                           CO{co.coNumber}
                         </Badge>
                         <p className="text-sm text-foreground flex-1">{co.description}</p>
-                        <Badge className={bloomColors[co.bloomLevel] || ''}>
+                         <Badge className={bloomColors[co.bloomLevel] || ''}>
                           {co.bloomLevel}
                         </Badge>
+                        <div className="flex gap-1">
+                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(co)}>
+                                 <Pencil className="w-3.5 h-3.5" />
+                             </Button>
+                             <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => {
+                                 setDeletingId(co.id);
+                                 setDeletingDescription(`CO${co.coNumber}: ${co.description.substring(0, 30)}...`);
+                                 setDeleteDialogOpen(true);
+                             }}>
+                                 <Trash2 className="w-3.5 h-3.5" />
+                             </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -419,6 +483,16 @@ export default function CourseOutcomes() {
             ))}
           </div>
         )}
+
+        <ConfirmDeleteDialog 
+            open={deleteDialogOpen}
+            onOpenChange={setDeleteDialogOpen}
+            title="Delete Course Outcome"
+            description={`Are you sure you want to delete "${deletingDescription}"? This action cannot be undone.`}
+            confirmText="Delete"
+            onConfirm={handleDeleteCO}
+            isLoading={isSubmitting}
+        />
       </div>
     </AuthenticatedLayout>
   );

@@ -23,17 +23,21 @@ app.use(cors(corsOptions));
 // Security headers
 app.use(helmet());
 
-// Logging - Production vs Development
-if (process.env.NODE_ENV === 'production') {
-    app.use(morgan('combined'));
-} else {
+import requestLogger from './middleware/request-logger.middleware';
+
+// Logging - Structured (Winston)
+app.use(requestLogger);
+
+// (Optional) Keep Morgan for dev console output if preferred, or remove it entirely.
+// For now, we keep Morgan for quick dev feedback but Winston handles production logging.
+if (process.env.NODE_ENV !== 'production') {
     app.use(morgan('dev'));
 }
 
 // Rate Limiting - General API
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5000, // Relaxed limit for development/demo (was 100)
+    max: 10000, // Effectively disabled
     message: { message: 'Too many requests, please try again later' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -42,7 +46,7 @@ const apiLimiter = rateLimit({
 // Rate Limiting - Strict for auth routes
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // 10 login attempts per 15 min
+    max: 10000, // Effectively disabled
     message: { message: 'Too many login attempts, please try again later' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -122,6 +126,11 @@ app.use('/api/bulk', bulkRoutes);
 // Activity timeline routes
 import timelineRoutes from './routes/timeline.routes';
 app.use('/api/timeline', timelineRoutes);
+
+// Swagger API Documentation
+import swaggerUi from 'swagger-ui-express';
+import { specs } from './utils/swagger';
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 
 // Root endpoint
 app.get('/', (req, res) => {

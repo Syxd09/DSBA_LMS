@@ -8,7 +8,7 @@ const router = Router();
 
 router.use(authenticateToken);
 
-router.get('/', requireRole(['ADMIN', 'PRINCIPAL']), getAuditLogs);
+router.get('/', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), getAuditLogs);
 router.get('/dashboard-stats', getDashboardStats);
 
 export default router;
