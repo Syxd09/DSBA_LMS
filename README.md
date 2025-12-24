@@ -1,6 +1,16 @@
 # OBE Management System
 
 A comprehensive Outcome-Based Education (OBE) management platform for NBA/NAAC accreditation compliance.
+**Version 2.0 - Hardened & Enhanced**
+
+## 🌟 Key Enhancements (v2.0)
+This system has recently undergone a major hardening and feature upgrade phase:
+-   **🛡️ Strict Security**: Implemented `Zod` schema validation for all critical inputs, preventing malformed data and injection attacks.
+-   **📝 API Documentation**: Integrated **Swagger/OpenAPI** (`/api-docs`) for interactive API exploration.
+-   **🪵 Structured Logging**: Replaced console logs with **Winston** for production-grade observability (file rotation, severity levels).
+-   **📈 Attainment Engine**: Dedicated service for accurate **CO** (Course Outcome) and **PO** (Program Outcome) attainment calculations.
+
+---
 
 ## 🚀 Quick Start
 
@@ -30,16 +40,9 @@ cd ..
 npm run dev          # Frontend (port 8080)
 ```
 
-### Default Credentials
-
-After running seed data:
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@college.edu | Admin@123 |
-| Principal | principal@college.edu | Admin@123 |
-| HOD | hod.cs@college.edu | Admin@123 |
-| Teacher | john.doe@college.edu | Teacher@123 |
-| Student | student1@college.edu | Student@123 |
+### 📚 API Documentation
+Once the backend is running, verify endpoints at:
+**http://localhost:3000/api-docs**
 
 ---
 
@@ -59,176 +62,93 @@ cp .env.production .env
 # Build and start all services
 docker-compose up -d --build
 
-# Check status
-docker-compose ps
-
 # View logs
 docker-compose logs -f
-
-# Stop services
-docker-compose down
 ```
 
 ### Access
 - Frontend: http://localhost
 - API: http://localhost:3000
+- API Docs: http://localhost:3000/api-docs
 - Health: http://localhost:3000/health
 
 ---
 
-## ☁️ Cloud Deployment
+## 🏗️ System Architecture
 
-### Railway (Recommended)
+### Tech Stack
+-   **Frontend**: React, TypeScript, Vite, Tailwind CSS, Shadcn UI.
+-   **Backend**: Node.js, Express, TypeScript.
+-   **Database**: PostgreSQL (via Prisma ORM).
+-   **Validation**: Zod.
+-   **Logging**: Winston.
 
-1. **Create Account** at [railway.app](https://railway.app)
-2. **Connect GitHub** and select this repository
-3. **Add PostgreSQL** from the Railway dashboard
-4. **Set Environment Variables:**
-   ```
-   DATABASE_URL=<auto-provided by Railway>
-   JWT_SECRET=<your-secret>
-   NODE_ENV=production
-   FRONTEND_URL=<your-railway-url>
-   ```
-5. **Deploy** - Railway auto-builds on push
-
-### Render
-
-1. **Create Account** at [render.com](https://render.com)
-2. **Create PostgreSQL Database** (free tier available)
-3. **Create Web Service** for backend:
-   - Root Directory: `backend`
-   - Build: `npm install && npm run build`
-   - Start: `npm run start:prod`
-4. **Create Static Site** for frontend:
-   - Build: `npm install && npm run build`
-   - Publish: `dist`
-
-### AWS EC2
-
-```bash
-# SSH into EC2 instance
-ssh -i your-key.pem ubuntu@your-ec2-ip
-
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-sudo usermod -aG docker ubuntu
-
-# Clone and deploy
-git clone https://github.com/yourusername/outcome-master.git
-cd outcome-master
-cp .env.production .env
-# Edit .env with production values
-docker-compose up -d --build
-
-# Setup SSL (Certbot)
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d yourdomain.com
-```
-
----
-
-## 📁 Project Structure
-
+### Folder Structure
 ```
 outcome-master/
 ├── src/                    # Frontend React source
-│   ├── components/         # UI components
+│   ├── components/         # UI components (Shadcn)
 │   ├── pages/              # Page components
-│   ├── services/           # API services
-│   └── lib/                # Utilities
+│   └── services/           # API integration
 ├── backend/                # Backend Express source
 │   ├── src/
 │   │   ├── controllers/    # Route handlers
-│   │   ├── middleware/     # Express middleware
-│   │   ├── routes/         # API routes
-│   │   └── services/       # Business logic
+│   │   ├── middleware/     # Validation (Zod), Auth, Logging (Winston)
+│   │   ├── routes/         # API definition
+│   │   ├── services/       # Business logic (AttainmentService)
+│   │   └── utils/          # Swagger config, Logger
 │   └── prisma/             # Database schema
-├── docker-compose.yml      # Docker orchestration
-├── Dockerfile              # Frontend container
-└── nginx.conf              # Nginx configuration
+└── docker-compose.yml      # Orchestration
 ```
 
 ---
 
-## 🔧 API Endpoints
+## 🧠 Attainment Engine
+
+The system features a robust engine for calculating OBE metrics:
+
+### 1. CO Attainment
+-   **Logic**: Aggregates student marks for specific questions mapped to a CO.
+-   **Threshold**: Configurable target percentage (default 60%).
+-   **Formula**: `(Students scoring > Target%) / Total Students * 100`
+-   **Optimization**: Batched queries minimize database load during calculation.
+
+### 2. PO Attainment
+-   **Logic**: Aggregates CO attainment based on the CO-PO Mapping Matrix.
+-   **Formula**: `PO = Σ(CO_Attainment * Weighted_Correlation) / Σ(Weights)`
+-   **Integration**: Automatically pulls approved CO data.
+
+---
+
+## 🔧 API Endpoints (Snapshot)
+
+For full details, visit `/api-docs`.
 
 ### Authentication
 - `POST /api/auth/login` - User login
 - `POST /api/auth/register` - User registration
 
-### Academic Structure
-- `GET/POST /api/departments` - Department CRUD
-- `GET/POST /api/programs` - Program CRUD
-- `GET/POST /api/cohorts` - Cohort CRUD
-- `GET/POST /api/subjects` - Subject CRUD
-
-### OBE Management
-- `GET/POST /api/course-outcomes` - CO management
-- `POST /api/bulk/program-outcomes` - Bulk PO creation
-- `POST /api/bulk/co-po-mappings` - CO-PO mapping
-
-### Assessment
-- `GET/POST /api/exams` - Exam management
-- `POST /api/marks/save` - Save marks
-- `POST /api/marks/submit` - Submit for approval
-
-### Attainment
-- `POST /api/attainment/calculate` - Calculate CO attainment
-- `POST /api/po-attainment/calculate/:cohortId` - Calculate PO
-- `POST /api/attainment/approve` - Approve attainment
-- `POST /api/attainment/lock` - Lock attainment
+### OBE Management (Hardened)
+- `POST /api/assignments` - Create Assignment (Validated)
+- `POST /api/enrollments` - Enroll Students (Validated)
+- `POST /api/attainment/calculate` - Trigger CO Calculation
 
 ### Workflows
 - `POST /api/marks-unlock/request` - Request marks unlock
-- `POST /api/marks-unlock/hod-decision/:id` - HOD decision
-- `POST /api/marks-unlock/principal-decision/:id` - Principal decision
-
----
-
-## 📊 Features
-
-### For NBA/NAAC Compliance
-- ✅ CO/PO definition and mapping
-- ✅ Automated attainment calculation
-- ✅ Multi-level approval workflows
-- ✅ Data lock for audit integrity
-- ✅ Complete audit trail
-
-### For Administrators
-- ✅ Role-based access (5 roles)
-- ✅ Bulk operations
-- ✅ Activity timeline
-- ✅ Department-wise isolation
-
-### For Faculty
-- ✅ Guided mark entry
-- ✅ Automatic calculations
-- ✅ Correction workflows
-- ✅ Progress tracking
+- `POST /api/attainment/approve` - Approve calculated attainment
 
 ---
 
 ## 🔒 Security Features
-
-- JWT authentication with 24h expiry
-- bcrypt password hashing
-- Rate limiting (100 req/15min)
-- Helmet security headers
-- CORS protection
-- Audit logging
-
----
-
-## 📝 License
-
-MIT License - See LICENSE file for details.
+- **Input Validation**: Zod schemas for request body/params.
+- **RBAC**: Middleware enforces `ADMIN`, `PRINCIPAL`, `HOD`, `TEACHER` roles.
+- **Auth**: JWT with strict expiry.
+- **Headers**: Helmet security headers.
+- **CORS**: Environment-aware configuration.
 
 ---
 
 ## 🤝 Contributing
-
 1. Fork the repository
 2. Create feature branch (`git checkout -b feature/amazing`)
 3. Commit changes (`git commit -m 'Add amazing feature'`)
@@ -237,4 +157,4 @@ MIT License - See LICENSE file for details.
 
 ---
 
-*Built with ❤️ for educational institutions*
+*Built for robust educational compliance.*
