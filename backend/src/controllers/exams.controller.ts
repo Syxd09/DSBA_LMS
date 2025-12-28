@@ -47,7 +47,11 @@ export const createExam = async (req: AuthRequest, res: Response) => {
 
         await createAuditLog(teacherId, 'CREATE_EXAM', 'exams', exam.id, undefined, exam);
         res.status(201).json(exam);
-    } catch (error) {
+    } catch (error: any) {
+        if (error.code === 'P2002') {
+            return res.status(409).json({ message: 'Exam of this type already exists for this subject and cohort' });
+        }
+        console.error('Error creating exam:', error);
         res.status(500).json({ message: 'Error creating exam', error });
     }
 };
@@ -117,6 +121,15 @@ export const updateExamStructure = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
         const { sections } = req.body;
+
+        // RBAC: Ownership Check
+        if (req.user?.role === 'TEACHER') {
+            const exam = await prisma.exam.findUnique({ where: { id }, select: { teacherId: true } });
+            if (!exam) return res.status(404).json({ message: 'Exam not found' });
+            if (exam.teacherId !== req.user.userId) {
+                return res.status(403).json({ message: 'Access denied: You can only edit your own exams' });
+            }
+        }
         // sections: [{ name, sequence, maxMarks, ..., questions: [...] }]
 
         // Use transaction to replace structure
@@ -165,7 +178,11 @@ export const updateExamStructure = async (req: AuthRequest, res: Response) => {
 
         res.json({ message: 'Exam structure updated' });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Error updating structure', error });
+        console.error('Error updating exam structure:', error);
+        res.status(500).json({
+            message: 'Error updating structure',
+            error: error instanceof Error ? error.message : 'Unknown error',
+            details: error
+        });
     }
 };

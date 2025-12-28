@@ -48,6 +48,7 @@ const DialogContent = React.forwardRef<
           e.preventDefault();
         }
       }}
+      aria-describedby={undefined}
       {...props}
     >
       {children}

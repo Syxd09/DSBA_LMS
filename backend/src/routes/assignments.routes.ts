@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getAssignments, getTeachersByClass, createAssignment, deleteAssignment } from '../controllers/assignments.controller';
+import { getAssignments, getTeachersByClass, createAssignment, deleteAssignment, getAssignmentPreview } from '../controllers/assignments.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/rbac.middleware';
 
@@ -46,7 +46,9 @@ import { createAssignmentSchema } from '../schemas/assignment.schema';
  *       400:
  *         description: Validation error
  */
-router.post('/', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), validate(createAssignmentSchema), createAssignment);
+router.get('/', requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER']), getAssignments);
+router.get('/preview', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), getAssignmentPreview);
+router.post('/', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), validate(createAssignmentSchema, 'all'), createAssignment);
 router.delete('/:id', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), deleteAssignment);
 
 

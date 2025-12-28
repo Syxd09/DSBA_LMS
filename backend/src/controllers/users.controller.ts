@@ -96,9 +96,13 @@ export const createUser = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ message: 'Email, Password, Name, and Role are required' });
         }
 
+        const validRoles = ['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER', 'STUDENT'];
+        if (!validRoles.includes(role.toUpperCase())) {
+            return res.status(400).json({ message: `Invalid role. Allowed roles: ${validRoles.join(', ')}` });
+        }
+
         let effectiveDepartmentId = departmentId;
 
-        // HOD Constraint: Can only create users in their own department
         if (requsterRole === 'HOD') {
             const hodUser = await prisma.user.findUnique({
                 where: { id: requesterId },
@@ -108,6 +112,12 @@ export const createUser = async (req: AuthRequest, res: Response) => {
             if (!hodUser?.departmentLed) {
                 return res.status(403).json({ message: 'HOD must manage a department to create users.' });
             }
+
+            // HOD Restriction: Cannot create ADMIN or PRINCIPAL
+            if (['ADMIN', 'PRINCIPAL'].includes(role.toUpperCase())) {
+                return res.status(403).json({ message: 'HOD cannot create ADMIN or PRINCIPAL users.' });
+            }
+
             effectiveDepartmentId = hodUser.departmentLed.id;
         }
 
@@ -191,10 +201,21 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
             // Cannot change department, enforce HOD's department
             effectiveDepartmentId = hodUser.departmentLed.id;
 
+            // HOD Restriction: Cannot promote to ADMIN or PRINCIPAL
+            if (role && ['ADMIN', 'PRINCIPAL'].includes(role.toUpperCase())) {
+                return res.status(403).json({ message: 'HOD cannot assign ADMIN or PRINCIPAL roles.' });
+            }
+
             // Verify target user belongs to HOD's department
             const targetUser = await prisma.user.findUnique({ where: { id } });
-            if (targetUser && targetUser.departmentId !== effectiveDepartmentId) {
-                return res.status(403).json({ message: 'You can only edit users in your department.' });
+            if (targetUser) {
+                if (targetUser.departmentId !== effectiveDepartmentId) {
+                    return res.status(403).json({ message: 'You can only edit users in your department.' });
+                }
+                // Prevent HOD from editing an existing ADMIN/PRINCIPAL even if they are somehow in the dept
+                if (['ADMIN', 'PRINCIPAL'].includes(targetUser.role)) {
+                    return res.status(403).json({ message: 'HOD cannot edit ADMIN or PRINCIPAL users.' });
+                }
             }
         }
 

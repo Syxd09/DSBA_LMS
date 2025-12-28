@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl"]
 }
 
 datasource db {
@@ -375,7 +376,7 @@ model StudentEnrollment {
   cohortId     String
   departmentId String
   semester     Int      @default(1)
-  rollNumber   String   @unique
+  rollNumber   String
   status       String   @default("active")
   createdAt    DateTime @default(now())
 
@@ -384,6 +385,7 @@ model StudentEnrollment {
   department Department @relation(fields: [departmentId], references: [id])
 
   @@unique([studentId, cohortId, semester])
+  // Removed global unique constraint on rollNumber to allow history preservation across semesters
   @@index([cohortId, semester]) // Performance: query students by cohort+semester
   @@index([departmentId, status]) // Performance: query by department
 }

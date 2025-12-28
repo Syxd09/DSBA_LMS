@@ -240,7 +240,7 @@ export default function CourseOutcomes() {
   }, {} as Record<string, { subjectName: string; cos: any[] }>);
 
   return (
-    <AuthenticatedLayout allowedRoles={['principal', 'hod', 'teacher']}>
+    <AuthenticatedLayout allowedRoles={['admin', 'principal', 'hod', 'teacher']}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>

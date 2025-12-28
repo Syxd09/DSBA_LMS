@@ -87,7 +87,7 @@ export default function AuditLogs() {
   };
 
   return (
-    <AuthenticatedLayout allowedRoles={['principal']}>
+    <AuthenticatedLayout allowedRoles={['admin', 'principal']}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>

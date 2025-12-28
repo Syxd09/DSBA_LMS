@@ -1,3 +1,4 @@
+
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../services/db';
@@ -44,7 +45,20 @@ export const getAssignments = async (req: AuthRequest, res: Response) => {
             orderBy: { createdAt: 'desc' }
         });
 
-        res.json(assignments);
+        // Enrich with student counts if needed (e.g. for dashboard)
+        const enrichedAssignments = await Promise.all(assignments.map(async (a) => {
+            const studentCount = await prisma.studentEnrollment.count({
+                where: {
+                    cohortId: a.cohortId,
+                    departmentId: a.departmentId,
+                    semester: a.semester,
+                    status: 'active'
+                }
+            });
+            return { ...a, studentCount };
+        }));
+
+        res.json(enrichedAssignments);
     } catch (error) {
         console.error('Error fetching assignments:', error);
         res.status(500).json({ message: 'Error fetching assignments', error: String(error) });
@@ -92,10 +106,46 @@ export const getTeachersByClass = async (req: AuthRequest, res: Response) => {
     }
 };
 
-// Create assignment with department/semester
+// Preview Assignment - Check student count before creating
+export const getAssignmentPreview = async (req: AuthRequest, res: Response) => {
+    try {
+        const { cohortId, departmentId, semester } = req.query;
+
+        if (!cohortId || !departmentId || !semester) {
+            return res.status(400).json({ message: 'Cohort, Department, and Semester are required' });
+        }
+
+        const studentCount = await prisma.studentEnrollment.count({
+            where: {
+                cohortId: String(cohortId),
+                departmentId: String(departmentId),
+                semester: Number(semester),
+                status: 'active'
+            }
+        });
+
+        const cohort = await prisma.cohort.findUnique({
+            where: { id: String(cohortId) },
+            select: { name: true }
+        });
+
+        res.json({
+            count: studentCount,
+            cohortName: cohort?.name || 'Unknown Cohort',
+            semester: semester
+        });
+
+    } catch (error) {
+        console.error('Error fetching assignment preview:', error);
+        res.status(500).json({ message: 'Error fetching preview' });
+    }
+};
+
+// Create assignment with strict validation
 export const createAssignment = async (req: AuthRequest, res: Response) => {
     try {
         const { teacherId, subjectId, cohortId, departmentId, semester, academicYear } = req.body;
+        console.log('DEBUG: createAssignment start', { teacherId, subjectId, cohortId, departmentId, semester, academicYear });
 
         if (!teacherId || !subjectId || !cohortId || !departmentId) {
             return res.status(400).json({
@@ -103,13 +153,39 @@ export const createAssignment = async (req: AuthRequest, res: Response) => {
             });
         }
 
+        // RBAC: HOD strict check
+        if (req.user?.role === 'HOD') {
+            const hodUser = await prisma.user.findUnique({
+                where: { id: req.user.userId },
+                include: { departmentLed: true }
+            });
+            if (!hodUser?.departmentLed || hodUser.departmentLed.id !== departmentId) {
+                return res.status(403).json({ message: 'HOD can only assign within their department' });
+            }
+        }
+
+        // STRICT VALIDATION: Check if students exist
+        const studentCount = await prisma.studentEnrollment.count({
+            where: {
+                cohortId,
+                departmentId,
+                semester: Number(semester || 1),
+                status: 'active'
+            }
+        });
+
+        if (studentCount === 0) {
+            console.warn(`Creating assignment for ${cohortId} with 0 students. Teacher should be aware.`);
+            // Removed strict return 400 to allow setup before enrollment
+        }
+
         // Check for existing assignment
         const existing = await prisma.teacherAssignment.findFirst({
-            where: { teacherId, subjectId, cohortId }
+            where: { teacherId, subjectId, cohortId, semester: Number(semester || 1) }
         });
 
         if (existing) {
-            return res.status(400).json({ message: 'This teacher is already assigned to this subject/cohort' });
+            return res.status(400).json({ message: 'This teacher is already assigned to this subject/cohort/semester' });
         }
 
         const assignment = await prisma.teacherAssignment.create({
@@ -140,6 +216,21 @@ export const createAssignment = async (req: AuthRequest, res: Response) => {
 export const deleteAssignment = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
+
+        // RBAC: HOD check for deletion
+        if (req.user?.role === 'HOD') {
+            const assignment = await prisma.teacherAssignment.findUnique({ where: { id } });
+            if (assignment) {
+                const hodUser = await prisma.user.findUnique({
+                    where: { id: req.user.userId },
+                    include: { departmentLed: true }
+                });
+                if (!hodUser?.departmentLed || hodUser.departmentLed.id !== assignment.departmentId) {
+                    return res.status(403).json({ message: 'HOD can only delete assignments within their department' });
+                }
+            }
+        }
+
         await prisma.teacherAssignment.delete({ where: { id } });
         res.json({ message: 'Assignment deleted' });
     } catch (error) {

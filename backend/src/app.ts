@@ -11,9 +11,19 @@ app.use(express.json({ limit: '10mb' }));
 
 // CORS Configuration - Hardened for production
 const corsOptions = {
-    origin: process.env.NODE_ENV === 'production'
-        ? process.env.FRONTEND_URL
-        : ['http://localhost:8080', 'http://localhost:5173', 'http://localhost:3000'],
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        // Allow any localhost origin
+        if (/^http:\/\/localhost:\d+$/.test(origin)) {
+            return callback(null, true);
+        }
+        // Allow specific domains if needed
+        if (origin === process.env.FRONTEND_URL) {
+            return callback(null, true);
+        }
+        callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization']
@@ -149,6 +159,10 @@ app.use((req, res) => {
 // Global error handler
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     console.error('Unhandled error:', err.stack || err.message);
+    // Also log to file
+    import('./utils/logger').then(({ logger }) => {
+        logger.error(`${err.message}\n${err.stack}`);
+    });
 
     res.status(500).json({
         message: process.env.NODE_ENV === 'production'

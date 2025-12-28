@@ -20,7 +20,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response && error.response.status === 403) {
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
             // Clear invalid token and redirect to login
             localStorage.removeItem('token');
             // Use window.location for hard redirect to ensure state clear

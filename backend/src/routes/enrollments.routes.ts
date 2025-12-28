@@ -27,14 +27,14 @@ router.get('/students',
 router.post('/',
     requireRole(['ADMIN', 'PRINCIPAL', 'HOD']),
     requireAcademicContext({ required: ['cohortId', 'departmentId'] }),
-    validate(enrollStudentSchema),
+    validate(enrollStudentSchema, 'all'),
     enrollStudent
 );
 
 router.post('/bulk',
     requireRole(['ADMIN', 'PRINCIPAL', 'HOD']),
     requireAcademicContext({ required: ['cohortId', 'departmentId'] }),
-    validate(bulkEnrollSchema),
+    validate(bulkEnrollSchema, 'all'),
     bulkEnroll
 );
 

@@ -17,9 +17,14 @@ export const saveMarks = async (req: AuthRequest, res: Response) => {
         const exam = await prisma.exam.findUnique({ where: { id: examId } });
         if (!exam) return res.status(404).json({ message: 'Exam not found' });
 
-        // HOD/Principal can edit anytime, Teacher only if DRAFT
-        if (req.user?.role === 'TEACHER' && exam.status !== 'DRAFT') {
-            return res.status(403).json({ message: 'Cannot edit marks after submission' });
+        // HOD/Principal can edit anytime, Teacher only...
+        if (req.user?.role === 'TEACHER') {
+            if (exam.teacherId !== teacherId) {
+                return res.status(403).json({ message: 'Access denied: You are not the teacher of this exam' });
+            }
+            if (exam.status !== 'DRAFT') {
+                return res.status(403).json({ message: 'Cannot edit marks after submission' });
+            }
         }
 
         // Performance: Use batched operations instead of individual upserts

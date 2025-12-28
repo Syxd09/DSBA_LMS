@@ -161,6 +161,22 @@ export const enrollStudent = async (req: AuthRequest, res: Response) => {
             });
         }
 
+        // Validate Strict Context
+        const cohort = await prisma.cohort.findUnique({
+            where: { id: cohortId },
+            include: { program: true }
+        });
+
+        if (!cohort) {
+            return res.status(404).json({ message: 'Cohort not found' });
+        }
+
+        if (cohort.program.departmentId !== departmentId) {
+            return res.status(400).json({
+                message: 'Invalid Context: Selected Cohort does not belong to the selected Department'
+            });
+        }
+
         // Check if user exists
         let user = await prisma.user.findUnique({ where: { email } });
 

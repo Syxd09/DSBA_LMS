@@ -138,7 +138,13 @@ export const seedDemoData = async (req: AuthRequest, res: Response) => {
             });
 
             await prisma.studentEnrollment.upsert({
-                where: { rollNumber: s.roll },
+                where: {
+                    studentId_cohortId_semester: {
+                        studentId: user.id,
+                        cohortId: s.cohortId,
+                        semester: 1
+                    }
+                },
                 update: {},
                 create: {
                     studentId: user.id,

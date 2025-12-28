@@ -162,29 +162,10 @@ export const promoteCohort = async (req: AuthRequest, res: Response) => {
             });
 
             // 2. Lock Exams for previous semester
-            // Note: Exams map to CohortId. We check exams that are NOT already locked? 
-            // Or exams that belong to the previous semester? 
-            // Exams table doesn't have explicit 'semester' field, it links to Subject which has semester.
-            // OR we rely on the fact that exams created *while* cohort was in Sem 1 belong to Sem 1.
-            // Wait, Schema check: Exam has subjectId. Subject has semester.
-            // Correct logic: Lock exams where Subject.semester == prevSemester.
-
-            // Actually, safer to Lock ALL PUBLISHED exams for this cohort? 
-            // "Locking previous semester data".
-            // Let's find exams for this cohort where the subject's semester matches the previous semester.
-
-            // Optimized UpdateMany using join is tricky in Prisma.
-            // We'll fetch IDs first or use updateMany with simple where if possible.
-            // Exam -> Subject -> semester. Prisma updateMany doesn't support deep relations in where clause easily for all DBs, 
-            // but Postgres handles it. However, it's safer to fetch and update or just update status = LOCKED.
-
-            // Logic: Lock all 'PUBLISHED' exams for this cohort. 
-            // When a cohort moves to Sem 2, Sem 1 exams should be locked.
             await tx.exam.updateMany({
                 where: {
                     cohortId: id,
                     status: 'PUBLISHED'
-                    // potential refinement: where subject.semester <= prevSemester
                 },
                 data: { status: 'LOCKED' }
             });
@@ -197,6 +178,30 @@ export const promoteCohort = async (req: AuthRequest, res: Response) => {
                 },
                 data: { status: 'LOCKED', lockedAt: new Date() }
             });
+
+            // 4. MIGRATE ENROLLMENTS (New - Critical Fix)
+            // Fetch active students in current semester
+            const currentEnrollments = await tx.studentEnrollment.findMany({
+                where: {
+                    cohortId: id,
+                    semester: prevSemester,
+                    status: 'active'
+                }
+            });
+
+            if (currentEnrollments.length > 0) {
+                // Create new enrollment records for next semester
+                await tx.studentEnrollment.createMany({
+                    data: currentEnrollments.map(e => ({
+                        studentId: e.studentId,
+                        cohortId: id,
+                        departmentId: e.departmentId,
+                        semester: newSemester,
+                        rollNumber: e.rollNumber, // Keep same roll number
+                        status: 'active'
+                    }))
+                });
+            }
         });
 
         // Audit Log

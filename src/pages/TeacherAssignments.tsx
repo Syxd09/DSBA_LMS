@@ -14,6 +14,7 @@ import { UserPlus, Trash2, Loader2, BookOpen, ChevronDown, ChevronUp, Filter } f
 import { toast } from '@/hooks/use-toast';
 import api from '@/lib/api';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { AssignmentPreview } from '@/components/assignments/AssignmentPreview';
 
 export default function TeacherAssignments() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -46,31 +47,41 @@ export default function TeacherAssignments() {
   });
 
   const handleCreate = async () => {
-    if (!selectedTeacher || !selectedSubject || !selectedCohort || !academicYear) {
-      toast({ title: 'Error', description: 'Please fill all fields', variant: 'destructive' });
-      return;
-    }
+    try {
+      if (!selectedTeacher || !selectedSubject || !selectedCohort || !academicYear) {
+        toast({ title: 'Error', description: 'Please fill all fields', variant: 'destructive' });
+        return;
+      }
 
-    const subject = subjects.find((s: any) => s.id === selectedSubject);
-    if (!subject) {
-      toast({ title: 'Error', description: 'Subject not found', variant: 'destructive' });
-      return;
-    }
+      const subject = subjects.find((s: any) => s.id === selectedSubject);
+      if (!subject) {
+        toast({ title: 'Error', description: 'Subject not found', variant: 'destructive' });
+        return;
+      }
 
-    await assignTeacher.mutateAsync({
-      teacherId: selectedTeacher,
-      subjectId: selectedSubject,
-      cohortId: selectedCohort,
-      departmentId: subject.curriculum?.program?.departmentId, // Required by backend
-      academicYear: academicYear,
-      section: 'A',
-      semester: subject.semester || 1
-    });
-    
-    setIsDialogOpen(false);
-    setSelectedTeacher('');
-    setSelectedSubject('');
-    setSelectedCohort('');
+      await assignTeacher.mutateAsync({
+        teacherId: selectedTeacher,
+        subjectId: selectedSubject,
+        cohortId: selectedCohort,
+        departmentId: subject.curriculum?.program?.departmentId, // Required by backend
+        academicYear: academicYear,
+        section: 'A',
+        semester: subject.semester || 1
+      });
+      
+      toast({ title: 'Success', description: 'Teacher assigned successfully'});
+      setIsDialogOpen(false);
+      setSelectedTeacher('');
+      setSelectedSubject('');
+      setSelectedCohort('');
+    } catch (error: any) {
+      console.error('Assignment failed:', error);
+      toast({ 
+        title: 'Assignment Failed', 
+        description: error.response?.data?.message || 'Failed to create assignment', 
+        variant: 'destructive' 
+      });
+    }
   };
 
   // Filter and Group Logic
@@ -91,7 +102,7 @@ export default function TeacherAssignments() {
   }, {});
 
   return (
-    <AuthenticatedLayout allowedRoles={['principal', 'hod']}>
+    <AuthenticatedLayout allowedRoles={['admin', 'principal', 'hod']}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -167,6 +178,16 @@ export default function TeacherAssignments() {
                     onChange={(e) => setAcademicYear(e.target.value)}
                   />
                 </div>
+
+                 {/* Preview Panel */}
+                {selectedSubject && selectedCohort && (
+                     <AssignmentPreview 
+                        subjectId={selectedSubject} 
+                        cohortId={selectedCohort} 
+                        subjects={subjects} 
+                        academicYear={academicYear}
+                     />
+                )}
                 
                 <Button 
                   className="w-full" 

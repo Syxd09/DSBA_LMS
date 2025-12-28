@@ -34,7 +34,14 @@ export function TeacherDashboard() {
     enabled: !!user?.id
   });
 
-  const assignedSubjects = teacherAssignments.map((a: any) => a.subject).filter(Boolean);
+  // Map assignments directly to preserve studentCount
+  const assignedSubjects = teacherAssignments.map((a: any) => ({
+      ...a.subject,
+      studentCount: a.studentCount,
+      // Ensure we have the context for links if needed
+      cohortId: a.cohortId,
+      departmentId: a.departmentId
+  })).filter((s: any) => s && s.id);
   const pendingExams = exams.filter((e: any) => e.status === 'DRAFT').length;
   const totalStudents = 0; // No enrollment data linked here yet
   const classAverage = 0;
@@ -122,7 +129,10 @@ export function TeacherDashboard() {
                       <h4 className="font-medium text-foreground">{subject?.name}</h4>
                       <p className="text-sm text-muted-foreground">{subject?.code} • Semester {subject?.semester}</p>
                     </div>
-                    <Badge variant="outline">{subject?.credits} Credits</Badge>
+                    <div className="flex gap-2">
+                        <Badge variant="secondary">{subject?.studentCount || 0} Students</Badge>
+                        <Badge variant="outline">{subject?.credits} Credits</Badge>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">

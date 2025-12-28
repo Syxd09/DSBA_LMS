@@ -137,7 +137,7 @@ export default function Exams() {
   ) || [];
 
   return (
-    <AuthenticatedLayout allowedRoles={['teacher', 'hod', 'principal']}>
+    <AuthenticatedLayout allowedRoles={['admin', 'principal', 'hod', 'teacher']}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>

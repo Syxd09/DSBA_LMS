@@ -317,7 +317,7 @@ export default function Programs() {
   };
 
   return (
-    <AuthenticatedLayout allowedRoles={['principal', 'hod']}>
+    <AuthenticatedLayout allowedRoles={['admin', 'principal', 'hod']}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>

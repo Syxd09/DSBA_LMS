@@ -55,7 +55,7 @@ export default function COPOAnalytics() {
   })) || [];
 
   return (
-    <AuthenticatedLayout allowedRoles={['principal', 'hod', 'teacher']}>
+    <AuthenticatedLayout allowedRoles={['admin', 'principal', 'hod', 'teacher']}>
       <div className="space-y-6">
         <div>
           <h2 className="text-2xl font-bold text-foreground">CO-PO Analytics</h2>

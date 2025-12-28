@@ -12,8 +12,8 @@ prisma/*.db
 prisma/*.db-journal
 
 # Source (only dist needed in production)
-src/
-tsconfig.json
+# src/
+# tsconfig.json
 
 # Test
 coverage/

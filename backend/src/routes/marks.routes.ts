@@ -11,4 +11,8 @@ router.post('/save', requireRole(['TEACHER', 'HOD', 'PRINCIPAL']), saveMarks);
 router.post('/submit', requireRole(['TEACHER']), submitMarksForApproval);
 router.get('/:examId', requireRole(['TEACHER', 'HOD', 'PRINCIPAL']), getMarks); // Add GET route
 
+console.log('DEBUG: Marks routes loaded');
+
+router.get('/test', (req, res) => res.json({ message: 'Marks route works' }));
+
 export default router;

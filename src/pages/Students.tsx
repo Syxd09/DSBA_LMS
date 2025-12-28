@@ -36,7 +36,7 @@ export default function Students() {
   const { data: teacherAssignments = [] } = useQuery({
       queryKey: ['teacher-assignments', 'my'],
       queryFn: async () => {
-          const { data } = await api.get('/teacher-assignments/my');
+          const { data } = await api.get('/assignments');
           return data;
       },
       enabled: isTeacher
