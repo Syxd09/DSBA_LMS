@@ -96,3 +96,73 @@ export const createSubject = async (req: AuthRequest, res: Response) => {
         res.status(500).json({ message: 'Error creating subject', error: String(error) });
     }
 };
+
+// Update a subject
+export const updateSubject = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { name, code, credits, semester, curriculumVersionId } = req.body;
+
+        const subject = await prisma.subject.update({
+            where: { id },
+            data: {
+                name,
+                code,
+                credits,
+                semester,
+                curriculumVersionId
+            },
+            include: {
+                curriculum: {
+                    include: {
+                        program: true
+                    }
+                }
+            }
+        });
+
+        // Audit Log
+        if (req.user?.userId) {
+            await AuditService.log(req.user.userId, 'SUBJECT_UPDATED', 'Subject', subject.id, {
+                code: subject.code,
+                name: subject.name
+            });
+        }
+
+        res.json(subject);
+    } catch (error: any) {
+        console.error('Error updating subject:', error);
+        if (error.code === 'P2025') {
+            res.status(404).json({ message: 'Subject not found' });
+        } else {
+            res.status(500).json({ message: 'Error updating subject', error: String(error) });
+        }
+    }
+};
+
+// Delete a subject
+export const deleteSubject = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        await prisma.subject.delete({
+            where: { id }
+        });
+
+        // Audit Log
+        if (req.user?.userId) {
+            await AuditService.log(req.user.userId, 'SUBJECT_DELETED', 'Subject', id, {});
+        }
+
+        res.json({ message: 'Subject deleted successfully' });
+    } catch (error: any) {
+        console.error('Error deleting subject:', error);
+        if (error.code === 'P2025') {
+            res.status(404).json({ message: 'Subject not found' });
+        } else if (error.code === 'P2003') {
+            res.status(400).json({ message: 'Cannot delete subject with existing course outcomes or exams' });
+        } else {
+            res.status(500).json({ message: 'Error deleting subject', error: String(error) });
+        }
+    }
+};

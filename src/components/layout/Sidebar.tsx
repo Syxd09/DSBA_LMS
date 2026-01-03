@@ -17,6 +17,8 @@ import {
   Target,
   Settings,
   History,
+  UserCheck2,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -42,7 +44,10 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Teacher Assignments', href: '/teacher-assignments', icon: ClipboardList },
     { name: 'Users', href: '/users', icon: Users },
     { name: 'Grades & SGPA', href: '/grade-management', icon: Award },
-    { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
+    { name: 'Course Outcomes (CO)', href: '/course-outcomes', icon: FileText },
+    { name: 'Program Outcomes (PO)', href: '/program-outcomes', icon: Target },
+    { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: BarChart3 },
+    { name: 'Student Analytics', href: '/student-analytics', icon: UserCheck2 },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Audit Logs', href: '/audit-logs', icon: History },
   ],
@@ -56,7 +61,10 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Teacher Assignments', href: '/teacher-assignments', icon: ClipboardList },
     { name: 'Users', href: '/users', icon: Users },
     { name: 'Grades & SGPA', href: '/grade-management', icon: Award },
-    { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
+    { name: 'Course Outcomes (CO)', href: '/course-outcomes', icon: FileText },
+    { name: 'Program Outcomes (PO)', href: '/program-outcomes', icon: Target },
+    { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: BarChart3 },
+    { name: 'Student Analytics', href: '/student-analytics', icon: UserCheck2 },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Audit Logs', href: '/audit-logs', icon: History },
   ],
@@ -67,10 +75,12 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Subjects', href: '/subjects', icon: BookOpen },
     { name: 'Student Enrollments', href: '/student-enrollments', icon: UserCheck },
     { name: 'Teacher Assignments', href: '/teacher-assignments', icon: ClipboardList },
-    { name: 'Course Outcomes', href: '/course-outcomes', icon: FileText },
+    { name: 'Course Outcomes (CO)', href: '/course-outcomes', icon: FileText },
+    { name: 'Program Outcomes (PO)', href: '/program-outcomes', icon: Target },
     { name: 'Exams', href: '/exams', icon: ClipboardList },
     { name: 'Grades & SGPA', href: '/grade-management', icon: Award },
-    { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
+    { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: BarChart3 },
+    { name: 'Student Analytics', href: '/student-analytics', icon: UserCheck2 },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   ],
   teacher: [
@@ -81,6 +91,7 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Exams', href: '/exams', icon: ClipboardList },
     { name: 'Marks Entry', href: '/marks-entry', icon: ClipboardList },
     { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
+    { name: 'Student Analytics', href: '/student-analytics', icon: UserCheck2 },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   ],
   student: [
@@ -96,8 +107,8 @@ export function Sidebar({ role, profile, onSignOut }: SidebarProps) {
   const navigation = navigationConfig[role] || navigationConfig.student;
 
   return (
-    <aside className="w-64 bg-card border-r border-border flex flex-col">
-      <div className="p-6 border-b border-border">
+    <aside className="w-64 bg-card border-r border-border flex flex-col h-screen">
+      <div className="p-6 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-primary flex items-center justify-center">
             <GraduationCap className="w-6 h-6 text-primary-foreground" />
@@ -109,27 +120,27 @@ export function Sidebar({ role, profile, onSignOut }: SidebarProps) {
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navigation.map((item) => (
           <NavLink
             key={item.name}
             to={item.href}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors',
+                'flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors rounded-md',
                 isActive
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
               )
             }
           >
-            <item.icon className="w-5 h-5" />
+            <item.icon className="w-5 h-5 flex-shrink-0" />
             {item.name}
           </NavLink>
         ))}
       </nav>
 
-      <div className="p-4 border-t border-border space-y-3">
+      <div className="p-4 border-t border-border space-y-3 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-secondary flex items-center justify-center">
             <span className="text-sm font-medium text-secondary-foreground">

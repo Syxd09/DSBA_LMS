@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcrypt');
 
 const prisma = new PrismaClient();
 
@@ -87,7 +87,7 @@ async function main() {
         }));
     }
 
-    // Students  
+    // Students
     const students = [];
     const studentNames = [
         'Aarav Kumar', 'Vivaan Sharma', 'Aditya Patel', 'Vihaan Gupta', 'Arjun Singh',

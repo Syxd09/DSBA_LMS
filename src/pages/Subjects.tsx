@@ -8,9 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Plus, BookOpen, Loader2 } from 'lucide-react';
+import { Search, Plus, BookOpen, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 
 interface Subject {
   id: string;
@@ -46,6 +47,9 @@ export default function Subjects() {
     curriculumVersionId: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [deleteSubjectId, setDeleteSubjectId] = useState<string | null>(null);
 
   // Fetch curriculum versions for the dropdown
   const { data: curriculumVersions = [] } = useQuery({
@@ -119,6 +123,67 @@ export default function Subjects() {
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleEditSubject = async () => {
+    if (!editingSubject || !editingSubject.name || !editingSubject.code || !editingSubject.curriculumVersionId) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fill in all required fields.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await api.put(`/subjects/${editingSubject.id}`, {
+        name: editingSubject.name,
+        code: editingSubject.code.toUpperCase(),
+        credits: editingSubject.credits,
+        semester: editingSubject.semester,
+        curriculumVersionId: editingSubject.curriculumVersionId,
+      });
+
+      toast({
+        title: 'Subject updated',
+        description: `${editingSubject.name} has been updated successfully.`,
+      });
+
+      setIsEditDialogOpen(false);
+      setEditingSubject(null);
+      fetchSubjects();
+    } catch (error: any) {
+      console.error('Error updating subject:', error);
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to update subject.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteSubject = async () => {
+    if (!deleteSubjectId) return;
+
+    try {
+      await api.delete(`/subjects/${deleteSubjectId}`);
+      toast({
+        title: 'Subject deleted',
+        description: 'Subject has been deleted successfully.',
+      });
+      setDeleteSubjectId(null);
+      fetchSubjects();
+    } catch (error: any) {
+      console.error('Error deleting subject:', error);
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to delete subject.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -274,9 +339,38 @@ export default function Subjects() {
                     </TableCell>
                     <TableCell>{subject.credits}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => window.location.href = '/course-outcomes'}>
-                        Manage COs
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => {
+                            setEditingSubject({
+                              ...subject,
+                              curriculumVersionId: subject.curriculum?.id || ''
+                            });
+                            setIsEditDialogOpen(true);
+                          }}
+                        >
+                          <Pencil className="w-4 h-4 mr-1" />
+                          Edit
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => setDeleteSubjectId(subject.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Delete
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => window.location.href = '/course-outcomes'}
+                        >
+                          Manage COs
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -284,6 +378,95 @@ export default function Subjects() {
             </Table>
           )}
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent aria-describedby="edit-subject-desc">
+            <DialogHeader>
+              <DialogTitle>Edit Subject</DialogTitle>
+              <DialogDescription id="edit-subject-desc">
+                Update the subject details.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Subject Name *</Label>
+                <Input
+                  value={editingSubject?.name || ''}
+                  onChange={(e) => setEditingSubject(editingSubject ? { ...editingSubject, name: e.target.value } : null)}
+                  placeholder="e.g., Data Structures"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Subject Code *</Label>
+                <Input
+                  value={editingSubject?.code || ''}
+                  onChange={(e) => setEditingSubject(editingSubject ? { ...editingSubject, code: e.target.value } : null)}
+                  placeholder="e.g., CS201"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Curriculum Version *</Label>
+                <Select 
+                  value={editingSubject?.curriculumVersionId || ''} 
+                  onValueChange={(value) => setEditingSubject(editingSubject ? { ...editingSubject, curriculumVersionId: value } : null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select curriculum" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {curriculumVersions.map((cv: CurriculumVersion) => (
+                      <SelectItem key={cv.id} value={cv.id}>
+                        {cv.versionName} {cv.program ? `(${cv.program.code})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Credits</Label>
+                  <Input
+                    type="number"
+                    value={editingSubject?.credits || 3}
+                    onChange={(e) => setEditingSubject(editingSubject ? { ...editingSubject, credits: parseInt(e.target.value) || 3 } : null)}
+                    min={1}
+                    max={6}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Semester</Label>
+                  <Input
+                    type="number"
+                    value={editingSubject?.semester || 1}
+                    onChange={(e) => setEditingSubject(editingSubject ? { ...editingSubject, semester: parseInt(e.target.value) || 1 } : null)}
+                    min={1}
+                    max={8}
+                  />
+                </div>
+              </div>
+              <Button className="w-full" onClick={handleEditSubject} disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  'Update Subject'
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDeleteDialog
+          open={deleteSubjectId !== null}
+          onOpenChange={(open) => !open && setDeleteSubjectId(null)}
+          onConfirm={handleDeleteSubject}
+          title="Delete Subject"
+          description="Are you sure you want to delete this subject? This action cannot be undone and will remove all associated course outcomes."
+        />
       </div>
     </AuthenticatedLayout>
   );

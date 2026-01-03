@@ -43,7 +43,8 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
             subjectCount,
             examCount,
             teacherCount,
-            studentCount
+            studentCount,
+            pendingApprovalsCount
         ] = await Promise.all([
             prisma.department.count(),
             prisma.program.count(),
@@ -52,8 +53,47 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
             prisma.subject.count(),
             prisma.exam.count(),
             prisma.user.count({ where: { role: 'TEACHER' } }),
-            prisma.user.count({ where: { role: 'STUDENT' } })
+            prisma.user.count({ where: { role: 'STUDENT' } }),
+            prisma.approvalRequest.count({ where: { status: 'PENDING' } })
         ]);
+
+        // Calculate departments without subjects
+        // Note: Departments don't directly have subjects. Subjects are linked via:
+        // Department -> Program -> CurriculumVersion -> Subject
+        const allDepartments = await prisma.department.findMany({
+            select: {
+                id: true,
+                programs: {
+                    select: {
+                        curriculums: {
+                            select: {
+                                _count: {
+                                    select: { subjects: true }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Count departments that have no subjects across all their programs/curriculums
+        const departmentsWithoutSubjects = allDepartments.filter(dept => {
+            const totalSubjects = dept.programs.reduce((sum, prog) => {
+                const progSubjects = prog.curriculums.reduce((psum, curr) => psum + curr._count.subjects, 0);
+                return sum + progSubjects;
+            }, 0);
+            return totalSubjects === 0;
+        }).length;
+
+        // Calculate subjects without CO attainments
+        const subjectsWithoutAttainments = await prisma.subject.count({
+            where: {
+                courseOutcomes: {
+                    none: {}
+                }
+            }
+        });
 
         res.json({
             departments: departmentCount,
@@ -63,7 +103,14 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
             subjects: subjectCount,
             exams: examCount,
             teachers: teacherCount,
-            students: studentCount
+            students: studentCount,
+            // Alert data
+            alerts: {
+                pendingApprovals: pendingApprovalsCount,
+                departmentsWithoutSubjects: departmentsWithoutSubjects,
+                incompleteAttainments: subjectsWithoutAttainments,
+                studentsAtRisk: 0 // Placeholder for future implementation
+            }
         });
     } catch (error) {
         console.error('Error fetching dashboard stats:', error);

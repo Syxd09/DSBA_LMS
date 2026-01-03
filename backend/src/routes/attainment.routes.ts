@@ -7,21 +7,30 @@ import {
     lockAttainment,
     getAttainmentSummary
 } from '../controllers/attainment.controller';
+import {
+    getStudentAnalytics,
+    getAtRiskStudents,
+    getStudentPerformanceDetail
+} from '../controllers/student-analytics.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
-import { requireRole } from '../middleware/rbac.middleware';
+import { validateAttainmentCalculation } from '../middleware/attainment-validation';
 
 const router = Router();
 
+// Apply auth to all routes
 router.use(authenticateToken);
 
-// Get attainment data
-router.get('/co', requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER']), getCOAttainment);
-router.get('/summary', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), getAttainmentSummary);
+// CO Attainment routes
+router.get('/co', getCOAttainment);
+router.post('/co/calculate', validateAttainmentCalculation, calculateCOAttainment);
+router.post('/co/submit', submitForReview);
+router.post('/co/approve', approveAttainment);
+router.post('/co/lock', lockAttainment);
+router.get('/summary', getAttainmentSummary);
 
-// Calculate and workflow
-router.post('/calculate', requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER']), calculateCOAttainment);
-router.post('/submit-review', requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER']), submitForReview);
-router.post('/approve', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), approveAttainment);
-router.post('/lock', requireRole(['ADMIN', 'PRINCIPAL']), lockAttainment);
+// Student Analytics routes
+router.get('/students/:studentId/analytics', getStudentAnalytics);
+router.get('/students/at-risk', getAtRiskStudents);
+router.get('/students/:studentId/performance/:subjectId', getStudentPerformanceDetail);
 
 export default router;

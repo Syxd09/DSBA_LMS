@@ -28,6 +28,9 @@ import HODDashboard from "./pages/HODDashboard";
 import StudentFeedback from "./pages/StudentFeedback";
 import Messages from "./pages/Messages";
 import AttainmentDashboard from "./pages/AttainmentDashboard";
+import StudentAnalytics from "./pages/StudentAnalytics";
+import POAttainmentDashboard from "./pages/POAttainmentDashboard";
+import ProgramOutcomes from "./pages/ProgramOutcomes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -57,6 +60,7 @@ const App = () => (
             <Route path="/feedback" element={<StudentFeedback />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/course-outcomes" element={<CourseOutcomes />} />
+            <Route path="/program-outcomes" element={<ProgramOutcomes />} />
             <Route path="/student-enrollments" element={<StudentEnrollments />} />
             <Route path="/students" element={<Students />} />
 
@@ -64,6 +68,8 @@ const App = () => (
             <Route path="/grade-management" element={<GradeManagement />} />
             <Route path="/co-po-analytics" element={<COPOAnalytics />} />
             <Route path="/attainment" element={<AttainmentDashboard />} />
+            <Route path="/student-analytics" element={<StudentAnalytics />} />
+            <Route path="/po-attainment" element={<POAttainmentDashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
