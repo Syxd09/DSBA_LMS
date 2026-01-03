@@ -364,6 +364,7 @@ export default function ProgramOutcomes() {
           onConfirm={handleDelete}
           title="Delete Program Outcome"
           description="Are you sure you want to delete this program outcome? This action cannot be undone."
+          confirmText="Delete"
         />
       </div>
     </AuthenticatedLayout>
