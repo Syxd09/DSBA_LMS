@@ -1,0 +1,15 @@
+Starting database reset...
+Deleting marks...
+
+❌ ERROR: Cannot read properties of undefined (reading 'deleteMany')
+TypeError: Cannot read properties of undefined (reading 'deleteMany')
+    at reset (D:\outcome-master\backend\db-reset.js:21:27)
+    at Object.<anonymous> (D:\outcome-master\backend\db-reset.js:92:1)
+    at Module._compile (node:internal/modules/cjs/loader:1529:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1613:10)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:164:12)
+    at node:internal/main/run_main_module:28:49
+
+Check reset-log.txt for full output

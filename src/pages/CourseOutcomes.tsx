@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Search, Plus, Target, Loader2, BookOpen, Pencil, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
 
 interface CourseOutcome {
   id: string;
@@ -46,6 +47,9 @@ const bloomColors: Record<string, string> = {
 };
 
 export default function CourseOutcomes() {
+  const { user } = useAuth();
+  const canModify = user?.role === 'ADMIN' || user?.role === 'PRINCIPAL' || user?.role === 'HOD';
+  
   const [courseOutcomes, setCourseOutcomes] = useState<CourseOutcome[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -247,16 +251,17 @@ export default function CourseOutcomes() {
             <h2 className="text-2xl font-bold text-foreground">Course Outcomes</h2>
             <p className="text-muted-foreground">Manage course outcomes and Bloom's taxonomy mappings</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-              setIsDialogOpen(open);
-              if (!open) resetForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add CO
-              </Button>
-            </DialogTrigger>
+          {canModify && (
+            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+                setIsDialogOpen(open);
+                if (!open) resetForm();
+            }}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add CO
+                </Button>
+              </DialogTrigger>
             <DialogContent aria-describedby="create-co-desc">
               <DialogHeader>
                 <DialogTitle>{isEditMode ? 'Edit Course Outcome' : 'Create Course Outcome'}</DialogTitle>
@@ -335,6 +340,7 @@ export default function CourseOutcomes() {
               </div>
             </DialogContent>
           </Dialog>
+          )}
         </div>
 
         <div className="flex items-center gap-4">
@@ -409,18 +415,20 @@ export default function CourseOutcomes() {
                          <Badge className={bloomColors[co.bloomLevel] || ''}>
                           {co.bloomLevel}
                         </Badge>
-                        <div className="flex gap-1">
-                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(co)}>
-                                 <Pencil className="w-3.5 h-3.5" />
-                             </Button>
-                             <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => {
-                                 setDeletingId(co.id);
-                                 setDeletingDescription(`CO${co.coNumber}: ${co.description.substring(0, 30)}...`);
-                                 setDeleteDialogOpen(true);
-                             }}>
-                                 <Trash2 className="w-3.5 h-3.5" />
-                             </Button>
-                        </div>
+                        {canModify && (
+                          <div className="flex gap-1">
+                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEdit(co)}>
+                                   <Pencil className="w-3.5 h-3.5" />
+                               </Button>
+                               <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => {
+                                   setDeletingId(co.id);
+                                   setDeletingDescription(`CO${co.coNumber}: ${co.description.substring(0, 30)}...`);
+                                   setDeleteDialogOpen(true);
+                               }}>
+                                   <Trash2 className="w-3.5 h-3.5" />
+                               </Button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

@@ -6,16 +6,69 @@ import prisma from '../services/db';
 export const getProgramOutcomes = async (req: AuthRequest, res: Response) => {
     try {
         const { programId } = req.query;
+        const userRole = req.user?.role?.toUpperCase();
+        const userId = req.user?.userId;
 
-        if (!programId) {
-            return res.status(400).json({ message: 'Program ID is required' });
+        const where: any = {};
+
+        // If programId is provided, filter by it
+        if (programId) {
+            where.programId = String(programId);
+        } else {
+            // If no programId, apply role-based filtering
+
+            // HODs only see POs for programs in their department
+            if (userRole === 'HOD') {
+                const department = await prisma.department.findFirst({
+                    where: { hodId: userId }
+                });
+
+                if (department) {
+                    where.program = {
+                        departmentId: department.id
+                    };
+                } else {
+                    // HOD with no department sees nothing
+                    return res.json([]);
+                }
+            }
+
+            // Teachers see POs for programs they teach (via subject assignments)
+            if (userRole === 'TEACHER') {
+                const assignments = await prisma.teacherAssignment.findMany({
+                    where: { teacherId: userId },
+                    include: {
+                        subject: {
+                            include: {
+                                curriculum: {
+                                    select: { programId: true }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                const programIds = Array.from(new Set(
+                    assignments
+                        .map(a => a.subject?.curriculum?.programId)
+                        .filter(Boolean)
+                ));
+
+                if (programIds.length > 0) {
+                    where.programId = { in: programIds };
+                } else {
+                    return res.json([]);
+                }
+            }
+
+            // Admins and Principals see all POs (no additional filter)
         }
 
         const outcomes = await prisma.programOutcome.findMany({
-            where: { programId: String(programId) },
+            where,
             orderBy: { poNumber: 'asc' },
             include: {
-                program: { select: { name: true, code: true } }
+                program: { select: { id: true, name: true, code: true, departmentId: true } }
             }
         });
         res.json(outcomes);
@@ -51,13 +104,14 @@ export const createProgramOutcome = async (req: AuthRequest, res: Response) => {
 export const updateProgramOutcome = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
-        const { poNumber, description } = req.body;
+        const { poNumber, description, targetPercent } = req.body;
 
         const outcome = await prisma.programOutcome.update({
             where: { id },
             data: {
                 ...(poNumber && { poNumber: parseInt(poNumber) }),
-                ...(description && { description })
+                ...(description && { description }),
+                ...(targetPercent !== undefined && { targetPercent: parseFloat(targetPercent) })
             }
         });
 

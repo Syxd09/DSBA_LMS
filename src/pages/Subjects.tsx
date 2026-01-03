@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import api from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +36,7 @@ interface CurriculumVersion {
 }
 
 export default function Subjects() {
+  const { user } = useAuth();
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -200,13 +202,14 @@ export default function Subjects() {
             <h2 className="text-2xl font-bold text-foreground">Subjects</h2>
             <p className="text-muted-foreground">Manage course subjects and curriculum</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Subject
-              </Button>
-            </DialogTrigger>
+          {(user?.role === 'ADMIN' || user?.role === 'PRINCIPAL' || user?.role === 'HOD') && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Subject
+                </Button>
+              </DialogTrigger>
             <DialogContent aria-describedby="create-subject-desc">
               <DialogHeader>
                 <DialogTitle>Create New Subject</DialogTitle>
@@ -283,7 +286,8 @@ export default function Subjects() {
                 </Button>
               </div>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          )}
         </div>
 
         <div className="flex items-center gap-4">
@@ -340,29 +344,33 @@ export default function Subjects() {
                     <TableCell>{subject.credits}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => {
-                            setEditingSubject({
-                              ...subject,
-                              curriculumVersionId: subject.curriculum?.id || ''
-                            });
-                            setIsEditDialogOpen(true);
-                          }}
-                        >
-                          <Pencil className="w-4 h-4 mr-1" />
-                          Edit
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => setDeleteSubjectId(subject.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4 mr-1" />
-                          Delete
-                        </Button>
+                        {(user?.role === 'ADMIN' || user?.role === 'PRINCIPAL' || user?.role === 'HOD') && (
+                          <>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => {
+                                setEditingSubject({
+                                  ...subject,
+                                  curriculumVersionId: subject.curriculum?.id || ''
+                                });
+                                setIsEditDialogOpen(true);
+                              }}
+                            >
+                              <Pencil className="w-4 h-4 mr-1" />
+                              Edit
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => setDeleteSubjectId(subject.id)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4 mr-1" />
+                              Delete
+                            </Button>
+                          </>
+                        )}
                         <Button 
                           variant="ghost" 
                           size="sm" 
@@ -466,6 +474,7 @@ export default function Subjects() {
           onConfirm={handleDeleteSubject}
           title="Delete Subject"
           description="Are you sure you want to delete this subject? This action cannot be undone and will remove all associated course outcomes."
+          confirmText="Delete"
         />
       </div>
     </AuthenticatedLayout>

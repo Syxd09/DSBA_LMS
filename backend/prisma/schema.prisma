@@ -18,8 +18,10 @@ enum Role {
 
 enum ExamStatus {
   DRAFT
+  SCHEDULED
   PENDING_APPROVAL
   PUBLISHED
+  COMPLETED
   LOCKED
 }
 
@@ -218,11 +220,12 @@ model CourseOutcome {
 }
 
 model ProgramOutcome {
-  id          String   @id @default(uuid())
-  programId   String
-  poNumber    Int
-  description String
-  createdAt   DateTime @default(now())
+  id            String   @id @default(uuid())
+  programId     String
+  poNumber      Int
+  description   String
+  targetPercent Float    @default(60)
+  createdAt     DateTime @default(now())
 
   program       Program        @relation(fields: [programId], references: [id])
   coMappings    CoPoMapping[]
@@ -302,15 +305,21 @@ model POAttainment {
 }
 
 model Exam {
-  id          String     @id @default(uuid())
-  subjectId   String
-  cohortId    String
-  examType    String
-  maxMarks    Int        @default(30)
-  status      ExamStatus @default(DRAFT)
-  teacherId   String?
-  createdAt   DateTime   @default(now())
-  publishedAt DateTime?
+  id             String     @id @default(uuid())
+  subjectId      String
+  cohortId       String
+  examType       String
+  customTypeName String?    // For custom exam types
+  maxMarks       Int        @default(30)
+  passingMarks   Float?     // NEW: Passing marks threshold
+  examDate       DateTime?  // NEW: Scheduled exam date
+  duration       Int?       // NEW: Exam duration in minutes
+  instructions   String?    // NEW: Instructions for students
+  status         ExamStatus @default(DRAFT)
+  teacherId      String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  publishedAt    DateTime?
 
   subject        Subject              @relation(fields: [subjectId], references: [id])
   cohort         Cohort               @relation(fields: [cohortId], references: [id])

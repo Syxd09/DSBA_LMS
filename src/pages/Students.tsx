@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useAcademicContext } from '@/contexts/AcademicContext';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import {
   Select,
@@ -24,64 +25,21 @@ import { Input } from '@/components/ui/input';
 
 export default function Students() {
   const { user } = useAuth();
-  const isHod = user?.role === 'hod';
-  const isTeacher = user?.role === 'teacher';
-
-  // Filters
-  const [selectedCohortId, setSelectedCohortId] = useState<string>('');
-  const [selectedSemester, setSelectedSemester] = useState<string>('');
+  const { cohortId, semester } = useAcademicContext();
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch Context Data
-  const { data: teacherAssignments = [] } = useQuery({
-      queryKey: ['teacher-assignments', 'my'],
-      queryFn: async () => {
-          const { data } = await api.get('/assignments');
-          return data;
-      },
-      enabled: isTeacher
-  });
-
-  const { data: cohorts = [] } = useQuery({
-    queryKey: ['cohorts'],
-    queryFn: async () => {
-      const { data } = await api.get('/cohorts');
-      return data;
-    },
-    enabled: isHod
-  });
-
-  // Derived Options for Teacher
-  const teacherOptions = isTeacher ? teacherAssignments.map((a: any) => ({
-      cohortId: a.cohortId,
-      cohortName: a.cohort?.name,
-      semester: a.semester,
-      subjectName: a.subject?.name,
-      label: `${a.cohort?.name} - Sem ${a.semester} (${a.subject?.name})`
-  })) : [];
-
-  const canFetch = 
-    (isHod && selectedCohortId && selectedSemester) || 
-    (isTeacher && selectedCohortId && selectedSemester);
-
   const { data: students = [], isLoading } = useQuery({
-    queryKey: ['students-list', selectedCohortId, selectedSemester],
+    queryKey: ['students-list', cohortId, semester],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (selectedCohortId) params.append('cohortId', selectedCohortId);
-      if (selectedSemester) params.append('semester', selectedSemester);
+      if (cohortId) params.append('cohortId', cohortId);
+      if (semester) params.append('semester', String(semester));
       
       const { data } = await api.get(`/enrollments?${params.toString()}`);
       return data;
     },
-    enabled: isHod || isTeacher
+    enabled: !!(cohortId && semester)
   });
-
-  const handleTeacherContextChange = (value: string) => {
-      const [cId, sem] = value.split(':');
-      setSelectedCohortId(cId);
-      setSelectedSemester(sem);
-  };
 
   const filteredStudents = students.filter((enrollment: any) => 
     enrollment.student.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -94,7 +52,7 @@ export default function Students() {
         <div className="flex items-center justify-between">
             <div>
                 <h2 className="text-2xl font-bold text-foreground">Students</h2>
-                <p className="text-muted-foreground">View and manage students in your {isHod ? 'department' : 'classes'}</p>
+                <p className="text-muted-foreground">View and manage students in your classes</p>
             </div>
             {filteredStudents.length > 0 && (
                  <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground bg-secondary/50 px-3 py-1 rounded-full">
@@ -104,66 +62,9 @@ export default function Students() {
             )}
         </div>
 
-        {/* Filters & Search Row */}
-        <div className="flex flex-col md:flex-row gap-4 items-end md:items-center bg-card p-4 rounded-lg border border-border shadow-sm">
-            {isHod && (
-                <>
-                    <div className="w-full md:w-48 space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Batch</label>
-                        <Select value={selectedCohortId} onValueChange={setSelectedCohortId}>
-                            <SelectTrigger className="bg-background">
-                                <SelectValue placeholder="Select Batch" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {cohorts.map((cohort: any) => (
-                                    <SelectItem key={cohort.id} value={cohort.id}>
-                                        {cohort.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="w-full md:w-40 space-y-1.5">
-                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Semester</label>
-                            <Select value={selectedSemester} onValueChange={setSelectedSemester}>
-                            <SelectTrigger className="bg-background">
-                                <SelectValue placeholder="Sem" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                                    <SelectItem key={sem} value={sem.toString()}>
-                                        Semester {sem}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </>
-            )}
-
-            {isTeacher && (
-                <div className="w-full md:w-64 space-y-1.5">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Class Context</label>
-                        <Select 
-                        onValueChange={handleTeacherContextChange} 
-                        disabled={teacherOptions.length === 0}
-                        >
-                        <SelectTrigger className="bg-background">
-                            <SelectValue placeholder={teacherOptions.length === 0 ? "No active classes" : "Select Class"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {teacherOptions.map((opt: any, idx: number) => (
-                                <SelectItem key={`${opt.cohortId}:${opt.semester}:${idx}`} value={`${opt.cohortId}:${opt.semester}`}>
-                                    {opt.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-            )}
-                
-            <div className="flex-1 w-full space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Search</label>
+        {/* Search Bar */}
+        <div className="flex items-center gap-4 bg-card p-4 rounded-lg border border-border shadow-sm">
+            <div className="flex-1 w-full">
                 <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input

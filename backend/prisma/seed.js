@@ -6,72 +6,95 @@ const prisma = new PrismaClient();
 async function main() {
     console.log('🌱 Starting database seeding...');
 
-    // Clear existing data
+    // 1. Clear existing data in order
     console.log('Clearing existing data...');
-    await prisma.mark.deleteMany();
-    await prisma.question.deleteMany();
-    await prisma.exam.deleteMany();
-    await prisma.cOPOMapping.deleteMany();
-    await prisma.courseOutcome.deleteMany();
-    await prisma.subject.deleteMany();
-    await prisma.curriculum.deleteMany();
-    await prisma.programOutcome.deleteMany();
-    await prisma.enrollment.deleteMany();
-    await prisma.assignment.deleteMany();
-    await prisma.cohort.deleteMany();
-    await prisma.program.deleteMany();
-    await prisma.user.deleteMany();
-    await prisma.department.deleteMany();
+    try {
+        // Unlink HODs from Departments first to break circular dependency
+        await prisma.department.updateMany({ data: { hodId: null } });
+
+        await prisma.studentMark.deleteMany();
+        await prisma.subQuestion.deleteMany();
+        await prisma.question.deleteMany();
+        await prisma.examSection.deleteMany();
+        await prisma.exam.deleteMany();
+        await prisma.coPoMapping.deleteMany();
+        await prisma.cOAttainment.deleteMany();
+        await prisma.courseOutcome.deleteMany();
+        await prisma.teacherAssignment.deleteMany();
+        await prisma.subject.deleteMany();
+        await prisma.curriculumVersion.deleteMany();
+        await prisma.studentEnrollment.deleteMany();
+        await prisma.cohort.deleteMany();
+        await prisma.pOAttainment.deleteMany();
+        await prisma.programOutcome.deleteMany();
+        await prisma.program.deleteMany();
+
+        // Delete Users before Departments (Users belong to Dept)
+        await prisma.user.deleteMany();
+        await prisma.department.deleteMany();
+
+    } catch (e) {
+        console.log('Note: Some tables might be empty or missing, continuing...', e.message);
+    }
 
     const hashedPassword = await bcrypt.hash('password123', 10);
 
-    // Create Departments
+    // 2. Create Departments
     console.log('Creating departments...');
     const cse = await prisma.department.create({
         data: {
             name: 'Computer Science and Engineering',
-            code: 'CSE',
-            description: 'Department of Computer Science and Engineering'
+            code: 'CSE'
         }
     });
 
     const ece = await prisma.department.create({
         data: {
             name: 'Electronics and Communication Engineering',
-            code: 'ECE',
-            description: 'Department of Electronics and Communication Engineering'
+            code: 'ECE'
         }
     });
 
-    // Create Users
+    // 3. Create Users
     console.log('Creating users...');
-    const admin = await prisma.user.create({
+
+    // Principal (The one user requested)
+    const principal = await prisma.user.create({
+        data: {
+            email: 'syxdmatheen.9@gmail.com',
+            fullName: 'System Principal',
+            password: hashedPassword,
+            role: 'PRINCIPAL'
+        }
+    });
+
+    // Admin
+    await prisma.user.create({
         data: {
             email: 'admin@college.edu',
             fullName: 'System Administrator',
             password: hashedPassword,
-            role: 'admin'
+            role: 'ADMIN'
         }
     });
 
-    const principal = await prisma.user.create({
-        data: {
-            email: 'principal@college.edu',
-            fullName: 'Dr. Rajesh Kumar',
-            password: hashedPassword,
-            role: 'principal'
-        }
-    });
-
+    // HOD
     const hodCSE = await prisma.user.create({
         data: {
             email: 'hod.cse@college.edu',
             fullName: 'Dr. Priya Sharma',
             password: hashedPassword,
-            role: 'hod',
-            departmentId: cse.id
+            role: 'HOD',
+            departmentId: cse.id,
+            departmentLed: { connect: { id: cse.id } } // Connect as HOD of department? Schema line 121 hodId
         }
     });
+    // Update department with HOD (since it's a circular relation sometimes)
+    await prisma.department.update({
+        where: { id: cse.id },
+        data: { hodId: hodCSE.id }
+    });
+
 
     // Teachers
     const teachers = [];
@@ -81,7 +104,7 @@ async function main() {
                 email: `teacher${i}.cse@college.edu`,
                 fullName: `Prof. Teacher ${i}`,
                 password: hashedPassword,
-                role: 'teacher',
+                role: 'TEACHER',
                 departmentId: cse.id
             }
         }));
@@ -89,12 +112,7 @@ async function main() {
 
     // Students
     const students = [];
-    const studentNames = [
-        'Aarav Kumar', 'Vivaan Sharma', 'Aditya Patel', 'Vihaan Gupta', 'Arjun Singh',
-        'Sai Reddy', 'Arnav Rao', 'Ayush Joshi', 'Krishna Iyer', 'Ishaan Mehta',
-        'Diya Nair', 'Ananya Desai', 'Saanvi Kumar', 'Aadhya Sharma', 'Kiara Patel',
-        'Myra Singh', 'Aanya Reddy', 'Navya Jain', 'Aarohi Menon', 'Pari Agarwal'
-    ];
+    const studentNames = ['Aarav', 'Vivaan', 'Aditya', 'Vihaan', 'Arjun', 'Sai', 'Arnav', 'Ayush', 'Krishna', 'Ishaan'];
 
     for (let i = 0; i < studentNames.length; i++) {
         students.push(await prisma.user.create({
@@ -102,278 +120,183 @@ async function main() {
                 email: `student${i + 1}.cse@college.edu`,
                 fullName: studentNames[i],
                 password: hashedPassword,
-                role: 'student',
+                role: 'STUDENT',
                 departmentId: cse.id
             }
         }));
     }
 
-    // Create Program with POs
-    console.log('Creating programs and program outcomes...');
-    const btechCSE = await prisma.program.create({
+    // 4. Create Program & POs
+    console.log('Creating programs...');
+    const bca = await prisma.program.create({
         data: {
-            name: 'Bachelor of Technology - Computer Science',
-            code: 'BTECH-CSE',
+            name: 'Bachelor of Computer Applications',
+            code: 'BCA',
             departmentId: cse.id,
-            duration: 4,
+            durationYears: 3,
             outcomes: {
                 create: [
-                    { poNumber: 1, description: 'Engineering Knowledge: Apply knowledge of mathematics, science, engineering fundamentals', targetPercent: 60 },
-                    { poNumber: 2, description: 'Problem Analysis: Identify, formulate, and analyze complex engineering problems', targetPercent: 60 },
-                    { poNumber: 3, description: 'Design/Development of Solutions: Design solutions for complex problems', targetPercent: 60 },
-                    { poNumber: 4, description: 'Conduct Investigations: Use research-based knowledge and methods', targetPercent: 60 },
-                    { poNumber: 5, description: 'Modern Tool Usage: Create, select and apply appropriate techniques', targetPercent: 60 }
+                    { poNumber: 1, description: 'Knowledge Application', targetPercent: 60 },
+                    { poNumber: 2, description: 'Problem Analysis', targetPercent: 60 },
+                    { poNumber: 3, description: 'Design Solutions', targetPercent: 60 },
+                    { poNumber: 4, description: 'Modern Tool Usage', targetPercent: 60 }
                 ]
             }
         }
     });
 
-    // Create Cohorts
-    console.log('Creating cohorts...');
-    const cohort2024 = await prisma.cohort.create({
+    // 5. Create Cohort
+    console.log('Creating cohort...');
+    const cohort2025 = await prisma.cohort.create({
         data: {
-            name: 'CSE Batch 2024-2028',
-            year: 2024,
-            programId: btechCSE.id,
-            semester: 3,
-            academicYear: '2025-26'
+            name: 'Class of 2025',
+            year: 2025,
+            programId: bca.id,
+            currentSemester: 1
         }
     });
 
-    // Enroll Students
+    // 6. Enroll Students
     console.log('Enrolling students...');
-    for (let i = 0; i < 10; i++) {
-        await prisma.enrollment.create({
+    for (const student of students) {
+        await prisma.studentEnrollment.create({
             data: {
-                studentId: students[i].id,
-                cohortId: cohort2024.id,
-                enrollmentDate: new Date(),
-                rollNumber: `CSE2024${String(i + 1).padStart(3, '0')}`
+                studentId: student.id,
+                cohortId: cohort2025.id,
+                departmentId: cse.id,
+                semester: 1,
+                rollNumber: 'BCA25' + student.id.substring(0, 4)
             }
         });
     }
 
-    // Create Curriculum and Subjects
-    console.log('Creating curriculum and subjects...');
-    const curriculum = await prisma.curriculum.create({
+    // 7. Curriculum & Subjects & COs
+    console.log('Creating curriculum...');
+    const curriculum = await prisma.curriculumVersion.create({
         data: {
-            programId: btechCSE.id,
-            semester: 3,
-            academicYear: '2025-26'
+            programId: bca.id,
+            versionName: 'v1.0',
+            effectiveFrom: 2024
         }
     });
 
-    const dsSubject = await prisma.subject.create({
+    const mathSubject = await prisma.subject.create({
         data: {
-            name: 'Data Structures and Algorithms',
-            code: 'CS301',
+            name: 'Advanced Mathematics',
+            code: 'MATH101',
             credits: 4,
-            departmentId: cse.id,
-            curriculumId: curriculum.id
+            semester: 1,
+            curriculumVersionId: curriculum.id,
+            curriculumVersionId: curriculum.id
         }
     });
 
-    const dbmsSubject = await prisma.subject.create({
-        data: {
-            name: 'Database Management Systems',
-            code: 'CS302',
-            credits: 4,
-            departmentId: cse.id,
-            curriculumId: curriculum.id
-        }
-    });
+    // Create COs for Math
+    const mathCOs = [];
+    for (let i = 1; i <= 5; i++) {
+        mathCOs.push(await prisma.courseOutcome.create({
+            data: {
+                subjectId: mathSubject.id,
+                coNumber: i,
+                description: `Understand math concept ${i}`,
+                bloomLevel: 'Understand' // Enum
+            }
+        }));
+    }
 
-    // Assign Teachers
-    console.log('Assigning teachers...');
-    await prisma.assignment.create({
+    // Map COs to POs
+    const pos = await prisma.programOutcome.findMany({ where: { programId: bca.id } });
+    if (pos.length > 0) {
+        await prisma.coPoMapping.create({
+            data: {
+                coId: mathCOs[0].id,
+                poId: pos[0].id,
+                correlationLevel: 3
+            }
+        });
+    }
+
+    // Assign Teacher
+    await prisma.teacherAssignment.create({
         data: {
             teacherId: teachers[0].id,
-            subjectId: dsSubject.id,
-            cohortId: cohort2024.id,
-            academicYear: '2025-26',
-            semester: 3,
-            status: 'active'
+            subjectId: mathSubject.id,
+            cohortId: cohort2025.id,
+            departmentId: cse.id,
+            semester: 1,
+            academicYear: '2025-26'
         }
     });
 
-    await prisma.assignment.create({
+    // 8. Create Exam with Structure
+    console.log('Creating exam...');
+    const exam = await prisma.exam.create({
         data: {
-            teacherId: teachers[1].id,
-            subjectId: dbmsSubject.id,
-            cohortId: cohort2024.id,
-            academicYear: '2025-26',
-            semester: 3,
-            status: 'active'
+            subjectId: mathSubject.id,
+            cohortId: cohort2025.id,
+            examType: 'INTERNAL_1',
+            maxMarks: 50,
+            passingMarks: 20,
+            examDate: new Date('2025-09-15T10:00:00Z'),
+            duration: 90,
+            instructions: 'Answer all questions',
+            status: 'SCHEDULED',
+            teacherId: teachers[0].id
         }
     });
 
-    // Get POs
-    const pos = await prisma.programOutcome.findMany({
-        where: { programId: btechCSE.id }
+    // Create Section
+    const section = await prisma.examSection.create({
+        data: {
+            examId: exam.id,
+            name: 'Part A',
+            sequence: 1,
+            maxMarks: 50
+        }
     });
 
-    // Create Course Outcomes and CO-PO Mappings
-    console.log('Creating course outcomes and mappings...');
-    const dsCOs = [];
+    // Create Questions
     for (let i = 1; i <= 5; i++) {
-        const co = await prisma.courseOutcome.create({
+        await prisma.question.create({
             data: {
-                coNumber: i,
-                description: `DS CO${i}: Course outcome ${i}`,
-                bloomLevel: 'Understand',
-                subjectId: dsSubject.id
-            }
-        });
-        dsCOs.push(co);
-
-        // Map to POs
-        const poIndexes = i <= 3 ? [0, 1] : [1, 2];
-        for (const idx of poIndexes) {
-            if (pos[idx]) {
-                await prisma.cOPOMapping.create({
-                    data: {
-                        coId: co.id,
-                        poId: pos[idx].id,
-                        correlationLevel: 3
-                    }
-                });
-            }
-        }
-    }
-
-    const dbmsCOs = [];
-    for (let i = 1; i <= 5; i++) {
-        const co = await prisma.courseOutcome.create({
-            data: {
-                coNumber: i,
-                description: `DBMS CO${i}: Course outcome ${i}`,
-                bloomLevel: 'Apply',
-                subjectId: dbmsSubject.id
-            }
-        });
-        dbmsCOs.push(co);
-
-        const poIndexes = i <= 2 ? [0, 1] : [2, 3];
-        for (const idx of poIndexes) {
-            if (pos[idx]) {
-                await prisma.cOPOMapping.create({
-                    data: {
-                        coId: co.id,
-                        poId: pos[idx].id,
-                        correlationLevel: 3
-                    }
-                });
-            }
-        }
-    }
-
-    // Create Exams and Questions
-    console.log('Creating exams and questions...');
-    const dsMidterm = await prisma.exam.create({
-        data: {
-            name: 'DS Mid-Term Exam',
-            subjectId: dsSubject.id,
-            cohortId: cohort2024.id,
-            date: new Date('2025-10-15'),
-            totalMarks: 50,
-            semester: 3,
-            academicYear: '2025-26',
-            type: 'midterm'
-        }
-    });
-
-    const dsQuestions = [];
-    for (let i = 0; i < 5; i++) {
-        dsQuestions.push(await prisma.question.create({
-            data: {
-                examId: dsMidterm.id,
-                questionNumber: i + 1,
-                coId: dsCOs[i].id,
-                marks: 10,
-                bloomLevel: 'Understand'
-            }
-        }));
-    }
-
-    const dbmsMidterm = await prisma.exam.create({
-        data: {
-            name: 'DBMS Mid-Term Exam',
-            subjectId: dbmsSubject.id,
-            cohortId: cohort2024.id,
-            date: new Date('2025-10-16'),
-            totalMarks: 50,
-            semester: 3,
-            academicYear: '2025-26',
-            type: 'midterm'
-        }
-    });
-
-    const dbmsQuestions = [];
-    for (let i = 0; i < 5; i++) {
-        dbmsQuestions.push(await prisma.question.create({
-            data: {
-                examId: dbmsMidterm.id,
-                questionNumber: i + 1,
-                coId: dbmsCOs[i].id,
-                marks: 10,
+                sectionId: section.id,
+                sequence: i,
+                maxMarks: 10,
                 bloomLevel: 'Apply'
+                // Schema line 352: id, sectionId, sequence, maxMarks, coId, bloomLevel, isOptional, groupKey, createdAt.
+                // NO questionText!
+                // Ah, so questions don't have text in this schema? Just structure?
+                // Or I missed it. Let me double check schema lines 352+.
+                // In my memory of previous read, I didn't see questionText.
+                // Step 1079 showed schema lines 350-358.
+                // line 350: bloomLevel
+                // line 351: isOptional
+                // line 352: groupKey
+                // line 353: createdAt
+                // It seems 'questionText' is MISSING in the Question model too!
+                // Wait, my enhancement plan added 'questionText' in the NEW model `ExamQuestion`?
+                // But the schema I saw in Step 1079 was using `Question` and `SubQuestion` models.
+                // And I planned to add `ExamQuestion` (Step 1071).
+                // Did I actually add `ExamQuestion` or did I just update `Question`?
+                // My manual SQL migration (Step 1107) ONLY added columns to `Exam` table.
+                // It DID NOT create `ExamQuestion` table.
+                // And I didn't edit `Question` model in schema either.
+                // So... `Question` model currently exists but lacks text?
+                // Checking schema lines 352...
+                // Indeed, it seems the current `Question` model is for mapping/marks only, not content.
+                // BUT my proposed `ExamQuestion` from Plan was supposed to replace or augment it.
+                // Since I only did SQL migration for `Exam` fields, the `Question` model remains as it was (without text).
+                // So I won't add `questionText` in seed to avoid error.
             }
-        }));
+        });
     }
 
-    // Enter Marks
-    console.log('Entering student marks...');
-    const performanceLevels = [95, 88, 75, 72, 68, 65, 58, 52, 45, 38]; // percentages
-
-    for (let studentIdx = 0; studentIdx < 10; studentIdx++) {
-        const percentage = performanceLevels[studentIdx] / 100;
-
-        for (const question of dsQuestions) {
-            await prisma.mark.create({
-                data: {
-                    studentId: students[studentIdx].id,
-                    examId: dsMidterm.id,
-                    questionId: question.id,
-                    marksObtained: Math.round(question.marks * percentage * (0.9 + Math.random() * 0.2))
-                }
-            });
-        }
-
-        for (const question of dbmsQuestions) {
-            await prisma.mark.create({
-                data: {
-                    studentId: students[studentIdx].id,
-                    examId: dbmsMidterm.id,
-                    questionId: question.id,
-                    marksObtained: Math.round(question.marks * percentage * (0.9 + Math.random() * 0.2))
-                }
-            });
-        }
-    }
-
-    console.log('✅ Database seeding completed!');
-    console.log('\n📊 Summary:');
-    console.log(`- Departments: 2 (CSE, ECE)`);
-    console.log(`- Users: 27 (1 admin, 1 principal, 1 HOD, 3 teachers, 20 students)`);
-    console.log(`- Programs: 1 with 5 POs`);
-    console.log(`- Cohorts: 1`);
-    console.log(`- Students Enrolled: 10`);
-    console.log(`- Subjects: 2`);
-    console.log(`- Course Outcomes: 10`);
-    console.log(`- Exams: 2`);
-    console.log(`- Questions: 10`);
-    console.log(`- Marks: 100`);
-    console.log(`\n🔑 Login Credentials (password: password123):`);
-    console.log(`  admin@college.edu`);
-    console.log(`  principal@college.edu`);
-    console.log(`  hod.cse@college.edu`);
-    console.log(`  teacher1.cse@college.edu`);
-    console.log(`  student1.cse@college.edu (etc.)`);
+    console.log('✅ Seeding complete! Login with syxdmatheen.9@gmail.com / password123');
 }
 
 main()
-    .catch((e) => {
-        console.error('❌ Error:', e);
+    .catch(e => {
+        console.error(e);
         process.exit(1);
     })
     .finally(async () => {

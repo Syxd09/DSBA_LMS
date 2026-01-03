@@ -34,6 +34,67 @@ export function TeacherDashboard() {
     enabled: !!user?.id
   });
 
+  // Fetch enrollments for all assigned cohorts
+  const { data: allEnrollments = [] } = useQuery({
+    queryKey: ['teacher-students', teacherAssignments],
+    queryFn: async () => {
+      if (teacherAssignments.length === 0) return [];
+      
+      // Get unique cohort/semester combinations
+      const contexts = teacherAssignments.map((a: any) => ({
+        cohortId: a.cohortId,
+        semester: a.semester
+      }));
+      
+      // Fetch enrollments for each context
+      const allData = await Promise.all(
+        contexts.map(async (ctx) => {
+          const params = new URLSearchParams();
+          params.append('cohortId', ctx.cohortId);
+          params.append('semester', String(ctx.semester));
+          const { data } = await api.get(`/enrollments?${params.toString()}`);
+          return data || [];
+        })
+      );
+      
+      // Flatten and deduplicate by student ID
+      const uniqueStudents = new Map();
+      allData.flat().forEach((enrollment: any) => {
+        if (enrollment.studentId) {
+          uniqueStudents.set(enrollment.studentId, enrollment);
+        }
+      });
+      
+      return Array.from(uniqueStudents.values());
+    },
+    enabled: teacherAssignments.length > 0
+  });
+
+  // Fetch marks for class average
+  const { data: allMarks = [] } = useQuery({
+    queryKey: ['teacher-marks', exams],
+    queryFn: async () => {
+      if (exams.length === 0) return [];
+      
+      const publishedExams = exams.filter((e: any) => e.status === 'PUBLISHED');
+      if (publishedExams.length === 0) return [];
+      
+      const marksData = await Promise.all(
+        publishedExams.map(async (exam: any) => {
+          try {
+            const { data } = await api.get(`/marks/exam/${exam.id}`);
+            return data || [];
+          } catch {
+            return [];
+          }
+        })
+      );
+      
+      return marksData.flat();
+    },
+    enabled: exams.length > 0
+  });
+
   // Map assignments directly to preserve studentCount
   const assignedSubjects = teacherAssignments.map((a: any) => ({
       ...a.subject,
@@ -42,9 +103,14 @@ export function TeacherDashboard() {
       cohortId: a.cohortId,
       departmentId: a.departmentId
   })).filter((s: any) => s && s.id);
+  
   const pendingExams = exams.filter((e: any) => e.status === 'DRAFT').length;
-  const totalStudents = 0; // No enrollment data linked here yet
-  const classAverage = 0;
+  const totalStudents = allEnrollments.length;
+  
+  // Calculate class average from all marks
+  const classAverage = allMarks.length > 0 
+    ? Math.round(allMarks.reduce((sum: number, mark: any) => sum + (mark.totalMarks || 0), 0) / allMarks.length)
+    : 0;
 
   return (
     <div className="space-y-6">

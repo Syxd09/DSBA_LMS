@@ -1,39 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { useTeacherExams, useCreateExam } from '@/hooks/useExams';
 import { useQuery } from '@tanstack/react-query';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Plus, ClipboardList, Loader2, FileEdit, Eye, BarChart } from 'lucide-react';
+import { Plus, Search, ClipboardList, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import api from '@/lib/api';
+import { ExamTabs } from '@/components/exams/ExamTabs';
+import { ExamCard } from '@/components/exams/ExamCard';
+import { ExamWizard } from '@/components/exams/ExamWizard';
 import { FeedbackStats } from '@/components/FeedbackStats';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TabsContent } from '@/components/ui/tabs';
 
 interface Exam {
   id: string;
   examType: string;
+  customTypeName?: string;
   maxMarks: number;
+  passingMarks?: number;
+  examDate?: string;
+  duration?: number;
   status: string;
   publishedAt: string | null;
   createdAt: string;
-  subjectId: string;
-  cohortId: string;
-  teacherId: string | null;
-  subject?: {
-    name: string;
-    code: string;
-  };
-  cohort?: {
-    name: string;
-    year: number;
-  };
+  subject?: { name: string; code: string };
+  cohort?: { name: string; year: number };
 }
 
 interface Subject {
@@ -49,25 +44,20 @@ interface Cohort {
 }
 
 export default function Exams() {
-  const { user, role } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('drafts');
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [viewFeedback, setViewFeedback] = useState<string | null>(null);
-  const [newExam, setNewExam] = useState({
-    subjectId: '',
-    cohortId: '',
-    examType: 'internal1',
-    maxMarks: 30,
-  });
-  
-  const { data: exams, isLoading } = useTeacherExams();
+
+  const { data: exams = [], isLoading, refetch } = useTeacherExams();
   const createExam = useCreateExam();
 
   const { data: subjects = [] } = useQuery<Subject[]>({
     queryKey: ['subjects-list'],
     queryFn: async () => {
-      const { data } = await api.get('/subjects'); // Assuming /subjects endpoint exists, reused from assignments
+      const { data } = await api.get('/subjects');
       return data || [];
     },
   });
@@ -80,24 +70,11 @@ export default function Exams() {
     },
   });
 
-  const handleCreateExam = async () => {
-    if (!newExam.subjectId || !newExam.cohortId) {
-      toast({
-        title: 'Validation Error',
-        description: 'Please fill in all required fields.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+  const handleCreateExam = async (formData: any) => {
     try {
       await createExam.mutateAsync({
-        subjectId: newExam.subjectId,
-        cohortId: newExam.cohortId,
-        examType: newExam.examType,
-        maxMarks: newExam.maxMarks,
+        ...formData,
         teacherId: user?.id,
-        status: 'draft',
       });
 
       toast({
@@ -105,8 +82,8 @@ export default function Exams() {
         description: 'Exam has been created successfully.',
       });
 
-      setIsDialogOpen(false);
-      setNewExam({ subjectId: '', cohortId: '', examType: 'internal1', maxMarks: 30 });
+      setIsWizardOpen(false);
+      refetch();
     } catch (error: any) {
       console.error('Error creating exam:', error);
       toast({
@@ -114,27 +91,38 @@ export default function Exams() {
         description: error.response?.data?.message || 'Failed to create exam.',
         variant: 'destructive',
       });
+      throw error;
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'draft':
-        return <Badge variant="outline">Draft</Badge>;
-      case 'published':
-        return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Published</Badge>;
-      case 'locked':
-        return <Badge variant="secondary">Locked</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+  // Filter and organize exams by status
+  const examsByStatus = {
+    drafts: exams?.filter((e: Exam) => e.status === 'DRAFT') || [],
+    scheduled: exams?.filter((e: Exam) => e.status === 'SCHEDULED') || [],
+    published: exams?.filter((e: Exam) => e.status === 'PUBLISHED') || [],
+    completed: exams?.filter((e: Exam) => e.status === 'COMPLETED') || []
   };
 
-  const filteredExams = exams?.filter((exam: any) =>
-    exam.subject?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    exam.subject?.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    exam.cohort?.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
+  // Apply search filter
+  const filterExams = (examList: Exam[]) => {
+    if (!searchQuery) return examList;
+    return examList.filter((exam: Exam) =>
+      exam.subject?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      exam.subject?.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      exam.cohort?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      exam.examType?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      exam.customTypeName?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  };
+
+  const currentExams = filterExams(examsByStatus[activeTab as keyof typeof examsByStatus]);
+
+  const counts = {
+    drafts: examsByStatus.drafts.length,
+    scheduled: examsByStatus.scheduled.length,
+    published: examsByStatus.published.length,
+    completed: examsByStatus.completed.length
+  };
 
   return (
     <AuthenticatedLayout allowedRoles={['admin', 'principal', 'hod', 'teacher']}>
@@ -144,94 +132,10 @@ export default function Exams() {
             <h2 className="text-2xl font-bold text-foreground">Exams</h2>
             <p className="text-muted-foreground">Manage exams and evaluations</p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Exam
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Exam</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>Subject</Label>
-                  <Select
-                    value={newExam.subjectId}
-                    onValueChange={(value) => setNewExam({ ...newExam, subjectId: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select subject" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subjects.map((subject) => (
-                        <SelectItem key={subject.id} value={subject.id}>
-                          {subject.code} - {subject.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Cohort</Label>
-                  <Select
-                    value={newExam.cohortId}
-                    onValueChange={(value) => setNewExam({ ...newExam, cohortId: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select cohort" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cohorts.map((cohort) => (
-                        <SelectItem key={cohort.id} value={cohort.id}>
-                          {cohort.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Exam Type</Label>
-                    <Select
-                      value={newExam.examType}
-                      onValueChange={(value) => setNewExam({ ...newExam, examType: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="internal1">Internal 1</SelectItem>
-                        <SelectItem value="internal2">Internal 2</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Max Marks</Label>
-                    <Input
-                      type="number"
-                      value={newExam.maxMarks}
-                      onChange={(e) => setNewExam({ ...newExam, maxMarks: parseInt(e.target.value) || 30 })}
-                      min={10}
-                      max={100}
-                    />
-                  </div>
-                </div>
-                <Button className="w-full" onClick={handleCreateExam} disabled={createExam.isPending}>
-                  {createExam.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    'Create Exam'
-                  )}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button onClick={() => setIsWizardOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Create Exam
+          </Button>
         </div>
 
         <div className="flex items-center gap-4">
@@ -246,81 +150,54 @@ export default function Exams() {
           </div>
         </div>
 
-        <div className="border border-border bg-card">
+        <ExamTabs activeTab={activeTab} onTabChange={setActiveTab} counts={counts} />
+
+        <div className="mt-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
-          ) : filteredExams.length === 0 ? (
-            <div className="py-12 text-center">
+          ) : currentExams.length === 0 ? (
+            <div className="py-12 text-center border border-border rounded-lg bg-muted/20">
               <ClipboardList className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">No exams found</h3>
-              <p className="text-muted-foreground">Create your first exam to get started.</p>
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                {searchQuery ? 'No exams found' : `No ${activeTab} exams`}
+              </h3>
+              <p className="text-muted-foreground">
+                {searchQuery ? 'Try adjusting your search' : 'Create your first exam to get started.'}
+              </p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Cohort</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Max Marks</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredExams.map((exam: any) => (
-                  <TableRow key={exam.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{exam.subject?.name || '—'}</p>
-                        <p className="text-sm text-muted-foreground">{exam.subject?.code}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>{exam.cohort?.name || '—'}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {exam.examType?.replace('internal', 'Internal ') || exam.examType}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{exam.maxMarks}</TableCell>
-                    <TableCell>{getStatusBadge(exam.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {exam.status === 'draft' ? (
-                          <Button variant="ghost" size="sm" onClick={() => navigate(`/marks-entry?exam=${exam.id}`)}>
-                            <FileEdit className="w-4 h-4 mr-1" />
-                            Edit
-                          </Button>
-                        ) : (
-                          <div className="flex gap-2">
-                             <Button variant="ghost" size="sm">
-                                <Eye className="w-4 h-4 mr-1" />
-                                View
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => setViewFeedback(exam.id)}>
-                                <BarChart className="w-4 h-4 mr-1" />
-                                Feedback
-                              </Button>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {currentExams.map((exam: Exam) => (
+                <ExamCard
+                  key={exam.id}
+                  exam={exam}
+                  onEdit={(id) => navigate(`/marks-entry?exam=${id}`)}
+                  onView={(id) => navigate(`/marks-entry?exam=${id}`)}
+                  onViewFeedback={setViewFeedback}
+                />
+              ))}
+            </div>
           )}
         </div>
 
+        <ExamWizard
+          open={isWizardOpen}
+          onOpenChange={setIsWizardOpen}
+          subjects={subjects}
+          cohorts={cohorts}
+          onSubmit={handleCreateExam}
+          isSubmitting={createExam.isPending}
+        />
+
         <Dialog open={!!viewFeedback} onOpenChange={(open) => !open && setViewFeedback(null)}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Feedback Statistics</DialogTitle>
-                </DialogHeader>
-                <FeedbackStats examId={viewFeedback} />
-            </DialogContent>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Feedback Statistics</DialogTitle>
+            </DialogHeader>
+            <FeedbackStats examId={viewFeedback} />
+          </DialogContent>
         </Dialog>
       </div>
     </AuthenticatedLayout>

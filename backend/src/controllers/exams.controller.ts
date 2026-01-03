@@ -29,19 +29,48 @@ export const getTeacherExams = async (req: AuthRequest, res: Response) => {
 
 export const createExam = async (req: AuthRequest, res: Response) => {
     try {
-        const { subjectId, cohortId, examType, maxMarks } = req.body;
+        const {
+            subjectId,
+            cohortId,
+            examType,
+            customTypeName,
+            maxMarks,
+            passingMarks,
+            examDate,
+            duration,
+            instructions
+        } = req.body;
         const teacherId = req.user?.userId;
 
         if (!teacherId) return res.status(400).json({ message: 'Teacher ID missing' });
+
+        // Validate custom exam type
+        if (examType === 'CUSTOM' && !customTypeName) {
+            return res.status(400).json({ message: 'Custom type name is required for custom exams' });
+        }
+
+        // Validate passing marks if provided
+        if (passingMarks && passingMarks > maxMarks) {
+            return res.status(400).json({ message: 'Passing marks cannot exceed max marks' });
+        }
 
         const exam = await prisma.exam.create({
             data: {
                 subjectId,
                 cohortId,
                 examType,
+                customTypeName: examType === 'CUSTOM' ? customTypeName : undefined,
                 maxMarks,
+                passingMarks: passingMarks ? parseFloat(passingMarks) : undefined,
+                examDate: examDate ? new Date(examDate) : undefined,
+                duration: duration ? parseInt(duration) : undefined,
+                instructions,
                 teacherId,
-                status: 'DRAFT'
+                status: (examDate && new Date(examDate) > new Date() ? 'SCHEDULED' : 'DRAFT') as any
+            },
+            include: {
+                subject: { select: { name: true, code: true } },
+                cohort: { select: { name: true, year: true } }
             }
         });
 
