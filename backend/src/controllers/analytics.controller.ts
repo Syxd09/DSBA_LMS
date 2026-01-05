@@ -295,3 +295,123 @@ export const getDepartmentStats = async (req: AuthRequest, res: Response) => {
         res.status(500).json({ message: 'Error fetching department stats' });
     }
 };
+
+// Helper function for attainment levels
+function getAttainmentLevel(percent: number): number {
+    if (percent >= 80) return 3;
+    if (percent >= 60) return 2;
+    if (percent >= 40) return 1;
+    return 0;
+}
+
+/**
+ * Get CO-PO traceability data for NAAC compliance reporting.
+ * 
+ * Returns comprehensive traceability matrix showing:
+ * - CO attainment levels with student pass counts
+ * - PO attainment with weighted contributions from each CO
+ * - Correlation mapping (1=Weak, 2=Medium, 3=Strong)
+ * - Formula transparency for audit trail
+ * 
+ * @route GET /api/analytics/co-po-traceability/:subjectId/:cohortId/:semester
+ * @access Private (ADMIN, PRINCIPAL, HOD, TEACHER)
+ * @param {string} req.params.subjectId - Subject UUID
+ * @param {string} req.params.cohortId - Cohort UUID
+ * @param {number} req.params.semester - Semester number
+ * @returns {object} 200 - Traceability matrix with CO/PO data
+ * @returns {object} 404 - Data not found
+ * @returns {object} 500 - Server error
+ */
+export const getCOPOTraceability = async (req: AuthRequest, res: Response) => {
+    try {
+        const { subjectId, cohortId, semester } = req.params;
+
+        const subject = await prisma.subject.findUnique({
+            where: { id: subjectId },
+            include: { curriculum: { include: { program: true } } }
+        });
+
+        if (!subject || !subject.curriculum) {
+            return res.status(404).json({ message: 'Subject or curriculum not found' });
+        }
+
+        const cohort = await prisma.cohort.findUnique({
+            where: { id: cohortId },
+            include: { program: true }
+        });
+
+        if (!cohort) {
+            return res.status(404).json({ message: 'Cohort not found' });
+        }
+
+        const currentYear = new Date().getFullYear();
+        const academicYear = `${currentYear}-${currentYear + 1}`;
+
+        const coAttainments = await prisma.cOAttainment.findMany({
+            where: { subjectId, cohortId, semester: parseInt(semester), academicYear },
+            include: { co: { include: { poMappings: { include: { po: true } } } } }
+        });
+
+        const coWithLevels = coAttainments.map(coAtt => ({
+            id: coAtt.id,
+            co: { id: coAtt.co.id, coNumber: coAtt.co.coNumber, description: coAtt.co.description },
+            achievedPercent: coAtt.achievedPercent,
+            targetPercent: coAtt.targetPercent,
+            level: getAttainmentLevel(coAtt.achievedPercent),
+            passCount: coAtt.passCount,
+            studentCount: coAtt.studentCount,
+            poMappings: coAtt.co.poMappings.map(m => ({
+                po: { id: m.po.id, poNumber: m.po.poNumber, description: m.po.description },
+                correlationLevel: m.correlationLevel
+            }))
+        }));
+
+        const poAttainments = await prisma.pOAttainment.findMany({
+            where: { programId: subject.curriculum.programId, cohortId, semester: parseInt(semester), academicYear },
+            include: { po: true }
+        });
+
+        const poWithBreakdown = poAttainments.map(po => {
+            const contributingCOs = coAttainments.filter(coAtt =>
+                coAtt.co.poMappings.some(m => m.poId === po.poId)
+            );
+
+            const breakdown = contributingCOs.map(coAtt => {
+                const mapping = coAtt.co.poMappings.find(m => m.poId === po.poId);
+                return {
+                    co: { id: coAtt.coId, coNumber: coAtt.co.coNumber },
+                    coAttainment: coAtt.achievedPercent,
+                    correlationLevel: mapping?.correlationLevel || 0,
+                    product: coAtt.achievedPercent * (mapping?.correlationLevel || 0)
+                };
+            });
+
+            return {
+                id: po.id,
+                po: { id: po.po.id, poNumber: po.po.poNumber, description: po.po.description },
+                achievedPercent: po.achievedPercent,
+                targetPercent: po.targetPercent,
+                level: getAttainmentLevel(po.achievedPercent),
+                weightedSum: po.weightedSum,
+                totalWeight: po.totalWeight,
+                breakdown
+            };
+        });
+
+        res.json({
+            context: {
+                program: cohort.program,
+                cohort: { id: cohort.id, name: cohort.name, year: cohort.year },
+                semester: parseInt(semester),
+                academicYear,
+                subject: { id: subject.id, name: subject.name, code: subject.code, credits: subject.credits },
+                lastCalculated: coAttainments[0]?.calculatedAt || null
+            },
+            coAttainments: coWithLevels,
+            poAttainments: poWithBreakdown
+        });
+    } catch (error) {
+        console.error('[CO-PO Traceability] Error:', error);
+        res.status(500).json({ message: 'Error fetching traceability data' });
+    }
+};

@@ -3,6 +3,11 @@ generator client {
   binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl"]
 }
 
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "./ERD.svg"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -202,6 +207,9 @@ model Subject {
   coAttainments      COAttainment[]
 }
 
+/// Course learning outcomes (COs) defining specific skills students should achieve.
+/// Each CO is mapped to subject topics and assessed through exam questions.
+/// Attainment is calculated based on student performance against defined thresholds.
 model CourseOutcome {
   id          String     @id @default(uuid())
   subjectId   String
@@ -219,6 +227,9 @@ model CourseOutcome {
   @@unique([subjectId, coNumber])
 }
 
+/// Program outcomes (POs) defining broad competencies graduates should possess.
+/// Maps to NBA/NAAC accreditation requirements.
+/// PO attainment is calculated as weighted average of related CO attainments.
 model ProgramOutcome {
   id            String   @id @default(uuid())
   programId     String
@@ -234,6 +245,9 @@ model ProgramOutcome {
   @@unique([programId, poNumber])
 }
 
+/// CO-PO correlation mapping matrix for traceability.
+/// Defines strength of correlation: 1 (Weak), 2 (Medium), 3 (Strong).
+/// Used in PO attainment calculation as weighting factor.
 model CoPoMapping {
   id               String @id @default(uuid())
   coId             String
@@ -246,6 +260,9 @@ model CoPoMapping {
   @@unique([coId, poId])
 }
 
+/// Course Outcome attainment calculation results.
+/// Stores percentage of students achieving target threshold (default 60%).
+/// Supports workflow: CALCULATED → UNDER_REVIEW → APPROVED → LOCKED.
 model COAttainment {
   id              String           @id @default(uuid())
   subjectId       String
@@ -275,6 +292,9 @@ model COAttainment {
 }
 
 // PO Attainment - aggregated from CO attainments via CO-PO mapping weights
+/// Program Outcome attainment calculation results.
+/// Computed as: Σ(CO_Attainment × CO-PO_Correlation) / Σ(Weights).
+/// Critical for NAAC compliance and accreditation reporting.
 model POAttainment {
   id              String           @id @default(uuid())
   programId       String

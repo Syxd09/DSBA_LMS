@@ -3,11 +3,37 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import compression from 'compression';
+const timeout = require('express-timeout-handler');
 
 const app = express();
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// Response compression (gzip)
+app.use(compression({
+    filter: (req: Request, res: Response) => {
+        if (req.headers['x-no-compression']) {
+            return false;
+        }
+        return compression.filter(req, res);
+    },
+    level: 6 // Balance between speed and compression ratio
+}));
+
+// Request timeout (30 seconds)
+app.use(timeout.handler({
+    timeout: 30000,
+    onTimeout: (req: Request, res: Response) => {
+        res.status(503).json({
+            message: 'Request timeout - operation took too long',
+            error: 'SERVICE_TIMEOUT'
+        });
+    },
+    disable: ['write', 'setHeaders', 'send', 'json', 'end']
+}));
 
 // CORS Configuration - Hardened for production
 const corsOptions = {
@@ -47,7 +73,7 @@ if (process.env.NODE_ENV !== 'production') {
 // Rate Limiting - General API
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10000, // Effectively disabled
+    max: 100, // Reasonable limit: 100 requests per 15 min per IP
     message: { message: 'Too many requests, please try again later' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -56,8 +82,9 @@ const apiLimiter = rateLimit({
 // Rate Limiting - Strict for auth routes
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10000, // Effectively disabled
-    message: { message: 'Too many login attempts, please try again later' },
+    max: 5, // Strict: Only 5 login attempts per 15 min per IP
+    skipSuccessfulRequests: true, // Don't count successful logins
+    message: { message: 'Too many login attempts, please try again in 15 minutes' },
     standardHeaders: true,
     legacyHeaders: false,
 });

@@ -208,18 +208,30 @@ export default function CourseOutcomes() {
 
   const handleMappingChange = async (coId: string, poId: string, level: string) => {
       try {
-          // Optimistic update could go here
+          const co = filteredCOs.find(c => c.id === coId);
+          const po = (programOutcomes as any[]).find(p => p.id === poId);
+          const levelName = level === '3' ? 'Strong' : level === '2' ? 'Medium' : level === '1' ? 'Weak' : 'None';
+          
           await api.put('/course-outcomes/mapping', {
               coId,
               poId,
               correlationLevel: parseInt(level)
           });
           
-          // Refetch to ensure sync
           fetchData();
-          toast({ title: 'Mapping updated', description: 'Correlation saved successfully.' });
-      } catch (error) {
-          toast({ title: 'Error', description: 'Failed to update mapping', variant: 'destructive' });
+          toast({ 
+              title: 'CO-PO Mapping Updated', 
+              description: `CO${co?.coNumber || '?'} → PO${po?.poNumber || '?'} set to Level ${level} (${levelName})` 
+          });
+      } catch (error: any) {
+          const errorMsg = error?.response?.data?.message || error?.message || 'Unknown error';
+          toast({ 
+              title: 'Failed to Save Mapping', 
+              description: errorMsg.includes('Network') || errorMsg.includes('fetch') 
+                  ? 'Unable to reach server. Please check your connection.'
+                  : `Error: ${errorMsg}`,
+              variant: 'destructive' 
+          });
       }
   };
 
@@ -436,15 +448,126 @@ export default function CourseOutcomes() {
                   {/* Mapping Matrix - Only show if subject specific view is active or we have POs */}
                   {selectedSubject !== 'all' && programOutcomes.length > 0 && (
                       <div className="pt-4 border-t">
-                          <h3 className="font-semibold text-sm mb-4">CO-PO Mapping Matrix</h3>
+                          <div className="flex items-center justify-between mb-4">
+                              <h3 className="font-semibold text-sm">CO-PO Mapping Matrix</h3>
+                              
+                              {/* Statistics Summary */}
+                              <div className="flex items-center gap-4 text-xs">
+                                  <span className="flex items-center gap-1">
+                                      <span className="font-semibold">{cos.length}</span> COs
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                      <span className="font-semibold">{programOutcomes.length}</span> POs
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                      📊 Avg: <span className="font-semibold">
+                                          {(() => {
+                                              const allMappings = cos.flatMap(co => 
+                                                  programOutcomes.map((po: any) => {
+                                                      const mapping = co.poMappings?.find((m: any) => m.poId === po.id);
+                                                      return mapping?.correlationLevel || 0;
+                                                  })
+                                              );
+                                              const avg = allMappings.reduce((a, b) => a + b, 0) / allMappings.length;
+                                              return avg.toFixed(1);
+                                          })()}
+                                      </span>
+                                  </span>
+                              </div>
+                          </div>
+
+                          {/* Validation Warnings */}
+                          {(() => {
+                              const unmappedCOs = cos.filter(co => 
+                                  !co.poMappings || co.poMappings.every((m: any) => m.correlationLevel === 0)
+                              );
+                              const unmappedPOs = programOutcomes.filter((po: any) =>
+                                  !cos.some(co => co.poMappings?.some((m: any) => m.poId === po.id && m.correlationLevel > 0))
+                              );
+                              
+                              return (unmappedCOs.length > 0 || unmappedPOs.length > 0) && (
+                                  <div className="mb-3 space-y-2">
+                                      {unmappedCOs.length > 0 && (
+                                          <div className="flex items-start gap-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs">
+                                              <span className="text-red-600 dark:text-red-400">⚠</span>
+                                              <span className="text-red-700 dark:text-red-300">
+                                                  <strong>{unmappedCOs.length} CO(s)</strong> have no PO mappings: {unmappedCOs.map(co => `CO${co.coNumber}`).join(', ')}
+                                              </span>
+                                          </div>
+                                      )}
+                                      {unmappedPOs.length > 0 && (
+                                          <div className="flex items-start gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs">
+                                              <span className="text-yellow-600 dark:text-yellow-400">ℹ</span>
+                                              <span className="text-yellow-700 dark:text-yellow-300">
+                                                  <strong>{unmappedPOs.length} PO(s)</strong> have no CO mappings: {unmappedPOs.map((po: any) => `PO${po.poNumber}`).join(', ')}
+                                              </span>
+                                          </div>
+                                      )}
+                                  </div>
+                              );
+                          })()}
+
+                          {/* Bulk Actions */}
+                          <div className="mb-3 flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-medium text-muted-foreground">Quick Actions:</span>
+                              <button
+                                  onClick={() => {
+                                      if (!window.confirm('Set all mappings to 0 (no correlation)?')) return;
+                                      cos.forEach(co => {
+                                          programOutcomes.forEach((po: any) => {
+                                              handleMappingChange(co.id, po.id, '0');
+                                          });
+                                      });
+                                  }}
+                                  className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 border rounded"
+                              >
+                                  Clear All
+                              </button>
+                              <button
+                                  onClick={() => {
+                                      if (!window.confirm('Set diagonal (CO1→PO1, CO2→PO2...) to Level 3?')) return;
+                                      cos.forEach((co, idx) => {
+                                          if (programOutcomes[idx]) {
+                                              handleMappingChange(co.id, programOutcomes[idx].id, '3');
+                                          }
+                                      });
+                                  }}
+                                  className="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 border rounded"
+                              >
+                                  Fill Diagonal (3)
+                              </button>
+                              <button
+                                  onClick={() => {
+                                      if (!window.confirm('Set all mappings to Level 3 (strong correlation)?')) return;
+                                      cos.forEach(co => {
+                                          programOutcomes.forEach((po: any) => {
+                                              handleMappingChange(co.id, po.id, '3');
+                                          });
+                                      });
+                                  }}
+                                  className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 border rounded"
+                              >
+                                  Set All Strong (3)
+                              </button>
+                          </div>
+
                           <div className="overflow-x-auto">
                               <table className="w-full text-sm border-collapse">
                                   <thead>
                                       <tr>
                                           <th className="p-2 border text-left bg-muted/50">CO \ PO</th>
                                           {programOutcomes.map((po: any) => (
-                                              <th key={po.id} className="p-2 border text-center bg-muted/50" title={po.description}>
-                                                  PO{po.poNumber}
+                                              <th 
+                                                  key={po.id} 
+                                                  className="p-2 border text-center bg-muted/50 cursor-help" 
+                                                  title={`${po.description}\n\nClick cells below to map COs to this PO`}
+                                              >
+                                                  <div className="flex flex-col items-center">
+                                                      <span className="font-semibold">PO{po.poNumber}</span>
+                                                      <span className="text-xs text-muted-foreground font-normal truncate max-w-[100px]">
+                                                          {po.description.substring(0, 20)}...
+                                                      </span>
+                                                  </div>
                                               </th>
                                           ))}
                                       </tr>
@@ -452,18 +575,37 @@ export default function CourseOutcomes() {
                                   <tbody>
                                       {cos.map((co) => (
                                           <tr key={co.id}>
-                                              <td className="p-2 border font-medium">CO{co.coNumber}</td>
+                                              <td className="p-2 border font-medium bg-muted/30" title={co.description}>
+                                                  <div className="flex flex-col">
+                                                      <span>CO{co.coNumber}</span>
+                                                      <span className="text-xs text-muted-foreground font-normal truncate max-w-[120px]">
+                                                          {co.description.substring(0, 25)}...
+                                                      </span>
+                                                  </div>
+                                              </td>
                                               {programOutcomes.map((po: any) => {
                                                   const mapping = co.poMappings?.find((m: any) => m.poId === po.id);
                                                   const level = mapping?.correlationLevel || 0;
                                                   
+                                                  // Enhanced heat map background colors
+                                                  const cellBgClass = 
+                                                      level === 3 ? 'bg-green-200 dark:bg-green-900/50' :
+                                                      level === 2 ? 'bg-blue-100 dark:bg-blue-900/30' :
+                                                      level === 1 ? 'bg-yellow-50 dark:bg-yellow-900/20' :
+                                                      'bg-gray-50 dark:bg-gray-900/10';
+                                                  
                                                   return (
-                                                      <td key={po.id} className="p-2 border text-center">
+                                                      <td 
+                                                          key={po.id} 
+                                                          className={`p-1 border text-center ${cellBgClass} transition-colors`}
+                                                          title={`CO${co.coNumber} → PO${po.poNumber}\nCorrelation: ${level === 0 ? 'None' : level === 1 ? 'Weak' : level === 2 ? 'Medium' : 'Strong'}`}
+                                                      >
                                                           <select 
-                                                              className={`w-12 p-1 rounded border text-center ${
-                                                                  level === 3 ? 'bg-green-100 dark:bg-green-900/30 font-bold' :
-                                                                  level === 2 ? 'bg-yellow-50 dark:bg-yellow-900/30' :
-                                                                  level === 1 ? 'bg-gray-50 dark:bg-gray-900/10' : ''
+                                                              className={`w-14 p-1 rounded border text-center font-semibold cursor-pointer bg-white/50 dark:bg-black/20 hover:bg-white dark:hover:bg-black/40 transition-colors ${
+                                                                  level === 3 ? 'text-green-800 dark:text-green-300' :
+                                                                  level === 2 ? 'text-blue-700 dark:text-blue-300' :
+                                                                  level === 1 ? 'text-yellow-700 dark:text-yellow-300' :
+                                                                  'text-gray-500'
                                                               }`}
                                                               value={level}
                                                               onChange={(e) => handleMappingChange(co.id, po.id, e.target.value)}
@@ -480,9 +622,21 @@ export default function CourseOutcomes() {
                                       ))}
                                   </tbody>
                               </table>
-                              <p className="text-xs text-muted-foreground mt-2">
-                                  correlation levels: 1 (Low), 2 (Medium), 3 (High). '-' indicates no correlation.
-                              </p>
+                              <div className="flex items-start gap-4 mt-3 text-xs text-muted-foreground">
+                                  <div>
+                                      <strong>Correlation Levels:</strong> 
+                                      <span className="ml-2">1 (Weak)</span> •
+                                      <span className="ml-1">2 (Medium)</span> •
+                                      <span className="ml-1">3 (Strong)</span> •
+                                      <span className="ml-1">- (None)</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                      <span className="px-2 py-0.5 bg-green-200 dark:bg-green-900/50 rounded">Strong</span>
+                                      <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 rounded">Medium</span>
+                                      <span className="px-2 py-0.5 bg-yellow-50 dark:bg-yellow-900/20 rounded">Weak</span>
+                                      <span className="px-2 py-0.5 bg-gray-50 dark:bg-gray-900/10 rounded">None</span>
+                                  </div>
+                              </div>
                           </div>
                       </div>
                   )}

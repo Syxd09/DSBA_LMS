@@ -3,6 +3,22 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../services/db';
 import { createAuditLog } from '../middleware/audit.middleware';
 
+/**
+ * Save or update student marks for an exam.
+ * 
+ * Batch saves marks for multiple students and sub-questions with transaction safety.
+ * Teachers can only edit marks in DRAFT status. HOD/Principal can edit anytime.
+ * 
+ * @route POST /api/marks/save
+ * @access Private (ADMIN, PRINCIPAL, HOD, TEACHER)
+ * @param {string} req.body.examId - Exam UUID
+ * @param {object[]} req.body.marks - Array of {studentId, subQuestionId, marks}
+ * @returns {object} 200 - Number of marks saved
+ * @returns {object} 400 - Invalid marks data
+ * @returns {object} 403 - Access denied or status locked
+ * @returns {object} 404 - Exam not found
+ * @returns {object} 500 - Server error
+ */
 export const saveMarks = async (req: AuthRequest, res: Response) => {
     try {
         const { examId, marks } = req.body; // marks: [{ studentId, subQuestionId, marks }]
@@ -72,6 +88,21 @@ export const saveMarks = async (req: AuthRequest, res: Response) => {
     }
 };
 
+/**
+ * Submit marks for HOD/Principal approval.
+ * 
+ * Transitions exam from DRAFT to PENDING_APPROVAL status.
+ * Records submission timestamp and triggers approval workflow.
+ * 
+ * @route POST /api/marks/submit-approval
+ * @access Private (TEACHER, HOD, ADMIN)
+ * @param {string} req.body.examId - Exam UUID
+ * @returns {object} 200 - Submission success
+ * @returns {object} 400 - Marks incomplete or exam not in draft
+ * @returns {object} 403 - Access denied
+ * @returns {object} 404 - Exam not found
+ * @returns {object} 500 - Server error
+ */
 export const submitMarksForApproval = async (req: AuthRequest, res: Response) => {
     try {
         const { examId } = req.body;
@@ -118,6 +149,19 @@ export const submitMarksForApproval = async (req: AuthRequest, res: Response) =>
     }
 };
 
+/**
+ * Get marks for a specific exam with student and question details.
+ * 
+ * Retrieves all StudentMark records for an exam including related student,
+ * sub-question, and CO mapping information.
+ * 
+ * @route GET /api/marks/:examId
+ * @access Private (ADMIN, PRINCIPAL, HOD, TEACHER)
+ * @param {string} req.params.examId - Exam UUID
+ * @returns {object[]} 200 - Array of marks with student and question data
+ * @returns {object} 404 - Exam not found
+ * @returns {object} 500 - Server error
+ */
 export const getMarks = async (req: AuthRequest, res: Response) => {
     try {
         const { examId } = req.params;

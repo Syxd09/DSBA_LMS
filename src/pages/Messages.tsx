@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Plus, Send, MoreVertical, Search, User, Users } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 
@@ -97,7 +97,10 @@ export default function Messages() {
                                 <Button size="icon" variant="ghost"><Plus className="w-5 h-5" /></Button>
                             </DialogTrigger>
                             <DialogContent>
-                                <DialogHeader><DialogTitle>New Group</DialogTitle></DialogHeader>
+                                <DialogHeader>
+                                    <DialogTitle>New Group</DialogTitle>
+                                    <DialogDescription>Create a new messaging group.</DialogDescription>
+                                </DialogHeader>
                                 <div className="space-y-4 py-4">
                                     <div className="space-y-2">
                                         <Label>Group Name</Label>

@@ -31,7 +31,9 @@ import AttainmentDashboard from "./pages/AttainmentDashboard";
 import StudentAnalytics from "./pages/StudentAnalytics";
 import POAttainmentDashboard from "./pages/POAttainmentDashboard";
 import ProgramOutcomes from "./pages/ProgramOutcomes";
+import COPOTraceability from "./pages/COPOTraceability";
 import NotFound from "./pages/NotFound";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -41,7 +43,8 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <ErrorBoundary>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
@@ -71,10 +74,12 @@ const App = () => (
             <Route path="/student-analytics" element={<StudentAnalytics />} />
             <Route path="/po-attainment" element={<POAttainmentDashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
+            <Route path="/co-po-traceability" element={<COPOTraceability />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
+          </BrowserRouter>
+        </ErrorBoundary>
       </TooltipProvider>
     </AcademicContextProvider>
   </QueryClientProvider>

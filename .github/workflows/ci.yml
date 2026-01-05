@@ -1,0 +1,93 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  quality-gate:
+    name: Quality Checks
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x]
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      # ========================================
+      # BACKEND CHECKS
+      # ========================================
+      
+      - name: Install Backend Dependencies
+        run: |
+          cd backend
+          npm ci
+      
+      - name: TypeScript Check (Backend)
+        run: |
+          cd backend
+          npx tsc --noEmit
+        continue-on-error: false
+      
+      - name: Build Backend
+        run: |
+          cd backend
+          npm run build
+      
+      # ========================================
+      # FRONTEND CHECKS
+      # ========================================
+      
+      - name: Install Frontend Dependencies
+        run: npm ci
+      
+      - name: TypeScript Check (Frontend)
+        run: npx tsc --noEmit
+        continue-on-error: false
+      
+      - name: Build Frontend
+        run: npm run build
+      
+      # ========================================
+      # ARTIFACT UPLOAD (OPTIONAL, NON-BLOCKING)
+      # ========================================
+      
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v3
+        if: success()
+        with:
+          name: build-artifacts-${{ github.sha }}
+          path: |
+            backend/dist
+            dist
+          retention-days: 7
+      
+      # ========================================
+      # SUMMARY
+      # ========================================
+      
+      - name: Quality Gate Summary
+        if: always()
+        run: |
+          echo "==================================="
+          echo "Quality Gate Results"
+          echo "==================================="
+          echo "Backend TypeScript: ${{ job.status }}"
+          echo "Frontend TypeScript: ${{ job.status }}"
+          echo "Backend Build: ${{ job.status }}"
+          echo "Frontend Build: ${{ job.status }}"
+          echo "==================================="

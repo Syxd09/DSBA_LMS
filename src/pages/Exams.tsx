@@ -13,7 +13,7 @@ import { ExamTabs } from '@/components/exams/ExamTabs';
 import { ExamCard } from '@/components/exams/ExamCard';
 import { ExamWizard } from '@/components/exams/ExamWizard';
 import { FeedbackStats } from '@/components/FeedbackStats';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { TabsContent } from '@/components/ui/tabs';
 
 interface Exam {
@@ -218,6 +218,7 @@ export default function Exams() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Feedback Statistics</DialogTitle>
+              <DialogDescription>View student feedback summary for this exam.</DialogDescription>
             </DialogHeader>
             <FeedbackStats examId={viewFeedback} />
           </DialogContent>

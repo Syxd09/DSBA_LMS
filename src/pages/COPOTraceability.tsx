@@ -90,16 +90,12 @@ export default function COPOTraceability() {
     },
   });
 
-  // Fetch subjects (filtered by program if selected)
+  // Fetch all subjects (program filter removed - was returning 0 results)
   const { data: subjects } = useQuery({
-    queryKey: ['subjects-list', selectedProgram],
+    queryKey: ['subjects-list'],
     queryFn: async () => {
       const { data } = await api.get('/subjects');
-      const allSubjects = data || [];
-      if (selectedProgram) {
-        return allSubjects.filter((s: any) => s.curriculum?.programId === selectedProgram);
-      }
-      return allSubjects;
+      return data || [];
     },
   });
 
@@ -187,7 +183,7 @@ export default function COPOTraceability() {
 
               <div>
                 <label className="text-sm font-medium mb-2 block">Subject</label>
-                <Select value={selectedSubject} onValueChange={setSelectedSubject} disabled={!selectedProgram}>
+                <Select value={selectedSubject} onValueChange={setSelectedSubject}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select subject" />
                   </SelectTrigger>

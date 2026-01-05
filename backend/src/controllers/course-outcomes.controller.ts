@@ -183,30 +183,26 @@ export const updateCoPoMapping = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ message: 'CO ID, PO ID, and Correlation Level required' });
         }
 
-        // If level is 0 or null, remove mapping? Or just set to 0? 
-        // 0 usually means no correlation. Let's assume we store it or delete it.
-        // Schema has correlationLevel Int. Let's upsert.
-
-        const mapping = await prisma.coPoMapping.upsert({
-            where: {
-                coId_poId: {
-                    coId,
-                    poId
-                }
-            },
-            update: {
-                correlationLevel: Number(correlationLevel)
-            },
-            create: {
-                coId,
-                poId,
-                correlationLevel: Number(correlationLevel)
-            }
+        // Find existing mapping
+        const existing = await prisma.coPoMapping.findFirst({
+            where: { coId: coId, poId: poId }
         });
+
+        let mapping;
+        if (existing) {
+            mapping = await prisma.coPoMapping.update({
+                where: { id: existing.id },
+                data: { correlationLevel: Number(correlationLevel) }
+            });
+        } else {
+            mapping = await prisma.coPoMapping.create({
+                data: { coId, poId, correlationLevel: Number(correlationLevel) }
+            });
+        }
 
         res.json(mapping);
     } catch (error) {
-        console.error('Error updating mapping:', error);
+        console.error('[updateCoPoMapping] Error:', error);
         res.status(500).json({ message: 'Error updating mapping', error: String(error) });
     }
 };

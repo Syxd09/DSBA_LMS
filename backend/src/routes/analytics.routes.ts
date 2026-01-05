@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCOAttainment, getBloomDistribution, getSubjectPerformance, getDepartmentStats } from '../controllers/analytics.controller';
+import { getCOAttainment, getBloomDistribution, getSubjectPerformance, getDepartmentStats, getCOPOTraceability } from '../controllers/analytics.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/rbac.middleware';
 import { requireAcademicContext } from '../middleware/academic-context.middleware';
@@ -28,6 +28,12 @@ router.get('/subject-performance/:cohortId',
 router.get('/department-stats',
     requireRole(['ADMIN', 'PRINCIPAL', 'HOD']),
     getDepartmentStats
+);
+
+// CO-PO Traceability route
+router.get('/co-po-traceability/:subjectId/:cohortId/:semester',
+    requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER']),
+    getCOPOTraceability
 );
 
 export default router;

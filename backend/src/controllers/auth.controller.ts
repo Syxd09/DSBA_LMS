@@ -4,6 +4,31 @@ import jwt from 'jsonwebtoken';
 import prisma from '../services/db';
 import { createAuditLog } from '../middleware/audit.middleware';
 
+/**
+ * User registration endpoint.
+ * 
+ * Creates a new user account with hashed password using bcrypt.
+ * Email must be unique. Default role is STUDENT.
+ * 
+ * @route POST /api/auth/register
+ * @access Public
+ * @param {string} req.body.email - Unique email address
+ * @param {string} req.body.password - Password (min 6 characters, will be hashed)
+ * @param {string} req.body.name - Full name of user
+ * @param {string} [req.body.role=STUDENT] - User role (ADMIN, PRINCIPAL, HOD, TEACHER, STUDENT)
+ * @returns {object} 201 - User created successfully with JWT token
+ * @returns {object} 400 - Email already exists or validation error
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /api/auth/register
+ * {
+ *   "email": "student@example.com",
+ *   "password": "password123",
+ *   "name": "Jane Smith",
+ *   "role": "STUDENT"
+ * }
+ */
 export const register = async (req: Request, res: Response) => {
     try {
         const { email, password, fullName } = req.body;
@@ -39,6 +64,38 @@ export const register = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * User login endpoint.
+ * 
+ * Authenticates a user with email and password, returns JWT token on success.
+ * Rate limited to 5 attempts per 15 minutes per IP address.
+ * 
+ * @route POST /api/auth/login
+ * @access Public
+ * @param {string} req.body.email - User email address
+ * @param {string} req.body.password - User password (will be compared with bcrypt hash)
+ * @returns {object} 200 - Success response with JWT token and user data
+ * @returns {object} 401 - Invalid credentials
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * POST /api/auth/login
+ * {
+ *   "email": "teacher@example.com",
+ *   "password": "securepassword123"
+ * }
+ * 
+ * Response:
+ * {
+ *   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+ *   "user": {
+ *     "id": "uuid",
+ *     "email": "teacher@example.com",
+ *     "name": "John Doe",
+ *     "role": "TEACHER"
+ *   }
+ * }
+ */
 export const login = async (req: Request, res: Response) => {
     try {
         const { email, password } = req.body;
@@ -82,6 +139,33 @@ export const login = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * Get current authenticated user profile.
+ * 
+ * Returns full user profile for the currently authenticated user.
+ * Requires valid JWT token in Authorization header.
+ * 
+ * @route GET /api/auth/me
+ * @access Private (requires authentication)
+ * @returns {object} 200 - User profile data
+ * @returns {object} 401 - Not authenticated or invalid token
+ * @returns {object} 404 - User not found
+ * @returns {object} 500 - Server error
+ * 
+ * @example
+ * GET /api/auth/me
+ * Headers: { Authorization: "Bearer <jwt_token>" }
+ * 
+ * Response:
+ * {
+ *   "id": "uuid",
+ *   "email": "user@example.com",
+ *   "name": "John Doe",
+ *   "role": "TEACHER",
+ *   "department": { ... },
+ *   "createdAt": "2024-01-01T00:00:00.000Z"
+ * }
+ */
 export const getProfile = async (req: any, res: Response) => {
     try {
         const userId = req.user?.userId;

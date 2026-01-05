@@ -6,7 +6,7 @@ import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -147,6 +147,7 @@ export default function HODDashboard() {
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Reject Request</DialogTitle>
+                    <DialogDescription>Provide a reason for rejecting this approval request.</DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
                     <label className="text-sm font-medium mb-2 block">Reason for rejection</label>

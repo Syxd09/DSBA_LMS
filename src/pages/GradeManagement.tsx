@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Calculator, Award, Settings, Loader2, MessageSquare, Save } from 'lucide-react';
 
@@ -299,6 +299,7 @@ export default function GradeManagement() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Student Feedback</DialogTitle>
+              <DialogDescription>Provide remarks and feedback for the student's performance.</DialogDescription>
             </DialogHeader>
             <div className="py-4">
               <p className="text-sm font-medium mb-2">
