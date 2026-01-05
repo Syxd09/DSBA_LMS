@@ -82,7 +82,7 @@ export function TeacherDashboard() {
       const marksData = await Promise.all(
         publishedExams.map(async (exam: any) => {
           try {
-            const { data } = await api.get(`/marks/exam/${exam.id}`);
+            const { data } = await api.get(`/marks/${exam.id}`);
             return data || [];
           } catch {
             return [];

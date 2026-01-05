@@ -3,7 +3,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSearchParams } from 'react-router-dom';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { MarksEntryGrid } from '@/components/marks/MarksEntryGrid';
-import { ExamStructureBuilder } from '@/components/marks/ExamStructureBuilder';
+import { ExamStructureBuilder as ExamStructureBuilderOld } from '@/components/marks/ExamStructureBuilder';
+import { ExamStructureBuilderNew as ExamStructureBuilder } from '@/components/marks/ExamStructureBuilderNew';
+import { CSVUploadDialog } from '@/components/marks/CSVUploadDialog';
 import { 
   useTeacherExams, 
   useExamDetails, 
@@ -11,6 +13,7 @@ import {
   useStudentMarks,
   useSaveMarks,
   usePublishExam,
+  useUnlockExam,
   useCreateExamStructure
 } from '@/hooks/useExams';
 import { useCourseOutcomes } from '@/hooks/useCourseOutcomes';
@@ -18,13 +21,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, Upload } from 'lucide-react';
 
 export default function MarksEntry() {
   const { role } = useAuth();
   const [searchParams] = useSearchParams();
   const examFromUrl = searchParams.get('exam');
   const [selectedExamId, setSelectedExamId] = useState<string | null>(examFromUrl);
+  const [isCSVDialogOpen, setIsCSVDialogOpen] = useState(false);
 
   useEffect(() => {
     if (examFromUrl) {
@@ -34,12 +39,13 @@ export default function MarksEntry() {
 
   const { data: exams, isLoading: examsLoading } = useTeacherExams();
   const { data: examDetails, isLoading: detailsLoading } = useExamDetails(selectedExamId);
-  const { data: students, isLoading: studentsLoading } = useExamStudents(examDetails?.exam?.cohort_id ?? null);
+  const { data: students, isLoading: studentsLoading } = useExamStudents(examDetails?.exam?.cohortId ?? null);
   const { data: existingMarks, isLoading: marksLoading } = useStudentMarks(selectedExamId);
-  const { data: courseOutcomes, isLoading: cosLoading } = useCourseOutcomes(examDetails?.exam?.subject_id ?? null);
+  const { outcomes: courseOutcomes, isLoading: cosLoading } = useCourseOutcomes(examDetails?.exam?.subjectId ?? null);
 
   const saveMarksMutation = useSaveMarks();
   const publishExamMutation = usePublishExam();
+  const unlockExamMutation = useUnlockExam();
   const createStructureMutation = useCreateExamStructure();
 
   const selectedExam = exams?.find(e => e.id === selectedExamId);
@@ -105,6 +111,11 @@ export default function MarksEntry() {
     await publishExamMutation.mutateAsync(selectedExamId);
   };
 
+  const handleUnlock = async () => {
+    if (!selectedExamId) return;
+    await unlockExamMutation.mutateAsync(selectedExamId);
+  };
+
   const handleSaveStructure = async (sections: any[]) => {
     if (!selectedExamId) return;
     
@@ -138,7 +149,7 @@ export default function MarksEntry() {
   };
 
   const isLoading = examsLoading || detailsLoading || studentsLoading || marksLoading || cosLoading;
-  const isPublished = examDetails?.exam?.status === 'published';
+  const isPublished = examDetails?.exam?.status === 'PUBLISHED';
 
   return (
     <AuthenticatedLayout allowedRoles={['teacher', 'hod', 'principal']}>
@@ -207,7 +218,9 @@ export default function MarksEntry() {
                   </div>
                   <div>
                     <p className="text-muted-foreground">Max Marks</p>
-                    <p className="font-semibold">{selectedExam?.max_marks}</p>
+                    <p className="font-semibold">
+                      {examDetails?.sections?.reduce((sum, section) => sum + (section.max_marks || 0), 0) || selectedExam?.max_marks || 0}
+                    </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Sections</p>
@@ -237,17 +250,38 @@ export default function MarksEntry() {
                 />
               </TabsContent>
               <TabsContent value="marks" className="mt-6">
+                <div className="flex justify-end mb-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsCSVDialogOpen(true)}
+                    disabled={subQuestionsForGrid.length === 0}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Bulk Upload CSV
+                  </Button>
+                </div>
                 <MarksEntryGrid
                   students={students || []}
                   subQuestions={subQuestionsForGrid}
                   existingMarks={existingMarks || []}
                   onSave={handleSaveMarks}
                   onPublish={handlePublish}
+                  onUnlock={handleUnlock}
                   isPublished={isPublished}
                   isSaving={saveMarksMutation.isPending}
                 />
               </TabsContent>
             </Tabs>
+
+            <CSVUploadDialog
+              open={isCSVDialogOpen}
+              onOpenChange={setIsCSVDialogOpen}
+              examId={selectedExamId || ''}
+              subQuestions={subQuestionsForGrid}
+              onUploadComplete={() => {
+                // Data refresh handled by CSVUploadDialog via queryClient
+              }}
+            />
           </>
         )}
       </div>

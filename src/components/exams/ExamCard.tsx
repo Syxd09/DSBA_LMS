@@ -1,7 +1,7 @@
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, FileEdit, Eye, BarChart, Trash2, Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar, Clock, FileEdit, Eye, BarChart, Trash2, Calendar as CalendarIcon, Unlock } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Exam {
@@ -23,9 +23,10 @@ interface ExamCardProps {
   onView: (examId: string) => void;
   onDelete?: (examId: string) => void;
   onViewFeedback?: (examId: string) => void;
+  onUnlock?: (examId: string) => void;
 }
 
-export function ExamCard({ exam, onEdit, onView, onDelete, onViewFeedback }: ExamCardProps) {
+export function ExamCard({ exam, onEdit, onView, onDelete, onViewFeedback, onUnlock }: ExamCardProps) {
   const getStatusColor = (status: string) => {
     switch (status?.toUpperCase()) {
       case 'DRAFT':
@@ -116,6 +117,12 @@ export function ExamCard({ exam, onEdit, onView, onDelete, onViewFeedback }: Exa
                 <Eye className="w-4 h-4 mr-2" />
                 View
               </Button>
+              {exam.status === 'PUBLISHED' && onUnlock && (
+                <Button size="sm" variant="outline" onClick={() => onUnlock(exam.id)}>
+                  <Unlock className="w-4 h-4 mr-2" />
+                  Unlock
+                </Button>
+              )}
               {onViewFeedback && (
                 <Button size="sm" variant="outline" onClick={() => onViewFeedback(exam.id)}>
                   <BarChart className="w-4 h-4 mr-2" />

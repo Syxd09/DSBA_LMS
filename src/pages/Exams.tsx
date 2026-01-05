@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { useTeacherExams, useCreateExam } from '@/hooks/useExams';
+import { useTeacherExams, useCreateExam, useUnlockExam } from '@/hooks/useExams';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,6 +53,7 @@ export default function Exams() {
 
   const { data: exams = [], isLoading, refetch } = useTeacherExams();
   const createExam = useCreateExam();
+  const unlockExam = useUnlockExam();
 
   const { data: subjects = [] } = useQuery<Subject[]>({
     queryKey: ['subjects-list'],
@@ -92,6 +93,27 @@ export default function Exams() {
         variant: 'destructive',
       });
       throw error;
+    }
+  };
+
+  const handleUnlock = async (examId: string) => {
+    if (!confirm('Are you sure you want to unlock this exam? It will return to draft status.')) {
+      return;
+    }
+
+    try {
+      await unlockExam.mutateAsync(examId);
+      toast({
+        title: 'Exam unlocked',
+        description: 'Exam has been unlocked for editing.',
+      });
+      refetch();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to unlock exam.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -176,6 +198,7 @@ export default function Exams() {
                   onEdit={(id) => navigate(`/marks-entry?exam=${id}`)}
                   onView={(id) => navigate(`/marks-entry?exam=${id}`)}
                   onViewFeedback={setViewFeedback}
+                  onUnlock={handleUnlock}
                 />
               ))}
             </div>

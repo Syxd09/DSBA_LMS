@@ -68,10 +68,52 @@ export const getCourseOutcomes = async (req: AuthRequest, res: Response) => {
                 poMappings: true
             }
         });
-        res.json(courseOutcomes);
+
+        // Transform coNumber to code field (CO1, CO2, etc.)
+        const transformed = courseOutcomes.map(co => ({
+            ...co,
+            code: `CO${co.coNumber}`
+        }));
+
+        res.json(transformed);
     } catch (error) {
         console.error('Error fetching course outcomes:', error);
         res.status(500).json({ message: 'Error fetching course outcomes', error: String(error) });
+    }
+};
+
+export const getCourseOutcomeById = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const courseOutcome = await prisma.courseOutcome.findUnique({
+            where: { id },
+            include: {
+                subject: {
+                    select: {
+                        id: true,
+                        name: true,
+                        code: true
+                    }
+                },
+                poMappings: true
+            }
+        });
+
+        if (!courseOutcome) {
+            return res.status(404).json({ message: 'Course outcome not found' });
+        }
+
+        // Transform coNumber to code field
+        const transformed = {
+            ...courseOutcome,
+            code: `CO${courseOutcome.coNumber}`
+        };
+
+        res.json(transformed);
+    } catch (error) {
+        console.error('Error fetching course outcome:', error);
+        res.status(500).json({ message: 'Error fetching course outcome', error: String(error) });
     }
 };
 

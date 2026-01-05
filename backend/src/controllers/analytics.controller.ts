@@ -82,7 +82,13 @@ export const getBloomDistribution = async (req: AuthRequest, res: Response) => {
             where: { id: examId },
             include: {
                 sections: {
-                    include: { questions: true }
+                    include: {
+                        questions: {
+                            include: {
+                                subQuestions: true
+                            }
+                        }
+                    }
                 }
             }
         });
@@ -103,20 +109,27 @@ export const getBloomDistribution = async (req: AuthRequest, res: Response) => {
         }
 
         const distribution: Record<string, number> = {};
-        let totalQuestions = 0;
+        let totalSubQuestions = 0;
 
+        // Aggregate sub-questions (where Bloom levels are actually stored)
         exam.sections.forEach(section => {
             section.questions.forEach(q => {
-                distribution[q.bloomLevel] = (distribution[q.bloomLevel] || 0) + 1;
-                totalQuestions++;
+                q.subQuestions?.forEach(sq => {
+                    distribution[sq.bloomLevel] = (distribution[sq.bloomLevel] || 0) + 1;
+                    totalSubQuestions++;
+                });
             });
         });
 
-        const result = Object.keys(distribution).map(level => ({
-            level,
-            count: distribution[level],
-            percentage: totalQuestions ? Math.round((distribution[level] / totalQuestions) * 100) : 0
-        }));
+        // Sort by Bloom level for consistent display
+        const bloomOrder = ['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE'];
+        const result = Object.keys(distribution)
+            .sort((a, b) => bloomOrder.indexOf(a) - bloomOrder.indexOf(b))
+            .map(level => ({
+                level,
+                count: distribution[level],
+                percentage: totalSubQuestions ? Math.round((distribution[level] / totalSubQuestions) * 100) : 0
+            }));
 
         res.json(result);
     } catch (error) {
@@ -156,20 +169,19 @@ export const getSubjectPerformance = async (req: AuthRequest, res: Response) => 
             },
             include: {
                 subject: true,
-                computedMarks: true
+                studentMarks: {
+                    include: {
+                        subQuestion: true
+                    }
+                }
             }
         });
 
-        // Group by subject
+        // Group by subject and calculate from StudentMarks
         const subjectStats = new Map<string, {
             name: string;
             code: string;
-            totalMarks: number;
-            maxMarks: number;
-            studentCount: number;
-            passed: number;
-            highest: number;
-            lowest: number;
+            marks: number[];
         }>();
 
         exams.forEach(exam => {
@@ -177,24 +189,24 @@ export const getSubjectPerformance = async (req: AuthRequest, res: Response) => 
             const current = subjectStats.get(subjectId) || {
                 name: exam.subject.name,
                 code: exam.subject.code,
-                totalMarks: 0,
-                maxMarks: 0,
-                studentCount: 0,
-                passed: 0,
-                highest: 0,
-                lowest: 100 // Percent
+                marks: []
             };
 
-            exam.computedMarks.forEach(mark => {
-                const percentage = (Number(mark.totalMarks) / exam.maxMarks) * 100;
-                current.totalMarks += percentage;
-                current.studentCount++;
-                if (percentage >= 50) current.passed++; // Assuming 50% pass
-                if (percentage > current.highest) current.highest = percentage;
-                if (percentage < current.lowest) current.lowest = percentage;
+            // Group marks by student and calculate totals
+            const studentTotals = new Map<string, number>();
+
+            exam.studentMarks.forEach(mark => {
+                const studentId = mark.studentId;
+                const currentTotal = studentTotals.get(studentId) || 0;
+                studentTotals.set(studentId, currentTotal + Number(mark.marks));
             });
 
-            // Average across exams? Simple aggregation for now
+            // Convert to percentages and add to marks array
+            studentTotals.forEach(total => {
+                const percentage = exam.maxMarks > 0 ? (total / exam.maxMarks) * 100 : 0;
+                current.marks.push(percentage);
+            });
+
             subjectStats.set(subjectId, current);
         });
 
@@ -211,16 +223,25 @@ export const getSubjectPerformance = async (req: AuthRequest, res: Response) => 
 
         const data = Array.from(subjectStats.entries())
             .filter(([subId]) => userRole !== 'TEACHER' || allowedSubjectIds.includes(subId))
-            .map(([subId, stats]) => ({
-                subjectId: subId,
-                subjectName: stats.name,
-                subjectCode: stats.code,
-                average: stats.studentCount ? Math.round(stats.totalMarks / stats.studentCount) : 0,
-                highest: Math.round(stats.highest),
-                lowest: stats.studentCount ? Math.round(stats.lowest) : 0,
-                passRate: stats.studentCount ? Math.round((stats.passed / stats.studentCount) * 100) : 0,
-                totalStudents: stats.studentCount
-            }));
+            .map(([subId, stats]) => {
+                const marks = stats.marks;
+                const studentCount = marks.length;
+                const average = marks.length > 0 ? marks.reduce((a, b) => a + b, 0) / marks.length : 0;
+                const highest = marks.length > 0 ? Math.max(...marks) : 0;
+                const lowest = marks.length > 0 ? Math.min(...marks) : 0;
+                const passed = marks.filter(m => m >= 50).length;
+
+                return {
+                    subject_id: subId,
+                    subject_name: stats.name,
+                    subject_code: stats.code,
+                    average: Math.round(average),
+                    highest: Math.round(highest),
+                    lowest: Math.round(lowest),
+                    pass_rate: studentCount > 0 ? Math.round((passed / studentCount) * 100) : 0,
+                    total_students: studentCount
+                };
+            });
 
         res.json(data);
     } catch (error) {

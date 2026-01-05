@@ -224,7 +224,7 @@ async function main() {
             cohortId: cohort2025.id,
             departmentId: cse.id,
             semester: 1,
-            academicYear: '2025-26'
+            academicYear: '2026-27'
         }
     });
 
@@ -255,38 +255,31 @@ async function main() {
         }
     });
 
-    // Create Questions
+    // Create Questions with SubQuestions
     for (let i = 1; i <= 5; i++) {
-        await prisma.question.create({
+        const question = await prisma.question.create({
             data: {
                 sectionId: section.id,
                 sequence: i,
                 maxMarks: 10,
-                bloomLevel: 'Apply'
-                // Schema line 352: id, sectionId, sequence, maxMarks, coId, bloomLevel, isOptional, groupKey, createdAt.
-                // NO questionText!
-                // Ah, so questions don't have text in this schema? Just structure?
-                // Or I missed it. Let me double check schema lines 352+.
-                // In my memory of previous read, I didn't see questionText.
-                // Step 1079 showed schema lines 350-358.
-                // line 350: bloomLevel
-                // line 351: isOptional
-                // line 352: groupKey
-                // line 353: createdAt
-                // It seems 'questionText' is MISSING in the Question model too!
-                // Wait, my enhancement plan added 'questionText' in the NEW model `ExamQuestion`?
-                // But the schema I saw in Step 1079 was using `Question` and `SubQuestion` models.
-                // And I planned to add `ExamQuestion` (Step 1071).
-                // Did I actually add `ExamQuestion` or did I just update `Question`?
-                // My manual SQL migration (Step 1107) ONLY added columns to `Exam` table.
-                // It DID NOT create `ExamQuestion` table.
-                // And I didn't edit `Question` model in schema either.
-                // So... `Question` model currently exists but lacks text?
-                // Checking schema lines 352...
-                // Indeed, it seems the current `Question` model is for mapping/marks only, not content.
-                // BUT my proposed `ExamQuestion` from Plan was supposed to replace or augment it.
-                // Since I only did SQL migration for `Exam` fields, the `Question` model remains as it was (without text).
-                // So I won't add `questionText` in seed to avoid error.
+                bloomLevel: 'Apply',
+                coId: mathCOs[i - 1]?.id, // Assign CO to question
+                subQuestions: {
+                    create: [
+                        {
+                            label: 'a',
+                            maxMarks: 5,
+                            bloomLevel: 'Apply',
+                            coId: mathCOs[i - 1]?.id
+                        },
+                        {
+                            label: 'b',
+                            maxMarks: 5,
+                            bloomLevel: 'Understand',
+                            coId: mathCOs[i - 1]?.id
+                        }
+                    ]
+                }
             }
         });
     }

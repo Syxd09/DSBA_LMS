@@ -119,8 +119,23 @@ export function usePublishExam() {
 
   return useMutation({
     mutationFn: async (examId: string) => {
-      // Assume submit is publish for now or new endpoint needed
-      await api.post('/marks/submit', { examId });
+      const { data } = await api.post(`/exams/${examId}/publish`);
+      return data;
+    },
+    onSuccess: (_, examId) => {
+      queryClient.invalidateQueries({ queryKey: ['exam-details', examId] });
+      queryClient.invalidateQueries({ queryKey: ['teacher-exams'] });
+    },
+  });
+}
+
+export function useUnlockExam() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (examId: string) => {
+      const { data } = await api.post(`/exams/${examId}/unlock`);
+      return data;
     },
     onSuccess: (_, examId) => {
       queryClient.invalidateQueries({ queryKey: ['exam-details', examId] });
@@ -131,9 +146,7 @@ export function usePublishExam() {
 
 export function useCreateExamStructure() {
   const queryClient = useQueryClient();
-  // This was complex in Supabase. Backend `createExam` only does basic Exam fields.
-  // We need endpoint to update structure (sections/questions).
-  // Not implemented yet.
+
   return useMutation({
     mutationFn: async ({ examId, sections }: { examId: string, sections: any[] }) => {
       await api.post(`/exams/${examId}/structure`, { sections });

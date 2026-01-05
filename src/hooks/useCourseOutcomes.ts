@@ -16,7 +16,7 @@ export function useCourseOutcomes(subjectId: string | undefined) {
     queryKey: ['course-outcomes', subjectId],
     queryFn: async () => {
       if (!subjectId) return [];
-      const { data } = await api.get(`/course-outcomes/${subjectId}`);
+      const { data } = await api.get(`/course-outcomes?subjectId=${subjectId}`);
       return data as CourseOutcome[];
     },
     enabled: !!subjectId,

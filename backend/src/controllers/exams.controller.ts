@@ -161,12 +161,26 @@ export const updateExamStructure = async (req: AuthRequest, res: Response) => {
         }
         // sections: [{ name, sequence, maxMarks, ..., questions: [...] }]
 
+        // Filter out temporary IDs (frontend generates temp-* IDs for new items)
+        const cleanedSections = sections.map((section: any) => ({
+            ...section,
+            id: section.id?.startsWith('temp-') ? undefined : section.id,
+            questions: section.questions?.map((q: any) => ({
+                ...q,
+                id: q.id?.startsWith('temp-') ? undefined : q.id,
+                subQuestions: q.subQuestions?.map((sq: any) => ({
+                    ...sq,
+                    id: sq.id?.startsWith('temp-') ? undefined : sq.id
+                }))
+            }))
+        }));
+
         // Use transaction to replace structure
         await prisma.$transaction(async (tx) => {
             // Delete existing sections (cascades to questions/subquestions)
             await tx.examSection.deleteMany({ where: { examId: id } });
 
-            for (const section of sections) {
+            for (const section of cleanedSections) {
                 const createdSection = await tx.examSection.create({
                     data: {
                         examId: id,

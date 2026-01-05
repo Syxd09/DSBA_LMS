@@ -25,6 +25,7 @@ interface MarksEntryGridProps {
   existingMarks: Array<{ student_id: string; sub_question_id: string; marks: number }>;
   onSave: (marks: Array<{ studentId: string; subQuestionId: string; marks: number }>) => Promise<void>;
   onPublish: () => Promise<void>;
+  onUnlock?: () => Promise<void>;
   isPublished?: boolean;
   isSaving?: boolean;
 }
@@ -35,12 +36,14 @@ export function MarksEntryGrid({
   existingMarks,
   onSave, 
   onPublish,
+  onUnlock,
   isPublished = false,
   isSaving = false,
 }: MarksEntryGridProps) {
   const [marksData, setMarksData] = useState<Record<string, Record<string, number>>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
 
   // Initialize marks from existing data
   useEffect(() => {
@@ -75,9 +78,10 @@ export function MarksEntryGrid({
     setHasChanges(true);
   };
 
-  const calculateTotal = (studentId: string) => {
-    const studentMarks = marksData[studentId] || {};
-    return Object.values(studentMarks).reduce((sum, mark) => sum + (mark || 0), 0);
+  const calculateTotal = (studentId: string): number => {
+    const studentMarks = marksData[studentId];
+    if (!studentMarks) return 0;
+    return Object.values(studentMarks).reduce((sum, mark) => sum + (Number(mark) || 0), 0);
   };
 
   const totalMaxMarks = useMemo(() => 
@@ -103,10 +107,11 @@ export function MarksEntryGrid({
         title: 'Marks saved',
         description: 'All changes have been saved successfully.',
       });
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to save marks. Please try again.';
       toast({
         title: 'Error saving marks',
-        description: 'Failed to save marks. Please try again.',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
@@ -129,14 +134,51 @@ export function MarksEntryGrid({
         title: 'Marks published',
         description: 'Results are now visible to students.',
       });
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to publish exam.';
+      
+      // Special handling for "already published" error
+      if (errorMessage.includes('already published')) {
+        toast({
+          title: 'Exam already published',
+          description: 'This exam is already published. Use the Unlock button to edit it first.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Error publishing',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleUnlock = async () => {
+    if (!onUnlock) return;
+    
+    if (!confirm('Are you sure you want to unlock this exam for editing? Students will no longer be able to view their marks until you publish again.')) {
+      return;
+    }
+
+    setIsUnlocking(true);
+    try {
+      await onUnlock();
       toast({
-        title: 'Error publishing',
-        description: 'Failed to publish marks. Please try again.',
+        title: 'Exam unlocked',
+        description: 'You can now edit the marks.',
+      });
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to unlock exam.';
+      toast({
+        title: 'Error unlocking',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
-      setIsPublishing(false);
+      setIsUnlocking(false);
     }
   };
 
@@ -177,7 +219,17 @@ export function MarksEntryGrid({
             {isPublished ? 'Published - Read only' : 'Enter marks for each sub-question'}
           </p>
         </div>
-        {!isPublished && (
+        {isPublished ? (
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">Published - Read Only</Badge>
+            {onUnlock && (
+              <Button variant="outline" onClick={handleUnlock} disabled={isUnlocking}>
+                {isUnlocking ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                Unlock for Editing
+              </Button>
+            )}
+          </div>
+        ) : (
           <div className="flex items-center gap-2">
             {hasChanges && (
               <Badge variant="outline" className="gap-1">
