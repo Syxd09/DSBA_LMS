@@ -5,28 +5,56 @@ import prisma from '../services/db';
 
 export const getAuditLogs = async (req: AuthRequest, res: Response) => {
     try {
-        const { action, limit = 100 } = req.query;
+        const { limit = 50, offset = 0, action, userId, entityType } = req.query;
 
-        const whereClause: import('@prisma/client').Prisma.AuditLogWhereInput = {};
-        if (action && action !== 'all') {
-            whereClause.action = action as string;
+        // Build where clause for filtering
+        const where: any = {};
+        if (action) {
+            where.action = String(action);
+        }
+        if (userId) {
+            where.userId = String(userId);
+        }
+        if (entityType) {
+            where.entityType = String(entityType);
         }
 
+        // Fetch real audit logs from database
         const logs = await prisma.auditLog.findMany({
-            where: whereClause,
-            orderBy: { createdAt: 'desc' },
-            take: parseInt(limit as string) || 100,
+            where,
+            orderBy: {
+                createdAt: 'desc'
+            },
+            take: parseInt(String(limit)) || 50,
+            skip: parseInt(String(offset)) || 0,
             include: {
                 user: {
                     select: {
                         id: true,
+                        fullName: true,
                         email: true,
-                        fullName: true
+                        role: true
                     }
                 }
             }
         });
-        res.json(logs);
+
+        // Transform to match frontend expectations
+        const transformedLogs = logs.map(log => ({
+            id: log.id,
+            userId: log.userId,
+            userName: log.user.fullName,
+            action: log.action,
+            tableName: log.entityType,
+            recordId: log.entityId,
+            oldData: log.oldValue,
+            newData: log.newValue,
+            description: log.description,
+            ipAddress: log.ipAddress,
+            createdAt: log.createdAt.toISOString()
+        }));
+
+        res.json(transformedLogs);
     } catch (error) {
         console.error('Error fetching audit logs:', error);
         res.status(500).json({ message: 'Error fetching audit logs', error: String(error) });
@@ -58,14 +86,12 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
         ]);
 
         // Calculate departments without subjects
-        // Note: Departments don't directly have subjects. Subjects are linked via:
-        // Department -> Program -> CurriculumVersion -> Subject
         const allDepartments = await prisma.department.findMany({
             select: {
                 id: true,
                 programs: {
                     select: {
-                        curriculums: {
+                        curricula: {
                             select: {
                                 _count: {
                                     select: { subjects: true }
@@ -77,16 +103,14 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
             }
         });
 
-        // Count departments that have no subjects across all their programs/curriculums
-        const departmentsWithoutSubjects = allDepartments.filter(dept => {
-            const totalSubjects = dept.programs.reduce((sum, prog) => {
-                const progSubjects = prog.curriculums.reduce((psum, curr) => psum + curr._count.subjects, 0);
+        const departmentsWithoutSubjects = allDepartments.filter((dept: any) => {
+            const totalSubjects = dept.programs.reduce((sum: number, prog: any) => {
+                const progSubjects = prog.curricula.reduce((psum: number, curr: any) => psum + curr._count.subjects, 0);
                 return sum + progSubjects;
             }, 0);
             return totalSubjects === 0;
         }).length;
 
-        // Calculate subjects without CO attainments
         const subjectsWithoutAttainments = await prisma.subject.count({
             where: {
                 courseOutcomes: {
@@ -104,12 +128,11 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
             exams: examCount,
             teachers: teacherCount,
             students: studentCount,
-            // Alert data
             alerts: {
                 pendingApprovals: pendingApprovalsCount,
                 departmentsWithoutSubjects: departmentsWithoutSubjects,
                 incompleteAttainments: subjectsWithoutAttainments,
-                studentsAtRisk: 0 // Placeholder for future implementation
+                studentsAtRisk: 0
             }
         });
     } catch (error) {

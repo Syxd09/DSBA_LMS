@@ -32,6 +32,7 @@ export const createExam = async (req: AuthRequest, res: Response) => {
         const {
             subjectId,
             cohortId,
+            semester,
             examType,
             customTypeName,
             maxMarks,
@@ -43,6 +44,7 @@ export const createExam = async (req: AuthRequest, res: Response) => {
         const teacherId = req.user?.userId;
 
         if (!teacherId) return res.status(400).json({ message: 'Teacher ID missing' });
+        if (!semester) return res.status(400).json({ message: 'Semester is required' });
 
         // Validate custom exam type
         if (examType === 'CUSTOM' && !customTypeName) {
@@ -58,6 +60,7 @@ export const createExam = async (req: AuthRequest, res: Response) => {
             data: {
                 subjectId,
                 cohortId,
+                semester: parseInt(semester),
                 examType,
                 customTypeName: examType === 'CUSTOM' ? customTypeName : undefined,
                 maxMarks,

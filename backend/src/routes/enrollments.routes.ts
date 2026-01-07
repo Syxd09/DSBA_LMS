@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getEnrollments, getStudentsByClass, enrollStudent, bulkEnroll, deleteEnrollment } from '../controllers/enrollments.controller';
+import { getEnrollments, getStudentsByClass, getTeacherStudents, enrollStudent, bulkEnroll, deleteEnrollment } from '../controllers/enrollments.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/rbac.middleware';
 import { requireAcademicContext } from '../middleware/academic-context.middleware';
@@ -16,6 +16,12 @@ router.get('/',
     requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER', 'STUDENT']),
     requireAcademicContext({ required: [] }), // Allow optional context
     getEnrollments
+);
+
+// IMPORTANT: More specific routes MUST come before generic routes
+router.get('/teacher/students',
+    requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER']),
+    getTeacherStudents
 );
 
 router.get('/students',

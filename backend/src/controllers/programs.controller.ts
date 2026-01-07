@@ -23,7 +23,7 @@ export const getPrograms = async (req: AuthRequest, res: Response) => {
             orderBy: { name: 'asc' },
             include: {
                 department: { select: { id: true, name: true, code: true } },
-                _count: { select: { cohorts: true, curriculums: true } }
+                _count: { select: { cohorts: true, curricula: true } }
             }
         });
         res.json(programs);
@@ -88,14 +88,14 @@ export const deleteProgram = async (req: AuthRequest, res: Response) => {
         // Check for existing cohorts/curriculums
         const program = await prisma.program.findUnique({
             where: { id },
-            include: { _count: { select: { cohorts: true, curriculums: true } } }
+            include: { _count: { select: { cohorts: true, curricula: true } } }
         });
 
         if (!program) {
             return res.status(404).json({ message: 'Program not found' });
         }
 
-        if (program._count.cohorts > 0 || program._count.curriculums > 0) {
+        if (program._count.cohorts > 0 || program._count.curricula > 0) {
             return res.status(400).json({
                 message: 'Cannot delete program with existing cohorts or curriculum versions. Please remove them first.'
             });

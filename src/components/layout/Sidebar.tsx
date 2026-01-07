@@ -90,6 +90,7 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'My Subjects', href: '/subjects', icon: BookOpen },
     { name: 'Students', href: '/students', icon: Users },
+    { name: 'Student Feedback', href: '/feedback/teacher/assigned', icon: FileText },
     { name: 'Course Outcomes', href: '/course-outcomes', icon: FileText },
     { name: 'Exams', href: '/exams', icon: ClipboardList },
     { name: 'Marks Entry', href: '/marks-entry', icon: ClipboardList },

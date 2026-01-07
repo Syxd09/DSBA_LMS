@@ -25,3 +25,7 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
         next();
     });
 };
+
+// Export alias for backward compatibility
+export const authenticate = authenticateToken;
+

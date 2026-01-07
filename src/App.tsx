@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AcademicContextProvider } from "@/contexts/AcademicContext";
+import { FeedbackProvider } from "@/contexts/FeedbackContext";
+import { AnalyticsProvider } from "@/contexts/AnalyticsContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -32,6 +34,16 @@ import StudentAnalytics from "./pages/StudentAnalytics";
 import POAttainmentDashboard from "./pages/POAttainmentDashboard";
 import ProgramOutcomes from "./pages/ProgramOutcomes";
 import COPOTraceability from "./pages/COPOTraceability";
+import TeacherAssignedStudents from "./pages/feedback/teacher/TeacherAssignedStudents";
+import CreateFeedback from "./pages/feedback/teacher/CreateFeedback";
+import EditFeedback from "./pages/feedback/teacher/EditFeedback";
+import ViewFeedback from "./pages/feedback/teacher/ViewFeedback";
+import HODAnalyticsDashboard from "./pages/analytics/hod/HODAnalyticsDashboard";
+import PendingApprovals from "./pages/analytics/hod/PendingApprovals";
+import AtRiskStudents from "./pages/analytics/hod/AtRiskStudents";
+import StudentAnalyticsDetail from "./pages/analytics/hod/StudentAnalyticsDetail";
+import PrincipalAnalyticsDashboard from "./pages/analytics/principal/PrincipalAnalyticsDashboard";
+import FinalApprovals from "./pages/analytics/principal/FinalApprovals";
 import NotFound from "./pages/NotFound";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -40,7 +52,9 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AcademicContextProvider>
-      <TooltipProvider>
+      <FeedbackProvider>
+        <AnalyticsProvider>
+          <TooltipProvider>
         <Toaster />
         <Sonner />
         <ErrorBoundary>
@@ -75,12 +89,31 @@ const App = () => (
             <Route path="/po-attainment" element={<POAttainmentDashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/co-po-traceability" element={<COPOTraceability />} />
+            
+            {/* Teacher Feedback Routes */}
+            <Route path="/feedback/teacher/assigned" element={<TeacherAssignedStudents />} />
+            <Route path="/feedback/teacher/create/:studentId" element={<CreateFeedback />} />
+            <Route path="/feedback/teacher/edit/:feedbackId" element={<EditFeedback />} />
+            <Route path="/feedback/teacher/view/:feedbackId" element={<ViewFeedback />} />
+            
+            {/* HOD Analytics Routes */}
+            <Route path="/analytics/hod/dashboard" element={<HODAnalyticsDashboard />} />
+            <Route path="/analytics/hod/pending-approvals" element={<PendingApprovals />} />
+            <Route path="/analytics/hod/at-risk" element={<AtRiskStudents />} />
+            <Route path="/analytics/hod/student/:studentId" element={<StudentAnalyticsDetail />} />
+            
+            {/* Principal Analytics Routes */}
+            <Route path="/analytics/principal/dashboard" element={<PrincipalAnalyticsDashboard />} />
+            <Route path="/analytics/principal/final-approvals" element={<FinalApprovals />} />
+            
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
           </BrowserRouter>
-        </ErrorBoundary>
-      </TooltipProvider>
+          </ErrorBoundary>
+          </TooltipProvider>
+        </AnalyticsProvider>
+      </FeedbackProvider>
     </AcademicContextProvider>
   </QueryClientProvider>
 );

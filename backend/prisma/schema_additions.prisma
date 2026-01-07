@@ -1,0 +1,95 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl"]
+}
+
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "./ERD.svg"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ... [Rest of schema content from original file - only showing the additions below]
+
+// ============================================================================
+// ANALYTICS & MARKS MODELS (Added for Phase 4 Analytics Support)
+// ============================================================================
+
+/// Exam/Assessment records
+/// Simplified model to support analytics calculations
+model Exam {
+  id             String   @id @default(uuid())
+  subjectId      String
+  cohortId       String
+  semester       Int      // Academic semester (1-8) - Required for analytics
+  examType       String   // "INTERNAL" | "EXTERNAL" | "ASSIGNMENT"
+  customTypeName String?
+  maxMarks       Float
+  passingMarks   Float?
+  examDate       DateTime?
+  duration       Int?     // Minutes
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  publishedAt    DateTime?
+
+  subject Subject      @relation(fields: [subjectId], references: [id])
+  cohort  Cohort       @relation(fields: [cohortId], references: [id])
+  creator User         @relation("ExamCreatedBy", fields: [createdBy], references: [id])
+  marks   StudentMark[]
+
+  @@index([subjectId, cohortId, semester])
+  @@index([examType])
+}
+
+/// Student marks for exams/assessments
+/// Used by analytics for performance calculations
+model StudentMark {
+  id            String   @id @default(uuid())
+  examId        String
+  studentId     String
+  subQuestionId String?  // Optional link to question
+  marksObtained Float    // The actual marks obtained - Required for analytics
+  marks         Decimal  @default(0) // Backward compatibility
+  enteredBy     String?
+  enteredAt     DateTime @default(now())
+
+  exam      Exam     @relation(fields: [examId], references: [id])
+  student   User     @relation("StudentMarks", fields: [studentId], references: [id])
+  enterer   User?    @relation("MarksEnteredBy", fields: [enteredBy], references: [id])
+
+  @@unique([examId, studentId, subQuestionId])
+  @@index([studentId])
+  @@index([examId])
+}
+
+// ============================================================================
+// AUDIT LOG MODEL (Added for Phase 3 Governance Audit Trail)
+// ============================================================================
+
+/// Audit trail for all governance actions
+/// Tracks feedback workflow transitions, RBAC violations, data changes
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String   // Actor who performed the action
+  action     String   // "CREATE", "UPDATE", "DELETE", "SUBMIT", "APPROVE", "LOCK", "VIOLATION"
+  entityType String   // "TEACHER_FEEDBACK", "RBAC_VIOLATION", etc.
+  entityId   String   // ID of the entity affected
+  oldValue   Json?    // Before state (for updates)
+  newValue   Json?    // After state (for creates/updates)
+  description String? @db.Text // Human-readable description or violation details
+  ipAddress  String?  // Request IP for forensics
+  userAgent  String?  // Browser/client info
+  createdAt  DateTime @default(now())
+
+  user User @relation("AuditLogActor", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([createdAt])
+}

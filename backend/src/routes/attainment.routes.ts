@@ -28,9 +28,9 @@ router.post('/co/approve', approveAttainment);
 router.post('/co/lock', lockAttainment);
 router.get('/summary', getAttainmentSummary);
 
-// Student Analytics routes
-router.get('/students/:studentId/analytics', getStudentAnalytics);
+// Student Analytics routes - IMPORTANT: specific routes before parameterized ones
 router.get('/students/at-risk', getAtRiskStudents);
+router.get('/students/:studentId/analytics', getStudentAnalytics);
 router.get('/students/:studentId/performance/:subjectId', getStudentPerformanceDetail);
 
 export default router;

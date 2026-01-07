@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl"]
 }
 
@@ -69,6 +69,13 @@ enum AttainmentStatus {
   LOCKED
 }
 
+enum FeedbackStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  LOCKED
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -97,7 +104,12 @@ model User {
   computedMarks MarksComputed[]
 
   snapshotsCreated ExamSnapshot[]
-  auditLogs        AuditLog[]
+  auditLogs        AuditLog[]     @relation("AuditLogActor")
+
+  // Teacher-Student Feedback relations
+  teacherFeedbackGiven    TeacherStudentFeedback[] @relation("TeacherFeedbackGiven")
+  studentFeedbackReceived TeacherStudentFeedback[] @relation("StudentFeedbackReceived")
+  feedbackApprovals       TeacherStudentFeedback[] @relation("FeedbackApprover")
 
   sentMessages  Message[]
   messageGroups MessageGroupMember[]
@@ -135,6 +147,7 @@ model Department {
 
   studentEnrollments StudentEnrollment[]
   teacherAssignments TeacherAssignment[]
+  FeedbackTemplate   FeedbackTemplate[]
 }
 
 model Program {
@@ -147,11 +160,12 @@ model Program {
   deletedAt     DateTime?
   createdAt     DateTime  @default(now())
 
-  department    Department          @relation(fields: [departmentId], references: [id])
-  cohorts       Cohort[]
-  curriculums   CurriculumVersion[]
-  outcomes      ProgramOutcome[]
-  poAttainments POAttainment[]
+  department        Department          @relation(fields: [departmentId], references: [id])
+  cohorts           Cohort[]
+  curricula         CurriculumVersion[]
+  programOutcomes   ProgramOutcome[]
+  attainments       POAttainment[]
+  feedbackTemplates FeedbackTemplate[]
 }
 
 model Cohort {
@@ -164,12 +178,13 @@ model Cohort {
   deletedAt       DateTime?
   createdAt       DateTime  @default(now())
 
-  program            Program             @relation(fields: [programId], references: [id])
+  program            Program                  @relation(fields: [programId], references: [id])
   enrollments        StudentEnrollment[]
   exams              Exam[]
   teacherAssignments TeacherAssignment[]
   finalMarks         FinalMark[]
   semesterResults    SemesterResult[]
+  teacherFeedbacks   TeacherStudentFeedback[]
   coAttainments      COAttainment[]
   poAttainments      POAttainment[]
 
@@ -199,12 +214,14 @@ model Subject {
   deletedAt           DateTime?
   createdAt           DateTime  @default(now())
 
-  curriculum         CurriculumVersion   @relation(fields: [curriculumVersionId], references: [id])
+  curriculum         CurriculumVersion        @relation(fields: [curriculumVersionId], references: [id])
   courseOutcomes     CourseOutcome[]
   exams              Exam[]
   teacherAssignments TeacherAssignment[]
+  enrollments        StudentEnrollment[]
   finalMarks         FinalMark[]
   coAttainments      COAttainment[]
+  teacherFeedbacks   TeacherStudentFeedback[]
 }
 
 /// Course learning outcomes (COs) defining specific skills students should achieve.
@@ -328,13 +345,14 @@ model Exam {
   id             String     @id @default(uuid())
   subjectId      String
   cohortId       String
+  semester       Int        // Academic semester (1-8) - Required for analytics
   examType       String
-  customTypeName String?    // For custom exam types
+  customTypeName String? // For custom exam types
   maxMarks       Int        @default(30)
-  passingMarks   Float?     // NEW: Passing marks threshold
-  examDate       DateTime?  // NEW: Scheduled exam date
-  duration       Int?       // NEW: Exam duration in minutes
-  instructions   String?    // NEW: Instructions for students
+  passingMarks   Float? // NEW: Passing marks threshold
+  examDate       DateTime? // NEW: Scheduled exam date
+  duration       Int? // NEW: Exam duration in minutes
+  instructions   String? // NEW: Instructions for students
   status         ExamStatus @default(DRAFT)
   teacherId      String?
   createdAt      DateTime   @default(now())
@@ -412,6 +430,8 @@ model StudentEnrollment {
   student    User       @relation(fields: [studentId], references: [id])
   cohort     Cohort     @relation(fields: [cohortId], references: [id])
   department Department @relation(fields: [departmentId], references: [id])
+  Subject    Subject?   @relation(fields: [subjectId], references: [id])
+  subjectId  String?
 
   @@unique([studentId, cohortId, semester])
   // Removed global unique constraint on rollNumber to allow history preservation across semesters
@@ -442,6 +462,7 @@ model StudentMark {
   examId        String
   studentId     String
   subQuestionId String
+  marksObtained Float      // Actual marks obtained - Required for analytics
   marks         Decimal
   enteredBy     String?
   enteredAt     DateTime @default(now())
@@ -482,17 +503,164 @@ model ExamSnapshot {
 }
 
 model AuditLog {
-  id        String   @id @default(uuid())
-  userId    String?
-  action    String
-  tableName String
-  recordId  String?
-  oldData   Json?
-  newData   Json?
-  ipAddress String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  userId      String
+  action      String // "CREATE", "UPDATE", "DELETE"
+  entityType  String // "Exam", "StudentMark", etc.
+  entityId    String
+  oldValue    Json?
+  newValue    Json?
+  ipAddress   String?
+  userAgent   String?
+  description String?
+  createdAt   DateTime @default(now())
 
-  user User? @relation(fields: [userId], references: [id])
+  user User @relation("AuditLogActor", fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ========================================
+// TEACHER → STUDENT FEEDBACK SYSTEM
+// ========================================
+// Immutable feedback content + dynamic analytics
+// Following NAAC compliance: Feedback = Evidence (static), Analytics = Interpretation (dynamic)
+
+/// Defines reusable feedback templates with configurable categories
+model FeedbackTemplate {
+  id          String  @id @default(uuid())
+  name        String // "BCA Semester 1 Template", "MBA Core Template"
+  description String? @db.Text
+
+  // Scope (optional - if null, available to all)
+  departmentId String?
+  programId    String?
+
+  // Configuration
+  isActive  Boolean @default(true)
+  isDefault Boolean @default(false)
+
+  // Metadata
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  department Department?                @relation(fields: [departmentId], references: [id])
+  program    Program?                   @relation(fields: [programId], references: [id])
+  categories FeedbackTemplateCategory[]
+  feedbacks  TeacherStudentFeedback[]
+
+  @@index([departmentId])
+  @@index([programId])
+  @@index([isActive])
+}
+
+/// Categories within a feedback template (Academic, Behaviour, Communication, etc.)
+model FeedbackTemplateCategory {
+  id           String  @id @default(uuid())
+  templateId   String
+  name         String // "Academic Performance", "Class Participation", "Discipline"
+  description  String? @db.Text
+  displayOrder Int     @default(0)
+  weight       Float?  @default(1.0) // For weighted scoring (future use)
+
+  template FeedbackTemplate         @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  ratings  FeedbackCategoryRating[]
+
+  @@unique([templateId, displayOrder])
+  @@index([templateId])
+}
+
+/// IMMUTABLE teacher feedback record (frozen after lock) - NAAC Evidence
+model TeacherStudentFeedback {
+  id String @id @default(uuid())
+
+  // Who & What
+  teacherId String
+  studentId String
+  subjectId String
+  semester  Int // Academic semester number (1-8), consistent with Exam/StudentMark/COAttainment
+  cohortId  String
+
+  // Template
+  templateId String
+
+  // Core Content (IMMUTABLE after lock)
+  starRating Int // 1-5 stars
+  reviewText String @db.Text
+
+  // Workflow
+  status FeedbackStatus @default(DRAFT)
+
+  // Approval Chain
+  submittedAt DateTime?
+  approvedBy  String?
+  approvedAt  DateTime?
+  lockedAt    DateTime?
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  teacher  User             @relation("TeacherFeedbackGiven", fields: [teacherId], references: [id])
+  student  User             @relation("StudentFeedbackReceived", fields: [studentId], references: [id])
+  subject  Subject          @relation(fields: [subjectId], references: [id])
+  cohort   Cohort           @relation(fields: [cohortId], references: [id])
+  template FeedbackTemplate @relation(fields: [templateId], references: [id])
+  approver User?            @relation("FeedbackApprover", fields: [approvedBy], references: [id])
+
+  categoryRatings FeedbackCategoryRating[]
+  analytics       FeedbackAnalyticsCache?
+
+  @@unique([teacherId, studentId, subjectId, semester, cohortId])
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([subjectId, cohortId, semester])
+  @@index([status])
+}
+
+/// Individual category ratings (IMMUTABLE after parent feedback locks)
+model FeedbackCategoryRating {
+  id         String @id @default(uuid())
+  feedbackId String
+  categoryId String
+  rating     Int // 1-5 stars per category
+
+  feedback TeacherStudentFeedback   @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  category FeedbackTemplateCategory @relation(fields: [categoryId], references: [id])
+
+  @@unique([feedbackId, categoryId])
+  @@index([feedbackId])
+}
+
+/// DYNAMIC analytics cache (recalculates on marks change) - NAAC Interpretation
+model FeedbackAnalyticsCache {
+  id         String @id @default(uuid())
+  feedbackId String @unique
+
+  // Computed Metrics (DYNAMIC - recalculate on marks update)
+  avgMarks       Float?  // Nullable when no marks exist yet
+  marksBand      String? // "HIGH" (≥75%) | "MEDIUM" (60-74%) | "LOW" (<60%) | NULL when no marks
+  feedbackScore  Float // (starRating / 5) × 100
+  alignmentIndex Float?  // feedbackScore - avgMarks (null if no marks available)
+  riskLevel      String // "CRITICAL" | "HIGH" | "MODERATE" | "STABLE"
+
+  // Category Insights (rule-based, deterministic)
+  categoryInsights Json? // Deterministic insights per category
+
+  // Cache Management
+  calculatedAt   DateTime  @default(now())
+  marksUpdatedAt DateTime?
+  isStale        Boolean   @default(false)
+
+  feedback TeacherStudentFeedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+
+  @@index([isStale])
+  @@index([feedbackId])
 }
 
 // --- NEW MODULES ---
@@ -626,7 +794,7 @@ model FinalMark {
   percentage    Float    @default(0)
   grade         String   @default("PENDING") // Fixed: Made nullable with default
   gradePoint    Float    @default(0)
-  feedback      String?  // Teacher's remarks
+  feedback      String? // Teacher's remarks
   coAttainment  Json?
   status        String   @default("calculated")
   computedAt    DateTime @default(now())

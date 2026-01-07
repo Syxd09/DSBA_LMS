@@ -70,10 +70,10 @@ if (process.env.NODE_ENV !== 'production') {
     app.use(morgan('dev'));
 }
 
-// Rate Limiting - General API
+// Rate Limiting - General API (relaxed for development)
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Reasonable limit: 100 requests per 15 min per IP
+    max: process.env.NODE_ENV === 'production' ? 100 : 10000, // Dev: 10000, Prod: 100 requests
     message: { message: 'Too many requests, please try again later' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -82,7 +82,7 @@ const apiLimiter = rateLimit({
 // Rate Limiting - Strict for auth routes
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // Strict: Only 5 login attempts per 15 min per IP
+    max: process.env.NODE_ENV === 'production' ? 5 : 100, // Dev: 100, Prod: 5 login attempts
     skipSuccessfulRequests: true, // Don't count successful logins
     message: { message: 'Too many login attempts, please try again in 15 minutes' },
     standardHeaders: true,
@@ -137,6 +137,9 @@ import attainmentRoutes from './routes/attainment.routes';
 import poAttainmentRoutes from './routes/po-attainment.routes';
 import marksUnlockRoutes from './routes/marks-unlock.routes';
 import programOutcomeRoutes from './routes/program-outcomes.routes';
+import feedbackTemplateRoutes from './routes/feedback-template.routes';
+import teacherFeedbackRoutes from './routes/teacher-feedback.routes';
+import feedbackAnalyticsRoutes from './routes/feedback-analytics.routes';
 
 // Auth routes with stricter rate limiting
 app.use('/api/auth', authLimiter, authRoutes);
@@ -165,6 +168,9 @@ app.use('/api/attainment', attainmentRoutes);
 app.use('/api/po-attainment', poAttainmentRoutes);
 app.use('/api/marks-unlock', marksUnlockRoutes);
 app.use('/api/program-outcomes', programOutcomeRoutes);
+app.use('/api/feedback-templates', feedbackTemplateRoutes);
+app.use('/api/teacher-feedback', teacherFeedbackRoutes);
+app.use('/api/feedback-analytics', feedbackAnalyticsRoutes);
 
 // Bulk operations routes
 import bulkRoutes from './routes/bulk.routes';

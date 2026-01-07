@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../services/db';
 import bcrypt from 'bcrypt';
+import { AuditService } from '../services/audit.service';
 
 // Get enrollments with context filtering
 export const getEnrollments = async (req: AuthRequest, res: Response) => {
@@ -148,7 +149,96 @@ export const getStudentsByClass = async (req: AuthRequest, res: Response) => {
     }
 };
 
-import { AuditService } from '../services/audit.service';
+// Get students assigned to teacher (based on teacher assignments)
+export const getTeacherStudents = async (req: AuthRequest, res: Response) => {
+    try {
+        const user = req.user;
+
+        if (!user) {
+            return res.status(401).json({ message: 'Authentication required' });
+        }
+
+        // Teachers can only see their own assigned students
+        const teacherId = user.role === 'TEACHER' ? user.userId : req.query.teacherId as string;
+
+        if (!teacherId) {
+            return res.status(400).json({ message: 'Teacher ID required' });
+        }
+
+        // Get all subjects assigned to this teacher
+        const teacherAssignments = await prisma.teacherAssignment.findMany({
+            where: { teacherId },
+            include: {
+                subject: true,
+                cohort: true
+            }
+        });
+
+        if (teacherAssignments.length === 0) {
+            return res.json({ students: [] });
+        }
+
+        // Get unique cohort IDs
+        const cohortIds = [...new Set(teacherAssignments.map(ta => ta.cohortId))];
+
+        // Get all students enrolled in these cohorts
+        const enrollments = await prisma.studentEnrollment.findMany({
+            where: {
+                cohortId: { in: cohortIds },
+                status: 'active'
+            },
+            include: {
+                student: {
+                    select: {
+                        id: true,
+                        email: true,
+                        fullName: true,
+                        departmentId: true
+                    }
+                },
+                cohort: {
+                    select: {
+                        id: true,
+                        name: true,
+                        year: true,
+                        currentSemester: true
+                    }
+                }
+            },
+            orderBy: [
+                { cohort: { year: 'desc' } },
+                { rollNumber: 'asc' }
+            ]
+        });
+
+        // Format response with assignment context
+        const students = enrollments.map(enrollment => ({
+            id: enrollment.student.id,
+            email: enrollment.student.email,
+            fullName: enrollment.student.fullName,
+            rollNumber: enrollment.rollNumber,
+            cohort: enrollment.cohort,
+            semester: enrollment.semester,
+            // Add subjects this teacher teaches to this student
+            assignedSubjects: teacherAssignments
+                .filter(ta => ta.cohortId === enrollment.cohortId)
+                .map(ta => ({
+                    id: ta.subject.id,
+                    code: ta.subject.code,
+                    name: ta.subject.name
+                }))
+        }));
+
+        return res.json({ students });
+
+    } catch (error: any) {
+        console.error('Error fetching teacher students:', error);
+        return res.status(500).json({
+            message: 'Failed to fetch assigned students',
+            error: error.message
+        });
+    }
+};
 
 // Enroll a single student (with auto-create user)
 export const enrollStudent = async (req: AuthRequest, res: Response) => {

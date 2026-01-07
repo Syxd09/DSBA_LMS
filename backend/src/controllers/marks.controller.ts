@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../services/db';
 import { createAuditLog } from '../middleware/audit.middleware';
+import { invalidateCacheForStudent } from '../services/analytics.service';
 
 /**
  * Save or update student marks for an exam.
@@ -74,6 +75,7 @@ export const saveMarks = async (req: AuthRequest, res: Response) => {
                     studentId: m.studentId,
                     subQuestionId: m.subQuestionId,
                     marks: m.marks,
+                    marksObtained: m.marks,  // Same as marks - actual marks obtained
                     enteredBy: teacherId,
                     enteredAt: new Date()
                 }))
@@ -81,6 +83,19 @@ export const saveMarks = async (req: AuthRequest, res: Response) => {
         });
 
         await createAuditLog(teacherId, 'UPDATE_MARKS', 'student_marks', examId, undefined, { count: marks.length });
+
+        // Invalidate feedback analytics cache for affected students (Phase 4)
+        // Non-blocking operation - failure won't affect marks save
+        try {
+            const uniqueStudents = new Set(marks.map((m: any) => m.studentId));
+            for (const studentId of uniqueStudents) {
+                await invalidateCacheForStudent(studentId, exam.subjectId, exam.semester);
+            }
+        } catch (error) {
+            console.error('Failed to invalidate feedback analytics cache:', error);
+            // Continue - cache invalidation failure is non-critical
+        }
+
         res.json({ message: 'Marks saved successfully', count: marks.length });
     } catch (error) {
         console.error('Error saving marks:', error);
@@ -355,6 +370,7 @@ export const bulkUploadMarks = async (req: AuthRequest, res: Response) => {
                     },
                     update: {
                         marks: mark.marks,
+                        marksObtained: mark.marks,  // Update marksObtained too
                         enteredBy: userId,
                         enteredAt: new Date()
                     },
@@ -363,6 +379,7 @@ export const bulkUploadMarks = async (req: AuthRequest, res: Response) => {
                         studentId: mark.studentId,
                         subQuestionId: mark.subQuestionId,
                         marks: mark.marks,
+                        marksObtained: mark.marks,  // Same as marks
                         enteredBy: userId
                     }
                 });
