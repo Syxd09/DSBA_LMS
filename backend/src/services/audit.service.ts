@@ -54,5 +54,34 @@ export const AuditService = {
             });
             // Don't throw - audit logging shouldn't break the main operation
         }
+    },
+
+    /**
+     * Fallback logging when primary audit logging fails
+     * Writes to file system as backup
+     */
+    async logToFallback(data: any) {
+        try {
+            const fs = require('fs');
+            const path = require('path');
+
+            const logDir = path.join(__dirname, '..', '..', 'logs');
+            const logFile = path.join(logDir, 'audit-fallback.log');
+
+            // Ensure logs directory exists
+            if (!fs.existsSync(logDir)) {
+                fs.mkdirSync(logDir, { recursive: true });
+            }
+
+            const logEntry = JSON.stringify({
+                ...data,
+                timestamp: new Date().toISOString()
+            }) + '\n';
+
+            fs.appendFileSync(logFile, logEntry);
+            console.log('[AUDIT] 📝 Logged to fallback file');
+        } catch (error) {
+            console.error('[AUDIT] ❌ Fallback logging failed:', error);
+        }
     }
 };

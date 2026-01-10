@@ -46,6 +46,7 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, onSubmit, is
   const [formData, setFormData] = useState({
     subjectId: '',
     cohortId: '',
+    semester: '',
     examType: 'INTERNAL_1',
     customTypeName: '',
     maxMarks: 30,
@@ -64,8 +65,8 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, onSubmit, is
 
   const canProceed = () => {
     if (step === 1) {
-      return formData.subjectId && formData.cohortId && formData.examType &&
-        (formData.examType !== 'CUSTOM' || formData.customTypeName);
+      return formData.subjectId && formData.cohortId && formData.semester &&
+        formData.examType && (formData.examType !== 'CUSTOM' || formData.customTypeName);
     }
     if (step === 2) {
       return formData.maxMarks > 0;
@@ -100,6 +101,7 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, onSubmit, is
     setFormData({
       subjectId: '',
       cohortId: '',
+      semester: '',
       examType: 'INTERNAL_1',
       customTypeName: '',
       maxMarks: 30,
@@ -147,6 +149,20 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, onSubmit, is
                   <SelectContent>
                     {cohorts.map(c => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Semester *</Label>
+                <Select value={formData.semester} onValueChange={(v) => updateField('semester', v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select semester" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
+                      <SelectItem key={sem} value={sem.toString()}>Semester {sem}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

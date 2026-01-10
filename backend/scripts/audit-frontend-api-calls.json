@@ -1,0 +1,812 @@
+[
+  {
+    "method": "GET",
+    "endpoint": "/analytics/bloom-distribution/${examId}",
+    "file": "hooks\\useAnalytics.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/analytics/bloom-distribution/${latest.id}",
+    "file": "pages\\Analytics.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/analytics/co-attainment/${selectedSubject}?cohortId=${cohortId || ",
+    "file": "pages\\Analytics.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/analytics/co-attainment/${subjectId}",
+    "file": "hooks\\useAnalytics.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/analytics/co-attainment/${subjects[0].id}?cohortId=${cohortId || ",
+    "file": "pages\\Analytics.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/analytics/co-po-traceability/${selectedSubject}/${selectedCohort}/${selectedSemester}",
+    "file": "pages\\COPOTraceability.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/analytics/department-stats",
+    "file": "hooks\\useAnalytics.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/analytics/subject-performance/${cohortId}",
+    "file": "hooks\\useAnalytics.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/analytics/subject-performance/${cohortId}",
+    "file": "pages\\Analytics.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/approvals/${id}/approve",
+    "file": "pages\\HODDashboard.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/approvals/${id}/reject",
+    "file": "pages\\HODDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/approvals/pending",
+    "file": "pages\\HODDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/assignments",
+    "file": "components\\dashboard\\HODDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/assignments",
+    "file": "components\\dashboard\\TeacherDashboard.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/assignments",
+    "file": "hooks\\useTeacherAssignments.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/assignments?${params.toString()}",
+    "file": "hooks\\useTeacherAssignments.ts"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/assignments/${id}",
+    "file": "hooks\\useTeacherAssignments.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/assignments/preview",
+    "file": "components\\assignments\\AssignmentPreview.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/attainment/approve",
+    "file": "pages\\AttainmentDashboard.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/attainment/calculate",
+    "file": "pages\\AttainmentDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/attainment/co?${params}",
+    "file": "pages\\AttainmentDashboard.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/attainment/lock",
+    "file": "pages\\AttainmentDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/attainment/students/${selectedStudentId}/analytics",
+    "file": "pages\\StudentAnalytics.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/attainment/students/at-risk?${params.toString()}",
+    "file": "components\\dashboard\\AtRiskStudentsWidget.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/attainment/submit-review",
+    "file": "pages\\AttainmentDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/audit-logs?${params.toString()}",
+    "file": "pages\\AuditLogs.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/audit-logs/dashboard-stats",
+    "file": "components\\dashboard\\PrincipalDashboard.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/auth/login",
+    "file": "hooks\\useAuth.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/auth/register",
+    "file": "hooks\\useAuth.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/cohorts",
+    "file": "components\\AcademicContextSelector.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/cohorts",
+    "file": "pages\\analytics\\hod\\HODAnalyticsDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/cohorts",
+    "file": "pages\\analytics\\principal\\PrincipalAnalyticsDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/cohorts",
+    "file": "pages\\Cohorts.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/cohorts",
+    "file": "pages\\Cohorts.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/cohorts",
+    "file": "pages\\COPOAnalytics.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/cohorts",
+    "file": "pages\\COPOTraceability.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/cohorts",
+    "file": "pages\\Exams.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/cohorts",
+    "file": "pages\\GradeManagement.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/cohorts",
+    "file": "pages\\POAttainmentDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/cohorts",
+    "file": "pages\\StudentEnrollments.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/cohorts",
+    "file": "pages\\TeacherAssignments.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/cohorts",
+    "file": "pages\\Users.tsx"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/cohorts/${deletingCohort.id}",
+    "file": "pages\\Cohorts.tsx"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/cohorts/${editingCohort.id}",
+    "file": "pages\\Cohorts.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/cohorts/${promotingCohort.id}/promote",
+    "file": "pages\\Cohorts.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/course-outcomes",
+    "file": "hooks\\useCourseOutcomes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/course-outcomes",
+    "file": "pages\\CourseOutcomes.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/course-outcomes",
+    "file": "pages\\CourseOutcomes.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/course-outcomes?subjectId=${subjectId}",
+    "file": "hooks\\useCourseOutcomes.ts"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/course-outcomes/${deletingId}",
+    "file": "pages\\CourseOutcomes.tsx"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/course-outcomes/${editingId}",
+    "file": "pages\\CourseOutcomes.tsx"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/course-outcomes/mapping",
+    "file": "pages\\CourseOutcomes.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/curriculum-versions",
+    "file": "pages\\Programs.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/curriculum-versions",
+    "file": "pages\\Programs.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/curriculum-versions",
+    "file": "pages\\Subjects.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/departments",
+    "file": "components\\AcademicContextSelector.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/departments",
+    "file": "components\\dashboard\\PrincipalDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/departments",
+    "file": "pages\\analytics\\principal\\FinalApprovals.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/departments",
+    "file": "pages\\analytics\\principal\\PrincipalAnalyticsDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/departments",
+    "file": "pages\\Departments.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/departments",
+    "file": "pages\\Departments.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/departments",
+    "file": "pages\\Programs.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/departments",
+    "file": "pages\\StudentEnrollments.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/departments",
+    "file": "pages\\Users.tsx"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/departments/${deletingDept.id}",
+    "file": "pages\\Departments.tsx"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/departments/${editingDept.id}",
+    "file": "pages\\Departments.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/enrollments",
+    "file": "components\\dashboard\\HODDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/enrollments",
+    "file": "components\\dashboard\\StudentDashboard.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/enrollments",
+    "file": "hooks\\useStudentEnrollments.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/enrollments",
+    "file": "pages\\StudentEnrollments.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/enrollments?${params.toString()}",
+    "file": "components\\dashboard\\TeacherDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/enrollments?${params.toString()}",
+    "file": "pages\\StudentEnrollments.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/enrollments?${params.toString()}",
+    "file": "pages\\Students.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/enrollments?cohortId=${cohortId}",
+    "file": "hooks\\useStudentEnrollments.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/enrollments/active-semesters?${params.toString()}",
+    "file": "hooks\\use-active-semesters.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/enrollments/bulk",
+    "file": "hooks\\useStudentEnrollments.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/enrollments/bulk",
+    "file": "pages\\StudentEnrollments.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/enrollments/teacher/students",
+    "file": "pages\\feedback\\teacher\\TeacherAssignedStudents.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/exams",
+    "file": "components\\dashboard\\TeacherDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/exams",
+    "file": "hooks\\useExams.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/exams",
+    "file": "hooks\\useExams.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/exams",
+    "file": "pages\\COPOAnalytics.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/exams",
+    "file": "pages\\StudentFeedback.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/exams?subjectId=${selectedSubject}&status=PUBLISHED",
+    "file": "pages\\Analytics.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/exams/${examId}",
+    "file": "hooks\\useExams.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/exams/${examId}/publish",
+    "file": "hooks\\useExams.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/exams/${examId}/structure",
+    "file": "hooks\\useExams.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/exams/${examId}/unlock",
+    "file": "hooks\\useExams.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/exams/cohort/${cohortId}/students",
+    "file": "hooks\\useExams.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/feedback",
+    "file": "pages\\StudentFeedback.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/feedback/stats/${examId}",
+    "file": "components\\FeedbackStats.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/grading/calculate",
+    "file": "hooks\\useGrading.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/grading/calculate-sgpa",
+    "file": "hooks\\useGrading.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/grading/final-marks?${params.toString()}",
+    "file": "hooks\\useGrading.ts"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/grading/final-marks/${selectedMark.id}/feedback",
+    "file": "pages\\GradeManagement.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/grading/rules${departmentId ? ",
+    "file": "hooks\\useGrading.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/grading/semester-results/${studentId}",
+    "file": "hooks\\useGrading.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/marks/${exam.id}",
+    "file": "components\\dashboard\\TeacherDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/marks/${examId}",
+    "file": "hooks\\useExams.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/marks/${examId}/bulk-upload",
+    "file": "components\\marks\\CSVUploadDialog.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/marks/${examId}/csv-template",
+    "file": "components\\marks\\CSVUploadDialog.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/marks/save",
+    "file": "hooks\\useExams.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/messaging/groups",
+    "file": "pages\\Messages.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/messaging/groups",
+    "file": "pages\\Messages.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/messaging/groups/${selectedGroupId}/messages",
+    "file": "pages\\Messages.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/messaging/groups/${selectedGroupId}/messages",
+    "file": "pages\\Messages.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/po-attainment?${params.toString()}",
+    "file": "pages\\POAttainmentDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/po-attainment/trends/${selectedProgram}",
+    "file": "pages\\POAttainmentDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/program-outcomes",
+    "file": "pages\\CourseOutcomes.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/program-outcomes",
+    "file": "pages\\ProgramOutcomes.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/program-outcomes",
+    "file": "pages\\ProgramOutcomes.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/program-outcomes",
+    "file": "pages\\Programs.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/program-outcomes",
+    "file": "pages\\Programs.tsx"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/program-outcomes/${deletePOId}",
+    "file": "pages\\ProgramOutcomes.tsx"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/program-outcomes/${editingPO.id}",
+    "file": "pages\\ProgramOutcomes.tsx"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/program-outcomes/${editingPOId}",
+    "file": "pages\\Programs.tsx"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/program-outcomes/${id}",
+    "file": "pages\\Programs.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/programs",
+    "file": "pages\\Cohorts.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/programs",
+    "file": "pages\\COPOTraceability.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/programs",
+    "file": "pages\\POAttainmentDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/programs",
+    "file": "pages\\ProgramOutcomes.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/programs",
+    "file": "pages\\Programs.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/programs",
+    "file": "pages\\Programs.tsx"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/programs/${deletingProgram.id}",
+    "file": "pages\\Programs.tsx"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/programs/${editingProgram?.id}",
+    "file": "pages\\Programs.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/results",
+    "file": "pages\\Performance.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/results",
+    "file": "pages\\Results.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "components\\dashboard\\HODDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "components\\dashboard\\StudentDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "pages\\analytics\\principal\\PrincipalAnalyticsDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "pages\\Analytics.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "pages\\AttainmentDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "pages\\COPOAnalytics.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "pages\\COPOTraceability.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "pages\\CourseOutcomes.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "pages\\Exams.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "pages\\feedback\\teacher\\CreateFeedback.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "pages\\feedback\\teacher\\TeacherAssignedStudents.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "pages\\GradeManagement.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "pages\\Subjects.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/subjects",
+    "file": "pages\\Subjects.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "pages\\TeacherAssignments.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects",
+    "file": "pages\\Users.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects?departmentId=${departmentId}",
+    "file": "pages\\analytics\\hod\\HODAnalyticsDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects?departmentId=${departmentId}",
+    "file": "pages\\analytics\\hod\\PendingApprovals.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/subjects?id=${selectedSubject}",
+    "file": "pages\\CourseOutcomes.tsx"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/subjects/${deleteSubjectId}",
+    "file": "pages\\Subjects.tsx"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/subjects/${editingSubject.id}",
+    "file": "pages\\Subjects.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/teacher-feedback/final-approvals",
+    "file": "pages\\analytics\\principal\\PrincipalAnalyticsDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/teacher-feedback/pending-approvals",
+    "file": "pages\\analytics\\hod\\HODAnalyticsDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/users",
+    "file": "components\\dashboard\\HODDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/users",
+    "file": "pages\\GradeManagement.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/users",
+    "file": "pages\\Users.tsx"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/users",
+    "file": "pages\\Users.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/users?departmentId=${departmentId}&role=TEACHER",
+    "file": "pages\\analytics\\hod\\HODAnalyticsDashboard.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/users?role=STUDENT",
+    "file": "pages\\StudentAnalytics.tsx"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/users/${deletingUser.id}",
+    "file": "pages\\Users.tsx"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/users/${editingUser.id}",
+    "file": "pages\\Users.tsx"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/users/${resettingUser.id}",
+    "file": "pages\\Users.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/users/${studentId}",
+    "file": "pages\\feedback\\teacher\\CreateFeedback.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/users/${user.id}",
+    "file": "pages\\Users.tsx"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/users/teachers",
+    "file": "hooks\\useTeacherAssignments.ts"
+  }
+]

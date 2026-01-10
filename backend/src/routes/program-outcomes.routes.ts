@@ -9,8 +9,8 @@ const router = Router();
 router.use(authenticateToken);
 
 router.get('/', getProgramOutcomes);
-router.post('/', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), createProgramOutcome);
-router.put('/:id', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), updateProgramOutcome);
-router.delete('/:id', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), deleteProgramOutcome);
+router.post('/', requireRole('ADMIN', 'PRINCIPAL', 'HOD'), createProgramOutcome);
+router.put('/:id', requireRole('ADMIN', 'PRINCIPAL', 'HOD'), updateProgramOutcome);
+router.delete('/:id', requireRole('ADMIN', 'PRINCIPAL', 'HOD'), deleteProgramOutcome);
 
 export default router;

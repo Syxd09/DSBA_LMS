@@ -58,7 +58,7 @@ export function useAuth(): UserWithRole & {
       await api.post('/auth/register', { email, password, fullName, role });
       return { error: null };
     } catch (error: any) {
-      return { error: error.response?.data?.message || 'Registration failed' };
+      return { error: new Error(error.response?.data?.message || 'Registration failed') };
     }
   };
 
@@ -80,7 +80,7 @@ export function useAuth(): UserWithRole & {
 
       return { error: null };
     } catch (error: any) {
-      return { error: error.response?.data?.message || 'Login failed' };
+      return { error: new Error(error.response?.data?.message || 'Login failed') };
     }
   };
 

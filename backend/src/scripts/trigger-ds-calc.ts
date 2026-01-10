@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
-import { calculateCOAttainmentForExam } from './src/services/co-attainment.service';
-import { calculatePOAttainmentForSubject } from './src/services/po-attainment.service';
+import { calculateCOAttainmentForExam } from '../services/co-attainment.service';
+import { calculatePOAttainmentForSubject } from '../services/po-attainment.service';
 
 const prisma = new PrismaClient();
 
@@ -48,7 +48,7 @@ async function main() {
 
     console.log(`\n✅ Created ${results.length} CO records:`);
     results.forEach(r => {
-        console.log(`   ${r.co.code}: ${r.achievedPercent}%`);
+        console.log(`   CO${r.co.coNumber}: ${r.achievedPercent}%`);
     });
 
     console.log('\n🎉 Refresh CO-PO Analytics!');

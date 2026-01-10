@@ -9,7 +9,7 @@ const router = Router();
 router.use(authenticateToken);
 
 router.get('/', getStudentResults);
-router.post('/publish', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), publishSemesterResults);
-router.get('/export', requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER']), exportCohortResults);
+router.post('/publish', requireRole('ADMIN', 'PRINCIPAL', 'HOD'), publishSemesterResults);
+router.get('/export', requireRole('ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER'), exportCohortResults);
 
 export default router;

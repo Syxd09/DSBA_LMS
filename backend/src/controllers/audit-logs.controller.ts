@@ -5,56 +5,47 @@ import prisma from '../services/db';
 
 export const getAuditLogs = async (req: AuthRequest, res: Response) => {
     try {
-        const { limit = 50, offset = 0, action, userId, entityType } = req.query;
+        const { limit = 50, offset = 0 } = req.query;
 
-        // Build where clause for filtering
-        const where: any = {};
-        if (action) {
-            where.action = String(action);
-        }
-        if (userId) {
-            where.userId = String(userId);
-        }
-        if (entityType) {
-            where.entityType = String(entityType);
-        }
-
-        // Fetch real audit logs from database
         const logs = await prisma.auditLog.findMany({
-            where,
-            orderBy: {
-                createdAt: 'desc'
-            },
+            where: {},
+            orderBy: { createdAt: 'desc' },
             take: parseInt(String(limit)) || 50,
-            skip: parseInt(String(offset)) || 0,
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        fullName: true,
-                        email: true,
-                        role: true
-                    }
-                }
-            }
+            skip: parseInt(String(offset)) || 0
         });
 
-        // Transform to match frontend expectations
-        const transformedLogs = logs.map(log => ({
-            id: log.id,
-            userId: log.userId,
-            userName: log.user.fullName,
-            action: log.action,
-            tableName: log.entityType,
-            recordId: log.entityId,
-            oldData: log.oldValue,
-            newData: log.newValue,
-            description: log.description,
-            ipAddress: log.ipAddress,
-            createdAt: log.createdAt.toISOString()
-        }));
+        // Get all unique user IDs from logs
+        const userIds = [...new Set(logs.map(log => log.userId))];
 
-        res.json(transformedLogs);
+        // Fetch all users in one query
+        const users = await prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, fullName: true, email: true, role: true }
+        });
+
+        // Create lookup map
+        const userMap = new Map(users.map(u => [u.id, u]));
+
+        // Transform logs
+        const result = logs.map(log => {
+            const user = userMap.get(log.userId);
+            return {
+                id: log.id,
+                userId: log.userId,
+                userName: user?.fullName || 'Unknown User',
+                action: log.action,
+                tableName: log.entityType,
+                recordId: log.entityId,
+                oldData: log.oldValue,
+                newData: log.newValue,
+                description: log.description,
+                ipAddress: log.ipAddress,
+                createdAt: log.createdAt.toISOString(),
+                user: { fullName: user?.fullName || 'Unknown User', email: user?.email || '' }
+            };
+        });
+
+        res.json(result);
     } catch (error) {
         console.error('Error fetching audit logs:', error);
         res.status(500).json({ message: 'Error fetching audit logs', error: String(error) });
@@ -85,7 +76,6 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
             prisma.approvalRequest.count({ where: { status: 'PENDING' } })
         ]);
 
-        // Calculate departments without subjects
         const allDepartments = await prisma.department.findMany({
             select: {
                 id: true,
@@ -93,9 +83,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
                     select: {
                         curricula: {
                             select: {
-                                _count: {
-                                    select: { subjects: true }
-                                }
+                                _count: { select: { subjects: true } }
                             }
                         }
                     }
@@ -112,11 +100,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
         }).length;
 
         const subjectsWithoutAttainments = await prisma.subject.count({
-            where: {
-                courseOutcomes: {
-                    none: {}
-                }
-            }
+            where: { courseOutcomes: { none: {} } }
         });
 
         res.json({

@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, UserPlus, Upload, Download, Loader2, Users, FileSpreadsheet, AlertCircle, CheckCircle, Building2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import api from '@/lib/api';
+import { useActiveSemesters } from '@/hooks/use-active-semesters';
 
 export default function StudentEnrollments() {
   const queryClient = useQueryClient();
@@ -60,6 +61,10 @@ export default function StudentEnrollments() {
       return data || [];
     },
   });
+  
+  // Fetch active semesters - routes confirmed mounted in app.ts
+  const { data: activeSemestersData } = useActiveSemesters(selectedCohort);
+  const activeSemesters = activeSemestersData?.semesters || [];
   
   // Fetch enrollments with context filtering
   const { data: enrollments, isLoading: enrollmentsLoading, refetch } = useQuery({
@@ -421,7 +426,7 @@ export default function StudentEnrollments() {
                 </Select>
               </div>
               
-              {/* Semester */}
+              {/* Semester - Smart Filtering */}
               <div className="space-y-2">
                 <Label>Semester</Label>
                 <Select value={selectedSemester} onValueChange={setSelectedSemester} disabled={!selectedCohort}>
@@ -429,13 +434,19 @@ export default function StudentEnrollments() {
                     <SelectValue placeholder="Select semester" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.from({ length: maxSemester }, (_, i) => i + 1).map((sem) => (
+                    {(activeSemesters.length > 0 
+                      ? activeSemesters 
+                      : Array.from({ length: maxSemester }, (_, i) => i + 1)
+                    ).map((sem) => (
                       <SelectItem key={sem} value={String(sem)}>
                         Semester {sem}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedCohort && activeSemesters.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No students enrolled yet</p>
+                )}
               </div>
             </div>
           </CardContent>

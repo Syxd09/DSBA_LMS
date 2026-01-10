@@ -1,0 +1,12 @@
+// Add after line 77 (after FeedbackStatus enum)
+
+enum ConversationType {
+  DIRECT    // 1-to-1 chat
+  GROUP     // Group conversation
+}
+
+enum ParticipantRole {
+  OWNER     // Created the group, full control
+  ADMIN     // Can add/remove members
+  MEMBER    // Can only send messages
+}

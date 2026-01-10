@@ -19,6 +19,7 @@ import {
   History,
   UserCheck2,
   CheckCircle2,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -49,6 +50,7 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'CO-PO Traceability', href: '/co-po-traceability', icon: TrendingUp },
     { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: BarChart3 },
     { name: 'Student Analytics', href: '/student-analytics', icon: UserCheck2 },
+    { name: 'Messages', href: '/messages', icon: MessageSquare },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Audit Logs', href: '/audit-logs', icon: History },
   ],
@@ -67,6 +69,7 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'CO-PO Traceability', href: '/co-po-traceability', icon: TrendingUp },
     { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: BarChart3 },
     { name: 'Student Analytics', href: '/student-analytics', icon: UserCheck2 },
+    { name: 'Messages', href: '/messages', icon: MessageSquare },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Audit Logs', href: '/audit-logs', icon: History },
   ],
@@ -84,6 +87,7 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Grades & SGPA', href: '/grade-management', icon: Award },
     { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: BarChart3 },
     { name: 'Student Analytics', href: '/student-analytics', icon: UserCheck2 },
+    { name: 'Messages', href: '/messages', icon: MessageSquare },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   ],
   teacher: [
@@ -96,10 +100,12 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Marks Entry', href: '/marks-entry', icon: ClipboardList },
     { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
     { name: 'Student Analytics', href: '/student-analytics', icon: UserCheck2 },
+    { name: 'Messages', href: '/messages', icon: MessageSquare },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   ],
   student: [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Messages', href: '/messages', icon: MessageSquare },
     { name: 'My Results', href: '/results', icon: Award },
     { name: 'Performance', href: '/performance', icon: TrendingUp },
   ],

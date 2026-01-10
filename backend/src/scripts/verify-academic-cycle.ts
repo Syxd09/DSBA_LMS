@@ -81,9 +81,12 @@ async function runVerification() {
     // Users & Dept
     await prisma.department.updateMany({ data: { hodId: null } });
     await deleteMany(prisma.auditLog);
+    await deleteMany(prisma.messageReadReceipt);
+    await deleteMany(prisma.messageAttachment);
+    await deleteMany(prisma.conversationParticipant);
     await deleteMany(prisma.message);
-    await deleteMany(prisma.messageGroupMember);
-    await deleteMany(prisma.messageGroup);
+    await deleteMany(prisma.conversation);
+    await deleteMany(prisma.userPresence);
     await deleteMany(prisma.approvalRequest);
     await deleteMany(prisma.user);
     await deleteMany(prisma.department);

@@ -31,11 +31,40 @@ import { createAuditLog } from '../middleware/audit.middleware';
  */
 export const register = async (req: Request, res: Response) => {
     try {
-        const { email, password, fullName } = req.body;
+        const { email, password, fullName, departmentId } = req.body;
 
         // Basic validation
         if (!email || !password || !fullName) {
             return res.status(400).json({ message: 'Missing required fields' });
+        }
+
+        // BUG-007 FIX: Password strength validation
+        if (password.length < 8) {
+            return res.status(400).json({
+                message: 'Password must be at least 8 characters long',
+                code: 'WEAK_PASSWORD'
+            });
+        }
+
+        // Enhanced password validation
+        const hasUpperCase = /[A-Z]/.test(password);
+        const hasLowerCase = /[a-z]/.test(password);
+        const hasNumber = /[0-9]/.test(password);
+        const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+        if (!hasUpperCase || !hasLowerCase || !hasNumber || !hasSpecialChar) {
+            return res.status(400).json({
+                message: 'Password must contain uppercase, lowercase, number, and special character',
+                code: 'WEAK_PASSWORD'
+            });
+        }
+
+        // BUG-005 FIX: Department ID required for students
+        if (!departmentId) {
+            return res.status(400).json({
+                message: 'Department is required for student registration',
+                code: 'DEPARTMENT_REQUIRED'
+            });
         }
 
         const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -52,7 +81,8 @@ export const register = async (req: Request, res: Response) => {
                 email,
                 password: hashedPassword,
                 fullName,
-                role: 'STUDENT'  // Always STUDENT for self-registration
+                role: 'STUDENT',  // Always STUDENT for self-registration
+                departmentId  // BUG-005 FIX: Now required
             }
         });
 
@@ -118,7 +148,7 @@ export const login = async (req: Request, res: Response) => {
         const token = jwt.sign(
             { userId: user.id, role: user.role, email: user.email, departmentId: user.departmentId },
             process.env.JWT_SECRET as string,
-            { expiresIn: '24h' } // Longer session for convenience
+            { expiresIn: '4h' } // BUG-008 FIX: Reduced from 24h for better security
         );
 
         await createAuditLog(user.id, 'LOGIN', 'users', user.id);

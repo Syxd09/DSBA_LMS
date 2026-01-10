@@ -1,0 +1,672 @@
+[
+  {
+    "method": "GET",
+    "endpoint": "/api/analytics/bloom-distribution/:examId",
+    "file": "analytics.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/analytics/co-attainment/:subjectId",
+    "file": "analytics.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/analytics/co-po-traceability/:subjectId/:cohortId/:semester",
+    "file": "analytics.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/analytics/department-stats",
+    "file": "analytics.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/analytics/subject-performance/:cohortId",
+    "file": "analytics.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/approvals/:id/approve",
+    "file": "approvals.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/approvals/:id/reject",
+    "file": "approvals.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/approvals/pending",
+    "file": "approvals.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/assignments",
+    "file": "assignments.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/assignments",
+    "file": "assignments.routes.ts"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/api/assignments/:id",
+    "file": "assignments.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/assignments/preview",
+    "file": "assignments.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/attainment/co",
+    "file": "attainment.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/attainment/co/approve",
+    "file": "attainment.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/attainment/co/calculate",
+    "file": "attainment.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/attainment/co/lock",
+    "file": "attainment.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/attainment/co/submit",
+    "file": "attainment.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/attainment/students/:studentId/analytics",
+    "file": "attainment.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/attainment/students/:studentId/performance/:subjectId",
+    "file": "attainment.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/attainment/students/at-risk",
+    "file": "attainment.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/attainment/summary",
+    "file": "attainment.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/audit-logs",
+    "file": "audit-logs.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/audit-logs/dashboard-stats",
+    "file": "audit-logs.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/auth/login",
+    "file": "auth.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/auth/me",
+    "file": "auth.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/auth/register",
+    "file": "auth.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/cohorts",
+    "file": "cohorts.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/cohorts",
+    "file": "cohorts.routes.ts"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/api/cohorts/:id",
+    "file": "cohorts.routes.ts"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/api/cohorts/:id",
+    "file": "cohorts.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/cohorts/:id/promote",
+    "file": "cohorts.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/course-outcomes",
+    "file": "course-outcomes.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/course-outcomes",
+    "file": "course-outcomes.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/course-outcomes/:id",
+    "file": "course-outcomes.routes.ts"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/api/course-outcomes/:id",
+    "file": "course-outcomes.routes.ts"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/api/course-outcomes/:id",
+    "file": "course-outcomes.routes.ts"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/api/course-outcomes/mapping",
+    "file": "course-outcomes.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/departments",
+    "file": "departments.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/departments",
+    "file": "departments.routes.ts"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/api/departments/:id",
+    "file": "departments.routes.ts"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/api/departments/:id",
+    "file": "departments.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/enrollments",
+    "file": "enrollments.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/enrollments",
+    "file": "enrollments.routes.ts"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/api/enrollments/:id",
+    "file": "enrollments.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/enrollments/active-semesters",
+    "file": "enrollments.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/enrollments/bulk",
+    "file": "enrollments.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/enrollments/students",
+    "file": "enrollments.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/enrollments/teacher/students",
+    "file": "enrollments.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/exams",
+    "file": "exams.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/exams",
+    "file": "exams.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/exams/:id",
+    "file": "exams.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/exams/:id/publish",
+    "file": "exams.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/exams/:id/recalculate",
+    "file": "exams.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/exams/:id/structure",
+    "file": "exams.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/exams/:id/unlock",
+    "file": "exams.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/exams/cohort/:cohortId/students",
+    "file": "exams.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/feedback",
+    "file": "feedback.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/feedback/stats/:examId",
+    "file": "feedback.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/grading/calculate",
+    "file": "grading.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/grading/calculate-sgpa",
+    "file": "grading.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/grading/final-marks",
+    "file": "grading.routes.ts"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/api/grading/final-marks/:id/feedback",
+    "file": "grading.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/grading/rules",
+    "file": "grading.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/grading/semester-results/:studentId",
+    "file": "grading.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/marks-unlock",
+    "file": "marks-unlock.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/marks-unlock/hod-decision/:id",
+    "file": "marks-unlock.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/marks-unlock/principal-decision/:id",
+    "file": "marks-unlock.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/marks-unlock/relock/:id",
+    "file": "marks-unlock.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/marks-unlock/request",
+    "file": "marks-unlock.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/marks/:examId",
+    "file": "marks.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/marks/:examId/bulk-upload",
+    "file": "marks.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/marks/:examId/csv-template",
+    "file": "marks.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/marks/save",
+    "file": "marks.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/marks/submit",
+    "file": "marks.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/marks/test",
+    "file": "marks.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/po-attainment/approve/:id",
+    "file": "po-attainment.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/po-attainment/calculate/:cohortId",
+    "file": "po-attainment.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/po-attainment/cohort/:cohortId",
+    "file": "po-attainment.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/po-attainment/dashboard/:cohortId",
+    "file": "po-attainment.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/po-attainment/lock/:id",
+    "file": "po-attainment.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/program-outcomes",
+    "file": "program-outcomes.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/program-outcomes",
+    "file": "program-outcomes.routes.ts"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/api/program-outcomes/:id",
+    "file": "program-outcomes.routes.ts"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/api/program-outcomes/:id",
+    "file": "program-outcomes.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/programs",
+    "file": "programs.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/programs",
+    "file": "programs.routes.ts"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/api/programs/:id",
+    "file": "programs.routes.ts"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/api/programs/:id",
+    "file": "programs.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/results",
+    "file": "results.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/results/export",
+    "file": "results.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/results/publish",
+    "file": "results.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/subjects",
+    "file": "subjects.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/subjects",
+    "file": "subjects.routes.ts"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/api/subjects/:id",
+    "file": "subjects.routes.ts"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/api/subjects/:id",
+    "file": "subjects.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/system/clear-data",
+    "file": "system.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/system/seed-demo-data",
+    "file": "system.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/timeline",
+    "file": "timeline.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/timeline/summary",
+    "file": "timeline.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/unknown",
+    "file": "curriculum-versions.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/unknown",
+    "file": "curriculum-versions.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/unknown",
+    "file": "feedback-template.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/unknown",
+    "file": "feedback-template.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/unknown",
+    "file": "teacher-feedback.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/unknown/:id",
+    "file": "feedback-template.routes.ts"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/api/unknown/:id",
+    "file": "feedback-template.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/unknown/:id",
+    "file": "teacher-feedback.routes.ts"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/api/unknown/:id",
+    "file": "teacher-feedback.routes.ts"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/api/unknown/:id",
+    "file": "teacher-feedback.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/unknown/:id/approve",
+    "file": "teacher-feedback.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/unknown/:id/lock",
+    "file": "teacher-feedback.routes.ts"
+  },
+  {
+    "method": "PATCH",
+    "endpoint": "/api/unknown/:id/status",
+    "file": "feedback-template.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/unknown/:id/submit",
+    "file": "teacher-feedback.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/unknown/co-po-mappings",
+    "file": "bulk.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/unknown/college",
+    "file": "feedback-analytics.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/unknown/course-outcomes",
+    "file": "bulk.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/unknown/department/:departmentId",
+    "file": "feedback-analytics.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/unknown/groups",
+    "file": "messaging.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/unknown/groups",
+    "file": "messaging.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/unknown/groups/:groupId/messages",
+    "file": "messaging.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/unknown/groups/:groupId/messages",
+    "file": "messaging.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/unknown/pending-approvals",
+    "file": "teacher-feedback.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/unknown/program-outcomes",
+    "file": "bulk.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/unknown/recalculate",
+    "file": "feedback-analytics.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/unknown/student/:studentId",
+    "file": "feedback-analytics.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/unknown/student/:studentId",
+    "file": "teacher-feedback.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/unknown/teacher-assignments",
+    "file": "bulk.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/unknown/teacher/me",
+    "file": "teacher-feedback.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/users",
+    "file": "users.routes.ts"
+  },
+  {
+    "method": "POST",
+    "endpoint": "/api/users",
+    "file": "users.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/users/:id",
+    "file": "users.routes.ts"
+  },
+  {
+    "method": "PUT",
+    "endpoint": "/api/users/:id",
+    "file": "users.routes.ts"
+  },
+  {
+    "method": "DELETE",
+    "endpoint": "/api/users/:id",
+    "file": "users.routes.ts"
+  },
+  {
+    "method": "GET",
+    "endpoint": "/api/users/teachers",
+    "file": "users.routes.ts"
+  }
+]

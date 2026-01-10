@@ -55,9 +55,12 @@ async function main() {
 
         // 6. User Data
         console.log('Deleting Users & Logs...');
-        await prisma.messageGroupMember.deleteMany({});
+        await prisma.messageReadReceipt.deleteMany({});
+        await prisma.messageAttachment.deleteMany({});
+        await prisma.conversationParticipant.deleteMany({});
         await prisma.message.deleteMany({});
-        await prisma.messageGroup.deleteMany({});
+        await prisma.conversation.deleteMany({});
+        await prisma.userPresence.deleteMany({});
 
         // Nullify circular references before deletion if any (e.g., department.hodId)
         // Usually handled by ON DELETE SET NULL but Prisma might need manual help if strict

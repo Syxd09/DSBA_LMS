@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../services/db'; // BUG-013 FIX: Use shared singleton
 
 // Extend Request to include user from auth middleware
 export interface AuthRequest extends Request {

@@ -37,7 +37,7 @@ async function main() {
         console.log('Note: Some tables might be empty or missing, continuing...', e.message);
     }
 
-    const hashedPassword = await bcrypt.hash('password123', 10);
+    const hashedPassword = await bcrypt.hash('password', 10);
 
     // 2. Create Departments
     console.log('Creating departments...');
@@ -134,7 +134,7 @@ async function main() {
             code: 'BCA',
             departmentId: cse.id,
             durationYears: 3,
-            outcomes: {
+            programOutcomes: {
                 create: [
                     { poNumber: 1, description: 'Knowledge Application', targetPercent: 60 },
                     { poNumber: 2, description: 'Problem Analysis', targetPercent: 60 },
@@ -186,7 +186,6 @@ async function main() {
             code: 'MATH101',
             credits: 4,
             semester: 1,
-            curriculumVersionId: curriculum.id,
             curriculumVersionId: curriculum.id
         }
     });

@@ -3,6 +3,7 @@ import { useFeedback } from '@/contexts/FeedbackContext';
 import { useNavigate } from 'react-router-dom';
 import {
   FeedbackTemplate,
+  FeedbackTemplateCategory,
   TeacherStudentFeedback,
   FeedbackInput,
   CategoryRatingInput
@@ -53,12 +54,10 @@ export function FeedbackForm({
   const [categoryRatings, setCategoryRatings] = useState<Map<string, number>>(new Map());
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-  // Load templates on mount (only in create mode)
+  // Load templates on mount
   useEffect(() => {
-    if (mode === 'create') {
-      fetchTemplates();
-    }
-  }, [mode, fetchTemplates]);
+    fetchTemplates();
+  }, [fetchTemplates]);
 
   // Initialize category ratings from existing feedback
   useEffect(() => {
@@ -71,7 +70,16 @@ export function FeedbackForm({
     }
   }, [feedback]);
 
-  const selectedTemplate = templates.find(t => t.id === selectedTemplateId) || feedback?.template;
+  const selectedTemplate = (templates.find(t => t.id === selectedTemplateId) || feedback?.template) as FeedbackTemplate | undefined;
+  
+  // Derived categories list for robust display and validation
+  const categories = selectedTemplate?.categories || 
+    (feedback?.categoryRatings?.map(cr => cr.category).filter(Boolean).map(c => ({
+      ...c,
+      templateId: feedback?.templateId || '',
+      createdAt: feedback?.createdAt || ''
+    })) as FeedbackTemplateCategory[]) || [];
+
   const isReadOnly = mode === 'view' || (feedback && feedback.status !== 'DRAFT');
   const isDraft = feedback?.status === 'DRAFT';
 
@@ -91,8 +99,8 @@ export function FeedbackForm({
       errors.push('Review text must be at least 10 characters');
     }
 
-    if (selectedTemplate) {
-      selectedTemplate.categories.forEach(category => {
+    if (categories.length > 0) {
+      categories.forEach(category => {
         const rating = categoryRatings.get(category.id);
         if (!rating || rating < 1 || rating > 5) {
           errors.push(`Rating required for category: ${category.name}`);
@@ -111,7 +119,7 @@ export function FeedbackForm({
     clearError();
     
     try {
-      const categoryRatingsArray: CategoryRatingInput[] = selectedTemplate.categories.map(category => ({
+      const categoryRatingsArray: CategoryRatingInput[] = categories.map(category => ({
         categoryId: category.id,
         rating: categoryRatings.get(category.id) || 0
       }));
@@ -320,7 +328,7 @@ export function FeedbackForm({
       </Card>
 
       {/* Category Ratings */}
-      {selectedTemplate && selectedTemplate.categories.length > 0 && (
+      {categories.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Category Ratings</CardTitle>
@@ -328,7 +336,7 @@ export function FeedbackForm({
           </CardHeader>
           <CardContent>
             <CategoryRatings
-              categories={selectedTemplate.categories}
+              categories={categories}
               ratings={categoryRatings}
               onChange={handleCategoryRatingChange}
               disabled={isReadOnly}

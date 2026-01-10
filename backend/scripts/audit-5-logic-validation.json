@@ -1,0 +1,28 @@
+{
+  "issues": [
+    {
+      "severity": "WARNING",
+      "file": "controllers\\attainment.controller.ts",
+      "issue": "CO attainment calculation not found",
+      "category": "CO Attainment"
+    },
+    {
+      "severity": "WARNING",
+      "file": "services\\attainment.service.ts",
+      "issue": "CO attainment calculation not found",
+      "category": "CO Attainment"
+    },
+    {
+      "severity": "WARNING",
+      "file": "controllers/marks.controller.ts",
+      "issue": "No null coalescing for marks - null values may break calculations",
+      "category": "Marks Aggregation"
+    }
+  ],
+  "summary": {
+    "total": 3,
+    "errors": 0,
+    "warnings": 3,
+    "info": 0
+  }
+}

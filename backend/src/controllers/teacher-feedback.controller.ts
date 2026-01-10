@@ -2,8 +2,9 @@ import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/feedback-rbac.middleware';
 import { logAudit, logViolation, getIpAddress, getUserAgent } from '../utils/audit';
-
-const prisma = new PrismaClient();
+import { auditService } from '../services/transactional-audit.service';
+import { buildAuditData } from '../utils/audit-helpers';
+import prisma from '../services/db'; // BUG-013 FIX: Use shared singleton
 
 /**
  * Helper: Enforce immutability - only DRAFT can be edited
@@ -417,7 +418,8 @@ export const submitFeedback = async (req: AuthRequest, res: Response) => {
             });
         }
 
-        // Transaction: DRAFT → SUBMITTED + Audit
+        // Transaction: DRAFT → SUBMITTED + MANDATORY Audit
+        // GOVERNANCE: If audit fails, entire transaction rolls back (GUARANTEED logging)
         const updated = await prisma.$transaction(async (tx) => {
             const result = await tx.teacherStudentFeedback.update({
                 where: { id },
@@ -432,17 +434,19 @@ export const submitFeedback = async (req: AuthRequest, res: Response) => {
                 }
             });
 
-            await logAudit(tx, {
-                action: 'SUBMIT',
-                entityType: 'TeacherStudentFeedback',
-                entityId: id,
-                userId: user.id,
-                description: 'Feedback submitted for approval',
-                oldValue: { status: 'DRAFT' },
-                newValue: { status: 'SUBMITTED', submittedAt: result.submittedAt },
-                ipAddress: getIpAddress(req),
-                userAgent: getUserAgent(req)
-            });
+            // MANDATORY AUDIT: If this fails, entire SUBMIT action rolls back
+            await auditService.logCritical(tx, buildAuditData(
+                req,
+                'SUBMIT',
+                'TeacherStudentFeedback',
+                id,
+                {
+                    userId: user.id,
+                    description: 'Feedback submitted for approval',
+                    oldValue: { status: 'DRAFT' },
+                    newValue: { status: 'SUBMITTED', submittedAt: result.submittedAt }
+                }
+            ));
 
             return result;
         });
@@ -499,7 +503,8 @@ export const approveFeedback = async (req: AuthRequest, res: Response) => {
             });
         }
 
-        // Transaction: SUBMITTED → APPROVED + Audit
+        // Transaction: SUBMITTED → APPROVED + MANDATORY Audit
+        // GOVERNANCE: If audit fails, entire transaction rolls back (GUARANTEED logging)
         const updated = await prisma.$transaction(async (tx) => {
             const result = await tx.teacherStudentFeedback.update({
                 where: { id },
@@ -510,17 +515,19 @@ export const approveFeedback = async (req: AuthRequest, res: Response) => {
                 }
             });
 
-            await logAudit(tx, {
-                action: 'APPROVE',
-                entityType: 'TeacherStudentFeedback',
-                entityId: id,
-                userId: user.id,
-                description: `Feedback approved by ${user.role}`,
-                oldValue: { status: 'SUBMITTED' },
-                newValue: { status: 'APPROVED', approvedBy: user.id, approvedAt: result.approvedAt },
-                ipAddress: getIpAddress(req),
-                userAgent: getUserAgent(req)
-            });
+            // MANDATORY AUDIT: If this fails, entire APPROVE action rolls back
+            await auditService.logCritical(tx, buildAuditData(
+                req,
+                'APPROVE',
+                'TeacherStudentFeedback',
+                id,
+                {
+                    userId: user.id,
+                    description: `Feedback approved by ${user.role}`,
+                    oldValue: { status: 'SUBMITTED' },
+                    newValue: { status: 'APPROVED', approvedBy: user.id, approvedAt: result.approvedAt }
+                }
+            ));
 
             return result;
         });
@@ -577,7 +584,8 @@ export const lockFeedback = async (req: AuthRequest, res: Response) => {
             });
         }
 
-        // Transaction: APPROVED → LOCKED (PERMANENT) + Audit
+        // Transaction: APPROVED → LOCKED (PERMANENT) + MANDATORY Audit
+        // GOVERNANCE: If audit fails, entire transaction rolls back (GUARANTEED logging)
         const updated = await prisma.$transaction(async (tx) => {
             const result = await tx.teacherStudentFeedback.update({
                 where: { id },
@@ -587,17 +595,20 @@ export const lockFeedback = async (req: AuthRequest, res: Response) => {
                 }
             });
 
-            await logAudit(tx, {
-                action: 'LOCK',
-                entityType: 'TeacherStudentFeedback',
-                entityId: id,
-                userId: user.id,
-                description: 'Feedback locked permanently - NAAC evidence frozen',
-                oldValue: { status: 'APPROVED' },
-                newValue: { status: 'LOCKED', lockedAt: result.lockedAt },
-                ipAddress: getIpAddress(req),
-                userAgent: getUserAgent(req)
-            });
+            // MANDATORY AUDIT: If this fails, entire LOCK action rolls back
+            // This ensures zero audit gaps for governance-critical actions
+            await auditService.logCritical(tx, buildAuditData(
+                req,
+                'LOCK',
+                'TeacherStudentFeedback',
+                id,
+                {
+                    userId: user.id,
+                    description: 'Feedback locked permanently - NAAC evidence frozen',
+                    oldValue: { status: 'APPROVED' },
+                    newValue: { status: 'LOCKED', lockedAt: result.lockedAt }
+                }
+            ));
 
             return result;
         });
@@ -813,8 +824,8 @@ export const getPendingApprovals = async (req: AuthRequest, res: Response) => {
 
 /**
  * @route   DELETE /api/teacher-feedback/:id
- * @desc    Delete feedback (DRAFT ONLY)
- * @access  Teacher (owner DRAFT), Admin (any status)
+ * @desc    Delete feedback (DRAFT ONLY - preserves audit trail)
+ * @access  Teacher (owner DRAFT), Admin (DRAFT only)
  */
 export const deleteFeedback = async (req: AuthRequest, res: Response) => {
     try {
@@ -826,11 +837,37 @@ export const deleteFeedback = async (req: AuthRequest, res: Response) => {
 
         const { id } = req.params;
 
-        // Admin can delete any feedback
-        if (user.role !== 'ADMIN') {
-            // Teachers can only delete DRAFT feedback
-            await enforceImmutability(id, user.id, user.role);
+        // Get feedback to check status
+        const feedback = await prisma.teacherStudentFeedback.findUnique({
+            where: { id }
+        });
+
+        if (!feedback) {
+            return res.status(404).json({ message: 'Feedback not found' });
         }
+
+        // GOVERNANCE: LOCKED feedback CANNOT be deleted (even by admin) - preserves NAAC audit trail
+        if (feedback.status === 'LOCKED') {
+            return res.status(403).json({
+                message: 'Cannot delete LOCKED feedback. LOCKED status is permanent for governance compliance.',
+                code: 'LOCKED_IMMUTABLE'
+            });
+        }
+
+        // Teachers can only delete own DRAFT feedback
+        if (user.role === 'TEACHER') {
+            if (feedback.teacherId !== user.id) {
+                return res.status(403).json({ message: 'You can only delete your own feedback' });
+            }
+            if (feedback.status !== 'DRAFT') {
+                return res.status(403).json({
+                    message: `Cannot delete feedback in ${feedback.status} status. Only DRAFT feedback can be deleted.`
+                });
+            }
+        }
+
+        // Admin can delete non-LOCKED feedback (DRAFT, SUBMITTED, APPROVED)
+        // but NOT LOCKED (preserves audit trail)
 
         await prisma.teacherStudentFeedback.delete({
             where: { id }

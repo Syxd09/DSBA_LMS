@@ -12,138 +12,175 @@ interface POResult {
 
 export const AttainmentService = {
     /**
-     * Calculate Course Outcome (CO) Attainment
-     * Iterates through all exams, questions, and marks for a cohort/subject.
+     * HIGH-PERFORMANCE Course Outcome (CO) Attainment Calculation
+     * Uses bulk data fetching and in-memory map aggregation for O(1) lookups.
+     * 
+     * Performance: 3 database queries regardless of student count  
+     * Target: < 2 seconds for 2000 students
      */
     async calculateCO(subjectId: string, cohortId: string, semester: number, academicYear: string, targetPercent: number = 60) {
-        console.log(`Calculating CO Attainment for Subject: ${subjectId}, Cohort: ${cohortId}`);
+        console.log(`[ATTAINMENT] Starting optimized CO calculation for Subject: ${subjectId}, Cohort: ${cohortId}`);
+        const startTime = Date.now();
 
-        // 1. Get Course Outcomes
-        const courseOutcomes = await prisma.courseOutcome.findMany({
-            where: { subjectId },
-            orderBy: { coNumber: 'asc' }
-        });
+        // ============================================
+        // QUERY 1: Get Course Outcomes and Students
+        // ============================================
+        const [courseOutcomes, enrollments] = await Promise.all([
+            prisma.courseOutcome.findMany({
+                where: { subjectId },
+                orderBy: { coNumber: 'asc' },
+                select: { id: true, coNumber: true, description: true }
+            }),
+            prisma.studentEnrollment.findMany({
+                where: { cohortId, semester },
+                select: { studentId: true }
+            })
+        ]);
 
-        if (courseOutcomes.length === 0) throw new Error('No Course Outcomes found for this subject');
+        if (courseOutcomes.length === 0) {
+            throw new Error('No Course Outcomes found for this subject');
+        }
 
-        // 2. Get Students
-        const enrollments = await prisma.studentEnrollment.findMany({
-            where: { cohortId, semester },
-            select: { studentId: true }
-        });
         const studentIds = enrollments.map(e => e.studentId);
         const totalStudents = studentIds.length;
 
-        if (totalStudents === 0) throw new Error('No students enrolled for this cohort/semester');
+        if (totalStudents === 0) {
+            throw new Error('No students enrolled for this cohort/semester');
+        }
 
-        // 3. Get Exams & Marks
-        // Optimization: Fetch only necessary fields
-        const exams = await prisma.exam.findMany({
-            where: { subjectId, cohortId, status: 'PUBLISHED' },
-            include: {
-                sections: {
-                    include: {
-                        questions: {
-                            include: {
-                                subQuestions: true
-                            }
+        console.log(`[ATTAINMENT] Found ${courseOutcomes.length} COs and ${totalStudents} students`);
+
+        // ============================================
+        // QUERY 2: Bulk fetch ALL marks for ALL students
+        // ============================================
+        const marks = await prisma.studentMark.findMany({
+            where: {
+                exam: {
+                    subjectId,
+                    cohortId,
+                    status: 'PUBLISHED'
+                },
+                studentId: { in: studentIds }
+            },
+            select: {
+                studentId: true,
+                marks: true,
+                subQuestion: {
+                    select: {
+                        id: true,
+                        maxMarks: true,
+                        coId: true,
+                        question: {
+                            select: { coId: true }
                         }
                     }
                 }
             }
         });
 
+        console.log(`[ATTAINMENT] Fetched ${marks.length} marks in bulk`);
+
+        // ============================================
+        // IN-MEMORY MAP AGGREGATION (O(1) lookups)
+        // ============================================
+
+        // Build map of marks by student and CO
+        const studentCOScores = new Map<string, Map<string, { scored: number; max: number }>>();
+
+        // Initialize for all students and COs
+        for (const studentId of studentIds) {
+            const coScores = new Map<string, { scored: number; max: number }>();
+            for (const co of courseOutcomes) {
+                coScores.set(co.id, { scored: 0, max: 0 });
+            }
+            studentCOScores.set(studentId, coScores);
+        }
+
+        // Aggregate marks into maps
+        for (const mark of marks) {
+            const studentScores = studentCOScores.get(mark.studentId);
+            if (!studentScores) continue; // Safety check
+
+            // Determine which CO this mark belongs to (sub-question CO takes precedence)
+            const coId = mark.subQuestion.coId || mark.subQuestion.question.coId;
+            if (!coId) continue; // Skip if no CO mapping
+
+            const coScore = studentScores.get(coId);
+            if (coScore) {
+                coScore.scored += Number(mark.marks || 0);
+                coScore.max += mark.subQuestion.maxMarks;
+            }
+        }
+
+        console.log(`[ATTAINMENT] Aggregated marks into in-memory maps`);
+
+        // ============================================
+        // QUERY 3: Batch upsert all CO attainments
+        // ============================================
         const results = [];
+        const upsertPromises = [];
 
-        // 4. Calculate per CO
         for (const co of courseOutcomes) {
-            let studentScores: Record<string, { scored: number; max: number }> = {};
+            // Calculate pass count for this CO
+            let passCount = 0;
 
-            // Initialize scores
-            studentIds.forEach(id => {
-                studentScores[id] = { scored: 0, max: 0 };
-            });
+            for (const studentId of studentIds) {
+                const studentScores = studentCOScores.get(studentId);
+                const coScore = studentScores?.get(co.id);
 
-            // Aggregate Marks
-            for (const exam of exams) {
-                for (const section of exam.sections) {
-                    for (const question of section.questions) {
-                        const relevantSubQuestions = question.subQuestions.filter(
-                            sq => sq.coId === co.id || question.coId === co.id
-                        );
-
-                        for (const sq of relevantSubQuestions) {
-                            // Fetch all marks for this subquestion in one go (batched by studentIds)
-                            const marks = await prisma.studentMark.findMany({
-                                where: {
-                                    examId: exam.id,
-                                    subQuestionId: sq.id,
-                                    studentId: { in: studentIds }
-                                }
-                            });
-
-                            // Add to totals
-                            marks.forEach(mark => {
-                                if (studentScores[mark.studentId]) {
-                                    studentScores[mark.studentId].scored += Number(mark.marks);
-                                    studentScores[mark.studentId].max += sq.maxMarks;
-                                }
-                            });
-
-                            // For students who didn't attempt, we still add max marks to their potential total?
-                            // Usually if absent/not attempted, it counts as 0 scored but max marks still exist.
-                            // The above loop only finds *existing* marks. 
-                            // We need to ensure max marks are added for ALL students even if they have no mark entry (absent).
-                            studentIds.forEach(sid => {
-                                // If we rely strictly on 'marks' existing, we miss absent students.
-                                // Correct logic: Always add max marks to denominator.
-                                if (studentScores[sid]) {
-                                    studentScores[sid].max += sq.maxMarks;
-                                }
-                            });
-                        }
+                if (coScore && coScore.max > 0) {
+                    const percentage = (coScore.scored / coScore.max) * 100;
+                    if (percentage >= targetPercent) {
+                        passCount++;
                     }
                 }
             }
 
-            // Calculate Pass Count
-            let passCount = 0;
-            Object.values(studentScores).forEach(score => {
-                if (score.max > 0) {
-                    const percentage = (score.scored / score.max) * 100;
-                    if (percentage >= targetPercent) passCount++;
-                }
-            });
-
             const achievedPercent = totalStudents > 0 ? (passCount / totalStudents) * 100 : 0;
 
-            // Upsert result
-            const attainment = await prisma.cOAttainment.upsert({
-                where: {
-                    subjectId_cohortId_coId_semester_academicYear: {
-                        subjectId, cohortId, coId: co.id, semester, academicYear
-                    }
-                },
-                update: {
-                    targetPercent,
-                    achievedPercent,
-                    studentCount: totalStudents,
-                    passCount,
-                    status: 'CALCULATED',
-                    calculatedAt: new Date()
-                },
-                create: {
-                    subjectId, cohortId, coId: co.id, semester, academicYear,
-                    targetPercent, achievedPercent, studentCount: totalStudents, passCount,
-                    status: 'CALCULATED', calculatedAt: new Date()
-                },
-                include: { co: true }
-            });
-
-            results.push(attainment);
+            // Batch upsert
+            upsertPromises.push(
+                prisma.cOAttainment.upsert({
+                    where: {
+                        subjectId_cohortId_coId_semester_academicYear: {
+                            subjectId, cohortId, coId: co.id, semester, academicYear
+                        }
+                    },
+                    update: {
+                        targetPercent,
+                        achievedPercent: Number(achievedPercent.toFixed(2)),
+                        studentCount: totalStudents,
+                        passCount,
+                        status: 'CALCULATED',
+                        calculatedAt: new Date()
+                    },
+                    create: {
+                        subjectId,
+                        cohortId,
+                        coId: co.id,
+                        semester,
+                        academicYear,
+                        targetPercent,
+                        achievedPercent: Number(achievedPercent.toFixed(2)),
+                        studentCount: totalStudents,
+                        passCount,
+                        status: 'CALCULATED',
+                        calculatedAt: new Date()
+                    },
+                    include: { co: true }
+                })
+            );
         }
 
-        return results;
+        // Execute all upserts in transaction
+        const attainments = await prisma.$transaction(upsertPromises);
+
+        const duration = Date.now() - startTime;
+        console.log(`[ATTAINMENT] ✅ Calculation complete in ${duration}ms`);
+        console.log(`[ATTAINMENT] Performance: ${totalStudents} students, ${courseOutcomes.length} COs`);
+        console.log(`[ATTAINMENT] Speed: ${(duration / totalStudents).toFixed(2)}ms per student`);
+
+        return attainments;
     },
 
     /**

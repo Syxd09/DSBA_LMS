@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import compression from 'compression';
 const timeout = require('express-timeout-handler');
+import { apiLimiter, authLimiter, calculationLimiter } from './middleware/rate-limit.middleware';
 
 const app = express();
 
@@ -60,6 +61,7 @@ app.use(cors(corsOptions));
 app.use(helmet());
 
 import requestLogger from './middleware/request-logger.middleware';
+import { databaseErrorHandler } from './middleware/database-error.middleware';
 
 // Logging - Structured (Winston)
 app.use(requestLogger);
@@ -70,24 +72,8 @@ if (process.env.NODE_ENV !== 'production') {
     app.use(morgan('dev'));
 }
 
-// Rate Limiting - General API (relaxed for development)
-const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'production' ? 100 : 10000, // Dev: 10000, Prod: 100 requests
-    message: { message: 'Too many requests, please try again later' },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
-// Rate Limiting - Strict for auth routes
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'production' ? 5 : 100, // Dev: 100, Prod: 5 login attempts
-    skipSuccessfulRequests: true, // Don't count successful logins
-    message: { message: 'Too many login attempts, please try again in 15 minutes' },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
+// Rate limiters are imported from ./middleware/rate-limit.middleware
+// (apiLimiter, authLimiter, calculationLimiter)
 
 // Health check endpoint (before rate limiting)
 app.get('/health', (req, res) => {
@@ -123,6 +109,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import approvalRoutes from './routes/approvals.routes';
 import feedbackRoutes from './routes/feedback.routes';
 import messagingRoutes from './routes/messaging.routes';
+import healthRoutes from './routes/health.routes';
 import departmentRoutes from './routes/departments.routes';
 import programRoutes from './routes/programs.routes';
 import subjectRoutes from './routes/subjects.routes';
@@ -154,6 +141,9 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/approvals', approvalRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/messaging', messagingRoutes);
+
+// Health check routes (always accessible, even without database)
+app.use('/api', healthRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/programs', programRoutes);
 app.use('/api/subjects', subjectRoutes);
@@ -198,6 +188,9 @@ app.get('/', (req, res) => {
 app.use((req, res) => {
     res.status(404).json({ message: 'Endpoint not found' });
 });
+
+// Database error handler (must be before global error handler)
+app.use(databaseErrorHandler);
 
 // Global error handler
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

@@ -17,6 +17,7 @@ import {
   PolarAngleAxis, PolarRadiusAxis, Radar
 } from 'recharts';
 import api from '@/lib/api';
+import { useActiveSemesters } from '@/hooks/use-active-semesters';
 
 interface POAttainment {
   id: string;
@@ -87,6 +88,10 @@ export default function POAttainmentDashboard() {
       return data || [];
     },
   });
+
+  // Fetch active semesters - routes confirmed mounted
+  const { data: activeSemestersData } = useActiveSemesters(selectedCohort);
+  const activeSemesters = activeSemestersData?.semesters || [];
 
   // Fetch PO Attainment data
   const { data: poData, isLoading, error } = useQuery<{ success: boolean; data: POAttainment[] }>({
@@ -185,19 +190,25 @@ export default function POAttainmentDashboard() {
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">Semester (Optional)</label>
+                <label className="text-sm font-medium mb-2 block">Semester (Smart Filter)</label>
                 <Select value={selectedSemester || undefined} onValueChange={setSelectedSemester}>
                   <SelectTrigger>
-                    <SelectValue placeholder="All semesters" />
+                    <SelectValue placeholder={selectedCohort ? "Select semester" : "All semesters"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
+                    {(selectedCohort && activeSemesters.length > 0 
+                      ? activeSemesters 
+                      : [1, 2, 3, 4, 5, 6, 7, 8]
+                    ).map(sem => (
                       <SelectItem key={sem} value={sem.toString()}>
                         Semester {sem}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedCohort && activeSemesters.length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">No students enrolled yet</p>
+                )}
               </div>
 
               <div>

@@ -8,10 +8,10 @@ const router = Router();
 router.use(authenticateToken);
 
 router.get('/rules', getGradingRules);
-router.get('/final-marks', getFinalMarks);
-router.post('/calculate', requireRole(['HOD', 'PRINCIPAL', 'ADMIN']), calculateGrades);
-router.get('/semester-results/:studentId', getSemesterResults);
-router.post('/calculate-sgpa', requireRole(['HOD', 'PRINCIPAL', 'ADMIN']), calculateSGPA);
-router.put('/final-marks/:id/feedback', requireRole(['TEACHER', 'HOD', 'PRINCIPAL']), updateFeedback);
+router.get('/final-marks', requireRole('ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER'), getFinalMarks);
+router.post('/calculate', requireRole('ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER'), calculateGrades);
+router.get('/semester-results/:studentId', requireRole('ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER', 'STUDENT'), getSemesterResults);
+router.post('/calculate-sgpa', requireRole('ADMIN', 'PRINCIPAL', 'HOD'), calculateSGPA);
+router.put('/final-marks/:id/feedback', requireRole('TEACHER', 'HOD', 'PRINCIPAL'), updateFeedback);
 
 export default router;

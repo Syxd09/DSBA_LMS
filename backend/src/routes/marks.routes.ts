@@ -7,11 +7,11 @@ const router = Router();
 
 router.use(authenticateToken);
 
-router.post('/save', requireRole(['TEACHER', 'HOD', 'PRINCIPAL']), saveMarks);
-router.post('/submit', requireRole(['TEACHER']), submitMarksForApproval);
-router.get('/:examId', requireRole(['TEACHER', 'HOD', 'PRINCIPAL']), getMarks);
-router.get('/:examId/csv-template', requireRole(['TEACHER', 'HOD', 'PRINCIPAL']), getCSVTemplate);
-router.post('/:examId/bulk-upload', requireRole(['TEACHER', 'HOD', 'PRINCIPAL']), bulkUploadMarks); // Add GET route
+router.post('/save', requireRole('TEACHER', 'HOD', 'PRINCIPAL'), saveMarks);
+router.post('/submit-approval', requireRole('TEACHER', 'HOD'), submitMarksForApproval);
+router.get('/:examId', requireRole('TEACHER', 'HOD', 'PRINCIPAL'), getMarks);
+router.get('/:examId/csv-template', requireRole('TEACHER', 'HOD', 'PRINCIPAL'), getCSVTemplate);
+router.post('/:examId/bulk-upload', requireRole('TEACHER', 'HOD', 'PRINCIPAL'), bulkUploadMarks);
 
 console.log('DEBUG: Marks routes loaded');
 

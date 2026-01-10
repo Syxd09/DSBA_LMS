@@ -50,7 +50,7 @@ export default function Auth() {
     const { error } = await signIn(email, password);
     
     if (error) {
-      const msg = error.message || 'An unexpected error occurred';
+      const msg = error?.message || String(error) || 'An unexpected error occurred';
       if (msg.includes('Invalid login credentials')) {
         setError('Invalid email or password. Please try again.');
       } else {
@@ -92,10 +92,11 @@ export default function Auth() {
     const { error } = await signUp(email, password, fullName);
     
     if (error) {
-      if (error.message.includes('already registered')) {
+      const msg = error?.message || String(error) || 'Registration failed';
+      if (msg.includes('already registered')) {
         setError('This email is already registered. Please sign in instead.');
       } else {
-        setError(error.message);
+        setError(msg);
       }
       setIsLoading(false);
       return;

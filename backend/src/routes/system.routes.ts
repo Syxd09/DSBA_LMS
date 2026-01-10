@@ -9,6 +9,6 @@ const router = Router();
 router.post('/seed-demo-data', seedDemoData);
 
 // Clear all data - admin only (requires auth)
-router.post('/clear-data', authenticateToken, requireRole(['ADMIN']), clearAllData);
+router.post('/clear-data', authenticateToken, requireRole('ADMIN'), clearAllData);
 
 export default router;

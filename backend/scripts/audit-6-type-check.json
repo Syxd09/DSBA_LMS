@@ -1,0 +1,412 @@
+{
+  "issues": [
+    {
+      "severity": "WARNING",
+      "interface": "AuditLog",
+      "field": "newData",
+      "issue": "Field typed as 'any' - lose type safety",
+      "category": "Type Safety"
+    },
+    {
+      "severity": "WARNING",
+      "interface": "AuditLog",
+      "field": "oldData",
+      "issue": "Field typed as 'any' - lose type safety",
+      "category": "Type Safety"
+    },
+    {
+      "severity": "INFO",
+      "interface": "AuditLog",
+      "field": "createdAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "Exam",
+      "field": "examDate",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "WARNING",
+      "interface": "Profile",
+      "field": "full_name",
+      "issue": "Field uses snake_case instead of camelCase - API mismatch likely",
+      "category": "Naming Convention"
+    },
+    {
+      "severity": "WARNING",
+      "interface": "MarksEntryGridProps",
+      "field": "sub_question_id",
+      "issue": "Field uses snake_case instead of camelCase - API mismatch likely",
+      "category": "Naming Convention"
+    },
+    {
+      "severity": "WARNING",
+      "interface": "UserProfile",
+      "field": "user_id",
+      "issue": "Field uses snake_case instead of camelCase - API mismatch likely",
+      "category": "Naming Convention"
+    },
+    {
+      "severity": "WARNING",
+      "interface": "UserProfile",
+      "field": "full_name",
+      "issue": "Field uses snake_case instead of camelCase - API mismatch likely",
+      "category": "Naming Convention"
+    },
+    {
+      "severity": "WARNING",
+      "interface": "CourseOutcome",
+      "field": "program_id",
+      "issue": "Field uses snake_case instead of camelCase - API mismatch likely",
+      "category": "Naming Convention"
+    },
+    {
+      "severity": "WARNING",
+      "interface": "CourseOutcome",
+      "field": "subject_id",
+      "issue": "Field uses snake_case instead of camelCase - API mismatch likely",
+      "category": "Naming Convention"
+    },
+    {
+      "severity": "INFO",
+      "interface": "StudentEnrollment",
+      "field": "createdAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "Department",
+      "field": "createdAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "FeedbackTemplate",
+      "field": "createdAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "FeedbackTemplate",
+      "field": "updatedAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "FeedbackTemplateCategory",
+      "field": "createdAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "TeacherStudentFeedback",
+      "field": "submittedAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "TeacherStudentFeedback",
+      "field": "approvedAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "TeacherStudentFeedback",
+      "field": "lockedAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "TeacherStudentFeedback",
+      "field": "createdAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "TeacherStudentFeedback",
+      "field": "updatedAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "SemesterResult",
+      "field": "createdAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "ApprovalRequest",
+      "field": "createdAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "Feedback",
+      "field": "createdAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "MessageGroup",
+      "field": "createdAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "INFO",
+      "interface": "Message",
+      "field": "createdAt",
+      "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+      "category": "Date Handling"
+    },
+    {
+      "severity": "WARNING",
+      "interface": "api.types.ts",
+      "field": "N/A",
+      "issue": "No Exam type definition found in api.types.ts",
+      "category": "Missing Types"
+    },
+    {
+      "severity": "WARNING",
+      "interface": "api.types.ts",
+      "field": "N/A",
+      "issue": "No Student type definition found in api.types.ts",
+      "category": "Missing Types"
+    },
+    {
+      "severity": "WARNING",
+      "interface": "api.types.ts",
+      "field": "N/A",
+      "issue": "No CourseOutcome type definition found in api.types.ts",
+      "category": "Missing Types"
+    }
+  ],
+  "summary": {
+    "total": 28,
+    "errors": 0,
+    "warnings": 11,
+    "info": 17
+  },
+  "byCategory": {
+    "Type Safety": [
+      {
+        "severity": "WARNING",
+        "interface": "AuditLog",
+        "field": "newData",
+        "issue": "Field typed as 'any' - lose type safety",
+        "category": "Type Safety"
+      },
+      {
+        "severity": "WARNING",
+        "interface": "AuditLog",
+        "field": "oldData",
+        "issue": "Field typed as 'any' - lose type safety",
+        "category": "Type Safety"
+      }
+    ],
+    "Date Handling": [
+      {
+        "severity": "INFO",
+        "interface": "AuditLog",
+        "field": "createdAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "Exam",
+        "field": "examDate",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "StudentEnrollment",
+        "field": "createdAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "Department",
+        "field": "createdAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "FeedbackTemplate",
+        "field": "createdAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "FeedbackTemplate",
+        "field": "updatedAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "FeedbackTemplateCategory",
+        "field": "createdAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "TeacherStudentFeedback",
+        "field": "submittedAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "TeacherStudentFeedback",
+        "field": "approvedAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "TeacherStudentFeedback",
+        "field": "lockedAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "TeacherStudentFeedback",
+        "field": "createdAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "TeacherStudentFeedback",
+        "field": "updatedAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "SemesterResult",
+        "field": "createdAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "ApprovalRequest",
+        "field": "createdAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "Feedback",
+        "field": "createdAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "MessageGroup",
+        "field": "createdAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      },
+      {
+        "severity": "INFO",
+        "interface": "Message",
+        "field": "createdAt",
+        "issue": "Date field typed as 'string' - should be 'Date' or 'string' with clarification",
+        "category": "Date Handling"
+      }
+    ],
+    "Naming Convention": [
+      {
+        "severity": "WARNING",
+        "interface": "Profile",
+        "field": "full_name",
+        "issue": "Field uses snake_case instead of camelCase - API mismatch likely",
+        "category": "Naming Convention"
+      },
+      {
+        "severity": "WARNING",
+        "interface": "MarksEntryGridProps",
+        "field": "sub_question_id",
+        "issue": "Field uses snake_case instead of camelCase - API mismatch likely",
+        "category": "Naming Convention"
+      },
+      {
+        "severity": "WARNING",
+        "interface": "UserProfile",
+        "field": "user_id",
+        "issue": "Field uses snake_case instead of camelCase - API mismatch likely",
+        "category": "Naming Convention"
+      },
+      {
+        "severity": "WARNING",
+        "interface": "UserProfile",
+        "field": "full_name",
+        "issue": "Field uses snake_case instead of camelCase - API mismatch likely",
+        "category": "Naming Convention"
+      },
+      {
+        "severity": "WARNING",
+        "interface": "CourseOutcome",
+        "field": "program_id",
+        "issue": "Field uses snake_case instead of camelCase - API mismatch likely",
+        "category": "Naming Convention"
+      },
+      {
+        "severity": "WARNING",
+        "interface": "CourseOutcome",
+        "field": "subject_id",
+        "issue": "Field uses snake_case instead of camelCase - API mismatch likely",
+        "category": "Naming Convention"
+      }
+    ],
+    "Missing Types": [
+      {
+        "severity": "WARNING",
+        "interface": "api.types.ts",
+        "field": "N/A",
+        "issue": "No Exam type definition found in api.types.ts",
+        "category": "Missing Types"
+      },
+      {
+        "severity": "WARNING",
+        "interface": "api.types.ts",
+        "field": "N/A",
+        "issue": "No Student type definition found in api.types.ts",
+        "category": "Missing Types"
+      },
+      {
+        "severity": "WARNING",
+        "interface": "api.types.ts",
+        "field": "N/A",
+        "issue": "No CourseOutcome type definition found in api.types.ts",
+        "category": "Missing Types"
+      }
+    ]
+  }
+}

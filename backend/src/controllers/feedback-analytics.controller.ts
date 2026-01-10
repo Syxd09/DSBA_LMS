@@ -14,7 +14,7 @@ const prisma = new PrismaClient();
  * @desc    Get analytics for a student (with optional filters)
  * @access  Student (own), Teacher (assigned), HOD (dept), Principal, Admin
  */
-export const getStudentAnalytics = async (req: AuthRequest, res: Response) => {
+export const getStudentFeedbackAnalytics = async (req: AuthRequest, res: Response) => {
     try {
         const user = req.user;
 

@@ -1,0 +1,24 @@
+{
+  "issues": [
+    {
+      "severity": "ERROR",
+      "table": "Exam",
+      "field": "semester",
+      "issue": "1 exams have NULL semester (schema expects NOT NULL)",
+      "impact": "Exam queries may fail"
+    },
+    {
+      "severity": "CRITICAL",
+      "table": "N/A",
+      "field": "N/A",
+      "issue": "\nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `42P01`. Message: `relation \"Student\" does not exist`",
+      "impact": "Validation incomplete"
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "critical": 1,
+    "errors": 1,
+    "warnings": 0
+  }
+}

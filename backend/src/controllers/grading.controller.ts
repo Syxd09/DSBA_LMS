@@ -108,15 +108,15 @@ export const calculateGrades = async (req: AuthRequest, res: Response) => {
             // Aggregate marks by exam type
             exams.forEach(exam => {
                 const marksForStudent = exam.studentMarks.filter(m => m.studentId === student.id);
-                const total = marksForStudent.reduce((sum, m) => sum + Number(m.marks), 0);
+                const total = marksForStudent.reduce((sum, m) => sum + (Number(m.marks) ?? 0), 0);
 
                 studentExamMarks[exam.examType] = total;
             });
 
             // Calculate final marks (Best of 2 internals + External)
-            const internal1 = studentExamMarks['INTERNAL_1'] || 0;
-            const internal2 = studentExamMarks['INTERNAL_2'] || 0;
-            const external = studentExamMarks['EXTERNAL'] || 0;
+            const internal1 = studentExamMarks['INTERNAL_1'] ?? 0;
+            const internal2 = studentExamMarks['INTERNAL_2'] ?? 0;
+            const external = studentExamMarks['EXTERNAL'] ?? 0;
             const bestInternal = Math.max(internal1, internal2);
             const totalMarks = bestInternal + external;
 

@@ -46,10 +46,10 @@ import { createAssignmentSchema } from '../schemas/assignment.schema';
  *       400:
  *         description: Validation error
  */
-router.get('/', requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER']), getAssignments);
-router.get('/preview', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), getAssignmentPreview);
-router.post('/', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), validate(createAssignmentSchema, 'all'), createAssignment);
-router.delete('/:id', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), deleteAssignment);
+router.get('/', requireRole('ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER'), getAssignments);
+router.get('/preview', requireRole('ADMIN', 'PRINCIPAL', 'HOD'), getAssignmentPreview);
+router.post('/', requireRole('ADMIN', 'PRINCIPAL', 'HOD'), validate(createAssignmentSchema), createAssignment);
+router.delete('/:id', requireRole('ADMIN', 'PRINCIPAL', 'HOD'), deleteAssignment);
 
 
 export default router;

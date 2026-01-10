@@ -19,7 +19,11 @@ async function main() {
     await deleteMany(prisma.question);
     await deleteMany(prisma.examSection);
     await deleteMany(prisma.examSnapshot);
-    await deleteMany(prisma.feedback);
+    await deleteMany(prisma.messageReadReceipt);
+    await deleteMany(prisma.messageAttachment);
+    await deleteMany(prisma.conversationParticipant);
+    await deleteMany(prisma.message);
+    await deleteMany(prisma.conversation);
     await deleteMany(prisma.marksUnlockRequest);
     await deleteMany(prisma.exam);
 
@@ -38,9 +42,7 @@ async function main() {
 
     await prisma.department.updateMany({ data: { hodId: null } });
     await deleteMany(prisma.auditLog);
-    await deleteMany(prisma.message);
-    await deleteMany(prisma.messageGroupMember);
-    await deleteMany(prisma.messageGroup);
+    await deleteMany(prisma.userPresence);
     await deleteMany(prisma.approvalRequest);
     await deleteMany(prisma.user);
     await deleteMany(prisma.department);

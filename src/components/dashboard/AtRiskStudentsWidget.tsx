@@ -53,9 +53,12 @@ export function AtRiskStudentsWidget({
       return data;
     },
     refetchInterval: 60000, // Refresh every minute
+    // Temporarily disabled until endpoint is implemented
+    enabled: false,
   });
 
-  const students = data?.data?.slice(0, maxDisplay) || [];
+  // Use mock data until API endpoint is ready
+  const students = [];
   const totalAtRisk = data?.count || 0;
 
   return (

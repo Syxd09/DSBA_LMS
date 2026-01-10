@@ -50,7 +50,7 @@ async function testAttainment() {
 
         console.log(`\n✅ CO Attainment results: ${coAttainments.length} records created`);
         coAttainments.forEach(att => {
-            console.log(`   ${att.co.code}: ${att.achievedPercent.toFixed(2)}% (${att.passCount}/${att.studentCount} students)`);
+            console.log(`   CO${att.co.coNumber}: ${att.achievedPercent.toFixed(2)}% (${att.passCount}/${att.studentCount} students)`);
         });
 
         // Test PO calculation
@@ -60,15 +60,15 @@ async function testAttainment() {
         // Check results
         const poAttainments = await prisma.pOAttainment.findMany({
             where: {
-                subjectId: publishedExam.subjectId,
-                cohortId: publishedExam.cohortId
+                cohortId: publishedExam.cohortId,
+                semester: publishedExam.semester
             },
             include: { po: true }
         });
 
         console.log(`\n✅ PO Attainment results: ${poAttainments.length} records created`);
         poAttainments.forEach(att => {
-            console.log(`   ${att.po.code}: ${att.achievedPercent.toFixed(2)}%`);
+            console.log(`   PO${att.poId}: ${att.achievedPercent.toFixed(2)}%`);
         });
 
         console.log('\n🎉 All calculations completed successfully!');

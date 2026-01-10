@@ -283,7 +283,10 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
 
             // 3. Communication & Feedback
             await tx.message.deleteMany({ where: { senderId: id } });
-            await tx.messageGroupMember.deleteMany({ where: { userId: id } });
+            await tx.messageReadReceipt.deleteMany({ where: { userId: id } });
+            await tx.conversationParticipant.deleteMany({ where: { userId: id } });
+            await tx.conversation.deleteMany({ where: { createdBy: id } });
+            await tx.userPresence.deleteMany({ where: { userId: id } });
             await tx.feedback.deleteMany({ where: { OR: [{ studentId: id }, { teacherId: id }] } });
 
             // 4. System Logs

@@ -43,8 +43,20 @@ export const createExam = async (req: AuthRequest, res: Response) => {
         } = req.body;
         const teacherId = req.user?.userId;
 
+        console.log('📝 Creating exam with data:', {
+            subjectId,
+            cohortId,
+            semester,
+            examType,
+            maxMarks,
+            teacherId
+        });
+
         if (!teacherId) return res.status(400).json({ message: 'Teacher ID missing' });
-        if (!semester) return res.status(400).json({ message: 'Semester is required' });
+        if (!semester) {
+            console.error('❌ Semester is missing from request');
+            return res.status(400).json({ message: 'Semester is required' });
+        }
 
         // Validate custom exam type
         if (examType === 'CUSTOM' && !customTypeName) {
@@ -56,11 +68,19 @@ export const createExam = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ message: 'Passing marks cannot exceed max marks' });
         }
 
+        const semesterInt = parseInt(semester);
+        if (isNaN(semesterInt)) {
+            console.error('❌ Invalid semester value:', semester);
+            return res.status(400).json({ message: 'Invalid semester value' });
+        }
+
+        console.log('✅ Semester parsed:', semesterInt);
+
         const exam = await prisma.exam.create({
             data: {
                 subjectId,
                 cohortId,
-                semester: parseInt(semester),
+                semester: semesterInt,
                 examType,
                 customTypeName: examType === 'CUSTOM' ? customTypeName : undefined,
                 maxMarks,
@@ -131,11 +151,15 @@ export const getExamDetails = async (req: AuthRequest, res: Response) => {
 export const getStudentsByCohort = async (req: AuthRequest, res: Response) => {
     try {
         const { cohortId } = req.params;
+        console.log('🔍 getStudentsByCohort called for cohortId:', cohortId);
+
         // Fetch students enrolled in this cohort
         const enrollments = await prisma.studentEnrollment.findMany({
             where: { cohortId, status: 'active' },
             include: { student: true }
         });
+
+        console.log(`📊 Found ${enrollments.length} enrollments`);
 
         const students = enrollments.map(e => ({
             studentId: e.student.id,
@@ -143,8 +167,10 @@ export const getStudentsByCohort = async (req: AuthRequest, res: Response) => {
             studentName: e.student.fullName
         }));
 
+        console.log(`✅ Returning ${students.length} students:`, students.map(s => s.rollNumber).join(', '));
         res.json(students);
     } catch (error) {
+        console.error('❌ Error fetching students:', error);
         res.status(500).json({ message: 'Error fetching students', error });
     }
 };

@@ -3,10 +3,12 @@ generator client {
   binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl"]
 }
 
-generator erd {
-  provider = "prisma-erd-generator"
-  output   = "./ERD.svg"
-}
+// ERD generator disabled for Docker builds (requires Chrome/Puppeteer)
+// Uncomment locally if you need to generate ERD diagrams
+// generator erd {
+//   provider = "prisma-erd-generator"
+//   output   = "./ERD.svg"
+// }
 
 datasource db {
   provider = "postgresql"
@@ -58,6 +60,8 @@ enum WorkflowType {
 
 enum MessageType {
   TEXT
+  IMAGE
+  FILE
   ANNOUNCEMENT
 }
 
@@ -74,6 +78,17 @@ enum FeedbackStatus {
   SUBMITTED
   APPROVED
   LOCKED
+}
+
+enum ConversationType {
+  DIRECT // 1-to-1 chat
+  GROUP // Group conversation
+}
+
+enum ParticipantRole {
+  OWNER // Created the group, full control
+  ADMIN // Can add/remove members  
+  MEMBER // Can only send messages
 }
 
 model User {
@@ -111,8 +126,12 @@ model User {
   studentFeedbackReceived TeacherStudentFeedback[] @relation("StudentFeedbackReceived")
   feedbackApprovals       TeacherStudentFeedback[] @relation("FeedbackApprover")
 
-  sentMessages  Message[]
-  messageGroups MessageGroupMember[]
+  // Enterprise Messaging System
+  conversationsCreated     Conversation[]            @relation("ConversationCreator")
+  conversationParticipants ConversationParticipant[] @relation("ConversationParticipants")
+  sentMessages             Message[]                 @relation("SentMessages")
+  messageReadReceipts      MessageReadReceipt[]      @relation("MessageReadReceipts")
+  presence                 UserPresence?             @relation("UserPresence")
 
   approvalRequests  ApprovalRequest[] @relation("Requester")
   approvalDecisions ApprovalRequest[] @relation("Approver")
@@ -306,6 +325,9 @@ model COAttainment {
   approver User?         @relation("AttainmentApprover", fields: [approvedBy], references: [id])
 
   @@unique([subjectId, cohortId, coId, semester, academicYear])
+  @@index([subjectId, cohortId, semester]) // Performance: filter attainment by subject/cohort/semester
+  @@index([coId]) // Performance: filter by course outcome
+  @@index([status]) // Performance: filter by status (DRAFT, APPROVED, etc.)
 }
 
 // PO Attainment - aggregated from CO attainments via CO-PO mapping weights
@@ -345,7 +367,7 @@ model Exam {
   id             String     @id @default(uuid())
   subjectId      String
   cohortId       String
-  semester       Int        // Academic semester (1-8) - Required for analytics
+  semester       Int // Academic semester (1-8) - Required for analytics
   examType       String
   customTypeName String? // For custom exam types
   maxMarks       Int        @default(30)
@@ -356,7 +378,7 @@ model Exam {
   status         ExamStatus @default(DRAFT)
   teacherId      String?
   createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  updatedAt      DateTime?  @default(now()) @updatedAt
   publishedAt    DateTime?
 
   subject        Subject              @relation(fields: [subjectId], references: [id])
@@ -415,6 +437,10 @@ model SubQuestion {
   question     Question       @relation(fields: [questionId], references: [id])
   co           CourseOutcome? @relation(fields: [coId], references: [id])
   studentMarks StudentMark[]
+
+  @@index([questionId]) // Performance: load all sub-questions for a question
+  @@index([coId]) // Performance: filter by course outcome during calculations
+  @@index([questionId, coId]) // Performance: composite index for bulk fetching
 }
 
 model StudentEnrollment {
@@ -462,7 +488,7 @@ model StudentMark {
   examId        String
   studentId     String
   subQuestionId String
-  marksObtained Float      // Actual marks obtained - Required for analytics
+  marksObtained Float // Actual marks obtained - Required for analytics
   marks         Decimal
   enteredBy     String?
   enteredAt     DateTime @default(now())
@@ -643,10 +669,10 @@ model FeedbackAnalyticsCache {
   feedbackId String @unique
 
   // Computed Metrics (DYNAMIC - recalculate on marks update)
-  avgMarks       Float?  // Nullable when no marks exist yet
+  avgMarks       Float? // Nullable when no marks exist yet
   marksBand      String? // "HIGH" (≥75%) | "MEDIUM" (60-74%) | "LOW" (<60%) | NULL when no marks
   feedbackScore  Float // (starRating / 5) × 100
-  alignmentIndex Float?  // feedbackScore - avgMarks (null if no marks available)
+  alignmentIndex Float? // feedbackScore - avgMarks (null if no marks available)
   riskLevel      String // "CRITICAL" | "HIGH" | "MODERATE" | "STABLE"
 
   // Category Insights (rule-based, deterministic)
@@ -734,39 +760,117 @@ model Feedback {
   @@unique([studentId, examId])
 }
 
-model MessageGroup {
-  id        String   @id @default(uuid())
-  name      String
-  type      String // DEPT, ALL, CUSTOM
-  createdAt DateTime @default(now())
+// ==========================================
+// MESSAGING SYSTEM (Enterprise-Grade)
+// ==========================================
 
-  members  MessageGroupMember[]
-  messages Message[]
+model Conversation {
+  id          String           @id @default(uuid())
+  type        ConversationType // DIRECT or GROUP
+  name        String? // Group name (null for direct chats)
+  description String? // Group description
+  avatarUrl   String? // Group icon
+
+  createdBy String
+  creator   User   @relation("ConversationCreator", fields: [createdBy], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([type, createdAt])
+  @@index([createdBy])
 }
 
-model MessageGroupMember {
-  id       String   @id @default(uuid())
-  groupId  String
-  userId   String
-  joinedAt DateTime @default(now())
+model ConversationParticipant {
+  id             String          @id @default(uuid())
+  conversationId String
+  userId         String
+  role           ParticipantRole @default(MEMBER)
 
-  group MessageGroup @relation(fields: [groupId], references: [id])
-  user  User         @relation(fields: [userId], references: [id])
+  joinedAt   DateTime  @default(now())
+  lastReadAt DateTime?
 
-  @@unique([groupId, userId])
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation("ConversationParticipants", fields: [userId], references: [id])
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@index([conversationId, role])
 }
 
 model Message {
-  id        String      @id @default(uuid())
-  groupId   String
-  senderId  String
-  content   String
-  type      MessageType @default(TEXT)
-  createdAt DateTime    @default(now())
-  reads     Json? // Array of userIds who read it
+  id             String @id @default(uuid())
+  conversationId String
+  senderId       String
 
-  group  MessageGroup @relation(fields: [groupId], references: [id])
-  sender User         @relation(fields: [senderId], references: [id])
+  content     String      @db.Text
+  messageType MessageType @default(TEXT)
+
+  // Audit & Moderation
+  isEdited  Boolean   @default(false)
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("SentMessages", fields: [senderId], references: [id])
+
+  attachments  MessageAttachment[]
+  readReceipts MessageReadReceipt[]
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
+model MessageAttachment {
+  id        String @id @default(uuid())
+  messageId String
+
+  fileName String
+  fileSize Int // bytes
+  fileType String // MIME type
+  fileUrl  String // Storage path
+
+  uploadedAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+model MessageReadReceipt {
+  id        String @id @default(uuid())
+  messageId String
+  userId    String
+
+  readAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation("MessageReadReceipts", fields: [userId], references: [id])
+
+  @@unique([messageId, userId])
+  @@index([userId])
+}
+
+model UserPresence {
+  id     String @id @default(uuid())
+  userId String @unique
+
+  isOnline   Boolean  @default(false)
+  lastSeenAt DateTime @default(now())
+  socketId   String? // Current WebSocket connection ID
+
+  updatedAt DateTime @updatedAt
+
+  user User @relation("UserPresence", fields: [userId], references: [id])
+
+  @@index([isOnline])
+  @@index([lastSeenAt])
 }
 
 model GradingRule {

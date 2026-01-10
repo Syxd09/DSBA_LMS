@@ -1,14 +1,15 @@
-
 import { Router } from 'express';
-import { getAuditLogs, getDashboardStats } from '../controllers/audit-logs.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/rbac.middleware';
+import { Role } from '@prisma/client';
+import { getAuditLogs, getDashboardStats } from '../controllers/audit-logs.controller';
 
 const router = Router();
 
 router.use(authenticateToken);
 
-router.get('/', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), getAuditLogs);
+// SECURITY: Audit logs contain sensitive forensic data - restrict to ADMIN and PRINCIPAL only
+router.get('/', requireRole(Role.ADMIN, Role.PRINCIPAL), getAuditLogs);
 router.get('/dashboard-stats', getDashboardStats);
 
 export default router;

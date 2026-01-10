@@ -464,9 +464,78 @@ export const deleteEnrollment = async (req: AuthRequest, res: Response) => {
             });
         }
 
-        res.json({ message: 'Enrollment deleted successfully' });
-    } catch (error) {
+        res.json({ message: 'Enrollment deleted successfully', id });
+    } catch (error: any) {
         console.error('Error deleting enrollment:', error);
-        res.status(500).json({ message: 'Error deleting enrollment', error: String(error) });
+        res.status(500).json({ message: 'Failed to delete enrollment', error: error.message });
+    }
+};
+
+/**
+ * Get active semesters (semesters with enrolled students) for a cohort
+ * This enables smart semester filtering in the frontend
+ */
+export const getActiveSemesters = async (req: AuthRequest, res: Response) => {
+    try {
+        console.log('📊 getActiveSemesters called');
+        console.log('Query params:', req.query);
+        console.log('User:', req.user);
+
+        const { cohortId, programId } = req.query;
+
+        if (!cohortId) {
+            console.log('❌ No cohortId provided');
+            return res.status(400).json({
+                success: false,
+                message: 'cohortId is required'
+            });
+        }
+
+        // Build where clause
+        const where: any = {
+            cohortId: cohortId as string
+        };
+
+        // Optional: filter by program if provided
+        if (programId) {
+            where.cohort = {
+                programId: programId as string
+            };
+        }
+
+        console.log('🔍 Querying with where:', JSON.stringify(where));
+
+        // Get distinct semesters where students are enrolled
+        const enrollments = await prisma.studentEnrollment.findMany({
+            where,
+            select: {
+                semester: true
+            },
+            distinct: ['semester']
+        });
+
+        console.log('📝 Found enrollments:', enrollments);
+
+        // Extract and sort semester numbers
+        const semesters = enrollments
+            .map(e => e.semester)
+            .filter(sem => sem !== null && sem !== undefined)
+            .sort((a, b) => a - b);
+
+        console.log('✅ Returning semesters:', semesters);
+
+        return res.json({
+            success: true,
+            semesters,
+            count: semesters.length
+        });
+
+    } catch (error: any) {
+        console.error('💥 Error fetching active semesters:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch active semesters',
+            error: error.message
+        });
     }
 };

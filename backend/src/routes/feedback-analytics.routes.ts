@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import {
-    getStudentAnalytics,
+    getStudentFeedbackAnalytics,
     getDepartmentAnalytics,
     getCollegeAnalytics,
     manualRecalculate
@@ -17,7 +17,7 @@ router.use(authenticate);
  * @desc    Get analytics for a student
  * @access  Student (own), Teacher (assigned), HOD (dept), Principal, Admin
  */
-router.get('/student/:studentId', getStudentAnalytics);
+router.get('/student/:studentId', getStudentFeedbackAnalytics);
 
 /**
  * @route   GET /api/feedback-analytics/department/:departmentId

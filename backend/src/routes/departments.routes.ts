@@ -9,8 +9,8 @@ const router = Router();
 router.use(authenticateToken);
 
 router.get('/', getDepartments);
-router.post('/', requireRole(['ADMIN', 'PRINCIPAL']), createDepartment);
-router.put('/:id', requireRole(['ADMIN', 'PRINCIPAL']), updateDepartment);
-router.delete('/:id', requireRole(['ADMIN', 'PRINCIPAL']), deleteDepartment);
+router.post('/', requireRole('ADMIN', 'PRINCIPAL'), createDepartment);
+router.put('/:id', requireRole('ADMIN', 'PRINCIPAL'), updateDepartment);
+router.delete('/:id', requireRole('ADMIN', 'PRINCIPAL'), deleteDepartment);
 
 export default router;

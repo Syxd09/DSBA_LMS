@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AcademicContextProvider } from "@/contexts/AcademicContext";
 import { FeedbackProvider } from "@/contexts/FeedbackContext";
 import { AnalyticsProvider } from "@/contexts/AnalyticsContext";
+import { MessagingProvider } from "@/contexts/MessagingContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -54,7 +55,8 @@ const App = () => (
     <AcademicContextProvider>
       <FeedbackProvider>
         <AnalyticsProvider>
-          <TooltipProvider>
+          <MessagingProvider>
+            <TooltipProvider>
         <Toaster />
         <Sonner />
         <ErrorBoundary>
@@ -112,6 +114,7 @@ const App = () => (
           </BrowserRouter>
           </ErrorBoundary>
           </TooltipProvider>
+        </MessagingProvider>
         </AnalyticsProvider>
       </FeedbackProvider>
     </AcademicContextProvider>
