@@ -50,6 +50,108 @@ interface StudentPerformance {
     recommendations: string[];
 }
 
+function determineBloomLevel(marksObtained: number, maxMarks: number): 'REMEMBER' | 'UNDERSTAND' | 'APPLY' | 'ANALYZE' | 'EVALUATE' | 'CREATE' {
+    const percentage = (marksObtained / maxMarks) * 100;
+
+    if (percentage >= 90) return 'CREATE';
+    if (percentage >= 75) return 'EVALUATE';
+    if (percentage >= 60) return 'ANALYZE';
+    if (percentage >= 45) return 'APPLY';
+    if (percentage >= 30) return 'UNDERSTAND';
+    return 'REMEMBER';
+}
+
+/**
+ * Calculate trend analysis by comparing current performance with historical data
+ */
+async function calculateTrendAnalysis(
+    studentId: string,
+    currentPercentage: number,
+    currentMarks: any[]
+): Promise<{ isImproving: boolean; changePercent: number; message: string }> {
+    try {
+        if (!currentMarks || currentMarks.length === 0) {
+            return {
+                isImproving: false,
+                changePercent: 0,
+                message: 'No current marks available for comparison'
+            };
+        }
+
+        // Get historical marks (limit to last 100 for performance)
+        const historicalMarks = await prisma.studentMark.findMany({
+            where: {
+                studentId,
+                NOT: {
+                    id: { in: currentMarks.map(m => m.id) }
+                }
+            },
+            include: {
+                subQuestion: {
+                    select: {
+                        maxMarks: true
+                    }
+                }
+            },
+            orderBy: {
+                enteredAt: 'desc'
+            },
+            take: 100
+        });
+
+        if (historicalMarks.length === 0) {
+            return {
+                isImproving: false,
+                changePercent: 0,
+                message: 'Insufficient historical data for trend analysis'
+            };
+        }
+
+        // Calculate historical average percentage
+        let historicalTotalMarks = 0;
+        let historicalMaxMarks = 0;
+
+        for (const mark of historicalMarks) {
+            historicalTotalMarks += mark.marksObtained;
+            historicalMaxMarks += mark.subQuestion.maxMarks;
+        }
+
+        if (historicalMaxMarks === 0) {
+            return {
+                isImproving: false,
+                changePercent: 0,
+                message: 'Invalid historical data'
+            };
+        }
+
+        const historicalPercentage = (historicalTotalMarks / historicalMaxMarks) * 100;
+        const changePercent = Number((currentPercentage - historicalPercentage).toFixed(2));
+        const isImproving = changePercent > 0;
+
+        let message = '';
+        if (Math.abs(changePercent) < 2) {
+            message = 'Performance is stable with minimal change';
+        } else if (isImproving) {
+            message = `Performance improved by ${Math.abs(changePercent).toFixed(1)}% compared to historical average`;
+        } else {
+            message = `Performance declined by ${Math.abs(changePercent).toFixed(1)}% compared to historical average`;
+        }
+
+        return {
+            isImproving,
+            changePercent,
+            message
+        };
+    } catch (error) {
+        console.error('Error calculating trend:', error);
+        return {
+            isImproving: false,
+            changePercent: 0,
+            message: 'Trend calculation unavailable'
+        };
+    }
+}
+
 /**
  * Get comprehensive analytics for a single student
  */
@@ -347,11 +449,7 @@ export const getStudentAnalytics = async (req: AuthRequest, res: Response) => {
             subjectPerformance: subjectPerformance.sort((a, b) => a.subjectCode.localeCompare(b.subjectCode)),
             coPerformance,
             bloomPerformance,
-            trend: {
-                isImproving: false, // TODO: Implement trend calculation with historical data
-                changePercent: 0,
-                message: 'Trend analysis requires multiple assessment periods'
-            },
+            trend: await calculateTrendAnalysis(studentId, overallPercentage, marks),
             riskLevel,
             riskFactors,
             recommendations

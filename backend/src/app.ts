@@ -6,8 +6,34 @@ import rateLimit from 'express-rate-limit';
 import compression from 'compression';
 const timeout = require('express-timeout-handler');
 import { apiLimiter, authLimiter, calculationLimiter } from './middleware/rate-limit.middleware';
+import prisma from './services/db';
+
 
 const app = express();
+
+// Environment validation on startup
+function validateEnvironment() {
+    const required = ['DATABASE_URL', 'JWT_SECRET'];
+    const missing: string[] = [];
+
+    for (const varName of required) {
+        if (!process.env[varName]) {
+            missing.push(varName);
+        }
+    }
+
+    if (missing.length > 0) {
+        console.error('❌ CRITICAL: Missing required environment variables:');
+        console.error(missing.map(v => `   - ${v}`).join('\n'));
+        console.error('Application cannot start. Please configure .env file.');
+        process.exit(1);
+    }
+
+    console.log('✅ Environment validation passed');
+}
+
+// Validate environment before starting
+validateEnvironment();
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -34,6 +60,23 @@ app.use(timeout.handler({
         });
     },
     disable: ['write', 'setHeaders', 'send', 'json', 'end']
+}));
+
+// Security Headers - Helmet.js
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:"],
+        },
+    },
+    hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    },
 }));
 
 // CORS Configuration - Hardened for production
@@ -86,13 +129,28 @@ app.get('/health', (req, res) => {
 });
 
 // API health check (with /api prefix for consistency)
-app.get('/api/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        environment: process.env.NODE_ENV || 'development'
-    });
+app.get('/api/health', async (req, res) => {
+    try {
+        // Test database connectivity
+        await prisma.$queryRaw`SELECT 1`;
+
+        res.json({
+            status: 'healthy',
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+            environment: process.env.NODE_ENV || 'development',
+            database: 'connected'
+        });
+    } catch (error) {
+        res.status(503).json({
+            status: 'unhealthy',
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+            environment: process.env.NODE_ENV || 'development',
+            database: 'disconnected',
+            error: 'Database connection failed'
+        });
+    }
 });
 
 // Apply rate limiting
