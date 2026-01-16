@@ -47,13 +47,16 @@ export const createTemplate = async (req: AuthRequest, res: Response) => {
                     create: categories.map((cat: any, index: number) => ({
                         name: cat.name,
                         description: cat.description || null,
-                        displayOrder: cat.displayOrder !== undefined ? cat.displayOrder : index,
-                        weight: cat.weight || 1.0
+                        question: cat.question || `How would you rate ${cat.name.toLowerCase()}?`,
+                        displayOrder: cat.displayOrder !== undefined ? cat.displayOrder : index
                     }))
                 }
             },
             include: {
                 categories: {
+                    include: {
+                        options: true
+                    },
                     orderBy: { displayOrder: 'asc' }
                 }
             }
@@ -211,7 +214,7 @@ export const updateTemplate = async (req: AuthRequest, res: Response) => {
 
         // Update template and categories in transaction
         const template = await prisma.$transaction(async (tx) => {
-            // Delete existing categories
+            // Delete existing categories and options
             await tx.feedbackTemplateCategory.deleteMany({
                 where: { templateId: id }
             });
@@ -229,13 +232,16 @@ export const updateTemplate = async (req: AuthRequest, res: Response) => {
                         create: categories.map((cat: any, index: number) => ({
                             name: cat.name,
                             description: cat.description || null,
-                            displayOrder: cat.displayOrder !== undefined ? cat.displayOrder : index,
-                            weight: cat.weight || 1.0
+                            question: cat.question || `How would you rate ${cat.name.toLowerCase()}?`,
+                            displayOrder: cat.displayOrder !== undefined ? cat.displayOrder : index
                         }))
                     } : undefined
                 },
                 include: {
                     categories: {
+                        include: {
+                            options: true
+                        },
                         orderBy: { displayOrder: 'asc' }
                     }
                 }

@@ -588,16 +588,34 @@ model FeedbackTemplate {
 model FeedbackTemplateCategory {
   id           String  @id @default(uuid())
   templateId   String
-  name         String // "Academic Performance", "Class Participation", "Discipline"
+  name         String // "Communication", "Teamwork", "Discipline"
   description  String? @db.Text
+  question     String  // e.g., "How is the student's communication?"
   displayOrder Int     @default(0)
-  weight       Float?  @default(1.0) // For weighted scoring (future use)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   template FeedbackTemplate         @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  options  FeedbackCategoryOption[]
   ratings  FeedbackCategoryRating[]
 
   @@unique([templateId, displayOrder])
   @@index([templateId])
+}
+
+
+// Predefined options for each category (NO option weights - only points for analytics)
+model FeedbackCategoryOption {
+  id         String   @id @default(uuid())
+  categoryId String
+  label      String   // e.g., \"Excellent\", \"Very Good\", \"Good\", \"Bad\", \"Very Bad\"
+  points     Int      // e.g., 5, 4, 3, 2, 1
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  category FeedbackTemplateCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId, order])
 }
 
 /// IMMUTABLE teacher feedback record (frozen after lock) - NAAC Evidence
@@ -927,3 +945,5 @@ model SemesterResult {
 
   @@unique([studentId, cohortId, semester])
 }
+// ============================================
+

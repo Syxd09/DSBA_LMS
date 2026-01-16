@@ -1,24 +1,19 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { useFeedback } from '@/contexts/FeedbackContext';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, Loader2, FileText } from 'lucide-react';
-import { TeacherStudentFeedback, FeedbackStatus } from '@/types/feedback.types';
+import { Input } from '@/components/ui/input';
+import { Search, FileText, Users, CheckCircle2 } from 'lucide-react';
+import api from '@/lib/api';
 
 interface Student {
   id: string;
   fullName: string;
   email: string;
-  enrollmentNo?: string;
-  department?: { name: string };
+  departmentId?: string;
 }
 
 interface Subject {
@@ -29,189 +24,204 @@ interface Subject {
 }
 
 export default function TeacherAssignedStudents() {
-  const { user } = useAuth();
   const navigate = useNavigate();
-  const { myFeedbacks, fetchMyFeedbacks, isLoading } = useFeedback();
-  
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSubject, setSelectedSubject] = useState<string>('all');
-  const [selectedSemester, setSelectedSemester] = useState<string>('all');
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
-
-  // Fetch subjects where teacher is assigned
-  const { data: subjects = [] } = useQuery<Subject[]>({
-    queryKey: ['teacher-subjects', user?.id],
-    queryFn: async () => {
-      const { data } = await api.get('/subjects');
-      return data || [];
-    },
-  });
 
   // Fetch assigned students
-  const { data: students = [] } = useQuery<Student[]>({
-    queryKey: ['teacher-students', user?.id],
+  const { data: students = [], isLoading: studentsLoading } = useQuery<Student[]>({
+    queryKey: ['teacher-assigned-students'],
     queryFn: async () => {
-      const { data } = await api.get('/enrollments/teacher/students');
+      // This would fetch students assigned to the logged-in teacher
+      const { data } = await api.get('/enrollments/teacher-students');
       return data || [];
     },
   });
 
-  useEffect(() => {
-    fetchMyFeedbacks();
-  }, [fetchMyFeedbacks]);
+  // Fetch teacher's subjects
+  const { data: subjects = [] } = useQuery<Subject[]>({
+    queryKey: ['teacher-subjects'],
+    queryFn: async () => {
+      const { data } = await api.get('/teacher-assignments/my-subjects');
+      return data || [];
+    },
+  });
 
-  // Get feedback status for a student in a subject
-  const getFeedbackForStudent = (studentId: string, subjectId?: string): TeacherStudentFeedback | undefined => {
-    return myFeedbacks.find(
-      f => f.studentId === studentId && (!subjectId || f.subjectId === subjectId)
-    );
+  // Fetch existing feedback
+  const { data: existingFeedback = [] } = useQuery({
+    queryKey: ['teacher-feedback'],
+    queryFn: async () => {
+      const { data } = await api.get('/feedback/feedback/teacher/me');
+      return data || [];
+    },
+  });
+
+  const filteredStudents = students.filter((student) =>
+    student.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    student.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getFeedbackStatus = (studentId: string) => {
+    const feedback = existingFeedback.find((f: any) => f.studentId === studentId);
+    if (!feedback) return null;
+    return feedback.status;
   };
 
-  // Filter students
-  const filteredStudents = students.filter(student => {
-    const matchesSearch = student.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (student.enrollmentNo?.toLowerCase().includes(searchQuery.toLowerCase()));
-    
-    return matchesSearch;
-  });
+  const hasFeedback = (studentId: string) => {
+    return existingFeedback.some((f: any) => f.studentId === studentId);
+  };
 
   return (
     <AuthenticatedLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Student Feedback</h1>
-            <p className="text-muted-foreground">
-              Provide feedback for your assigned students
-            </p>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Student Feedback</h1>
+          <p className="text-muted-foreground">
+            Provide qualitative feedback for your assigned students
+          </p>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{students.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Feedback Given</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{existingFeedback.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Subjects</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{subjects.length}</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Search */}
+        <div className="flex items-center space-x-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search students by name or email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8"
+            />
           </div>
         </div>
 
-        {/* Filters */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Filters</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search students..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-8"
-                  />
-                </div>
-              </div>
-              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="All Subjects" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Subjects</SelectItem>
-                  {subjects.map(subject => (
-                    <SelectItem key={subject.id} value={subject.id}>
-                      {subject.code} - {subject.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="not-started">Not Started</SelectItem>
-                  <SelectItem value="DRAFT">Draft</SelectItem>
-                  <SelectItem value="SUBMITTED">Submitted</SelectItem>
-                  <SelectItem value="APPROVED">Approved</SelectItem>
-                  <SelectItem value="LOCKED">Locked</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Students List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Assigned Students ({filteredStudents.length})</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        {studentsLoading ? (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        ) : filteredStudents.length === 0 ? (
+          <Card>
+            <CardContent className="py-12">
+              <div className="text-center">
+                <p className="text-muted-foreground">
+                  {searchQuery ? 'No students found matching your search' : 'No students assigned'}
+                </p>
               </div>
-            ) : filteredStudents.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No students found</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {filteredStudents.map(student => {
-                  const feedback = getFeedbackForStudent(student.id, selectedSubject !== 'all' ? selectedSubject : undefined);
-                  
-                  return (
-                    <div key={student.id} className="flex items-center justify-between p-4 border rounded-lg">
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredStudents.map((student) => {
+              const status = getFeedbackStatus(student.id);
+              const hasExistingFeedback = hasFeedback(student.id);
+
+              return (
+                <Card key={student.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h3 className="font-medium">{student.fullName}</h3>
-                        <p className="text-sm text-muted-foreground">{student.email}</p>
-                        {student.enrollmentNo && (
-                          <p className="text-sm text-muted-foreground">Enrollment: {student.enrollmentNo}</p>
-                        )}
+                        <CardTitle className="text-lg">{student.fullName}</CardTitle>
+                        <CardDescription className="mt-1">
+                          {student.email}
+                        </CardDescription>
                       </div>
-                      <div className="flex items-center gap-4">
-                        {feedback ? (
-                          <>
-                            <Badge variant={
-                              feedback.status === 'DRAFT' ? 'secondary' :
-                              feedback.status === 'SUBMITTED' ? 'default' :
-                              feedback.status === 'APPROVED' ? 'default' :
-                              'default'
-                            }>
-                              {feedback.status}
-                            </Badge>
-                            <div className="flex gap-2">
-                              {feedback.status === 'DRAFT' && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => navigate(`/feedback/teacher/edit/${feedback.id}`)}
-                                >
-                                  Edit Draft
-                                </Button>
-                              )}
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => navigate(`/feedback/teacher/view/${feedback.id}`)}
-                              >
-                                View
-                              </Button>
-                            </div>
-                          </>
-                        ) : (
-                          <Button
-                            onClick={() => navigate(`/feedback/teacher/create/${student.id}`)}
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            Create Feedback
-                          </Button>
-                        )}
-                      </div>
+                      {status && (
+                        <Badge
+                          variant={
+                            status === 'DRAFT'
+                              ? 'secondary'
+                              : status === 'SUBMITTED'
+                              ? 'default'
+                              : status === 'APPROVED'
+                              ? 'default'
+                              : 'outline'
+                          }
+                        >
+                          {status}
+                        </Badge>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex gap-2">
+                      {hasExistingFeedback ? (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => {
+                              const feedback = existingFeedback.find(
+                                (f: any) => f.studentId === student.id
+                              );
+                              navigate(`/feedback/teacher/view/${feedback.id}`);
+                            }}
+                          >
+                            View Feedback
+                          </Button>
+                          {status === 'DRAFT' && (
+                            <Button
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => {
+                                const feedback = existingFeedback.find(
+                                  (f: any) => f.studentId === student.id
+                                );
+                                navigate(`/feedback/teacher/edit/${feedback.id}`);
+                              }}
+                            >
+                              Continue Draft
+                            </Button>
+                          )}
+                        </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          onClick={() => navigate(`/feedback/teacher/create/${student.id}`)}
+                        >
+                          Give Feedback
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     </AuthenticatedLayout>
   );

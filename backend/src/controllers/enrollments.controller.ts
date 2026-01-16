@@ -353,6 +353,7 @@ export const enrollStudent = async (req: AuthRequest, res: Response) => {
 // Bulk enroll students (with auto-create users)
 export const bulkEnroll = async (req: AuthRequest, res: Response) => {
     try {
+        console.log('📝 BULK ENROLL REQUEST BODY:', JSON.stringify(req.body, null, 2));
         const { cohortId, departmentId, semester, students } = req.body;
 
         if (!cohortId || !departmentId || !students || !Array.isArray(students)) {

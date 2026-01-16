@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   User, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, 
-  Target, Brain, BarChart3, Award, Loader2 
+  Target, Brain, BarChart3, Award, Loader2, MessageSquareQuote, Star 
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend } from 'recharts';
 import api from '@/lib/api';
@@ -99,6 +99,21 @@ export default function StudentAnalytics() {
   });
 
   const studentData = analytics?.data;
+
+  // Fetch qualitative feedback
+  const { data: feedbackResponse } = useQuery({
+    queryKey: ['student-feedback', selectedStudentId],
+    queryFn: async () => {
+      const { data } = await api.get(`/feedback/feedback/student/${selectedStudentId}`);
+      return data;
+    },
+    enabled: !!selectedStudentId,
+  });
+
+  // Ensure feedbackData is always an array
+  const feedbackData = Array.isArray(feedbackResponse) 
+    ? feedbackResponse 
+    : (feedbackResponse?.feedback || feedbackResponse?.data || []);
 
   return (
     <AuthenticatedLayout allowedRoles={['admin', 'principal', 'hod', 'teacher', 'student']}>
@@ -262,6 +277,7 @@ export default function StudentAnalytics() {
                 <TabsTrigger value="subjects">Subject Performance</TabsTrigger>
                 <TabsTrigger value="cos">Course Outcomes</TabsTrigger>
                 <TabsTrigger value="bloom">Bloom's Taxonomy</TabsTrigger>
+                <TabsTrigger value="feedback">Qualitative Feedback</TabsTrigger>
               </TabsList>
 
               <TabsContent value="subjects" className="space-y-4">
@@ -390,6 +406,171 @@ export default function StudentAnalytics() {
                     ))}
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              <TabsContent value="feedback" className="space-y-4">
+                <Alert className="border-purple-200 bg-purple-50">
+                  <MessageSquareQuote className="h-4 w-4 text-purple-600" />
+                  <AlertDescription className="text-sm">
+                    <strong>Non-Academic Feedback:</strong> This section shows qualitative, perception-based feedback from teachers. 
+                    It has <strong>zero impact</strong> on grades, CO-PO attainment, or academic metrics.
+                  </AlertDescription>
+                </Alert>
+
+                {!feedbackData || feedbackData.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-12">
+                      <div className="text-center text-muted-foreground">
+                        <MessageSquareQuote className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p>No qualitative feedback received yet</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <>
+                    {/* Feedback Summary Card */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base font-semibold flex items-center gap-2">
+                          <MessageSquareQuote className="h-5 w-5" />
+                          Feedback Summary
+                        </CardTitle>
+                        <CardDescription>Overall teacher perception and ratings</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <div className="text-center p-4 border rounded-lg">
+                            <p className="text-sm text-muted-foreground mb-1">Total Feedback</p>
+                            <p className="text-3xl font-bold">{feedbackData.length}</p>
+                          </div>
+                          <div className="text-center p-4 border rounded-lg">
+                            <p className="text-sm text-muted-foreground mb-1">Average Rating</p>
+                            <div className="flex items-center justify-center gap-1">
+                              <Star className="h-6 w-6 fill-yellow-400 text-yellow-400" />
+                              <p className="text-3xl font-bold">
+                                {(feedbackData.reduce((acc: number, f: any) => acc + (f.starRating || 0), 0) / feedbackData.length).toFixed(1)}
+                              </p>
+                              <span className="text-sm text-muted-foreground">/ 5.0</span>
+                            </div>
+                          </div>
+                          <div className="text-center p-4 border rounded-lg">
+                            <p className="text-sm text-muted-foreground mb-1">Teachers</p>
+                            <p className="text-3xl font-bold">
+                              {new Set(feedbackData.map((f: any) => f.teacherId)).size}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Category-wise Ratings */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base font-semibold">Category-wise Scores</CardTitle>
+                        <CardDescription>Average points across all feedback categories</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {(() => {
+                            // Calculate category averages
+                            const categoryScores: Record<string, { total: number; count: number; name: string }> = {};
+                            
+                            feedbackData.forEach((feedback: any) => {
+                              feedback.categoryRatings?.forEach((rating: any) => {
+                                const catId = rating.categoryId;
+                                const catName = rating.category?.name || 'Unknown';
+                                if (!categoryScores[catId]) {
+                                  categoryScores[catId] = { total: 0, count: 0, name: catName };
+                                }
+                                categoryScores[catId].total += rating.rating;
+                                categoryScores[catId].count += 1;
+                              });
+                            });
+
+                            return Object.entries(categoryScores).map(([catId, data]) => {
+                              const average = data.count > 0 ? data.total / data.count : 0;
+                              const percentage = (average / 5) * 100; // Assuming 5-point scale
+
+                              return (
+                                <div key={catId} className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <MessageSquareQuote className="h-4 w-4 text-muted-foreground" />
+                                      <span className="font-medium">{data.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm text-muted-foreground">
+                                        {data.count} rating(s)
+                                      </span>
+                                      <span className="font-semibold">{average.toFixed(2)} / 5.0</span>
+                                    </div>
+                                  </div>
+                                  <Progress value={percentage} className="h-2" />
+                                </div>
+                              );
+                            });
+                          })()}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Individual Feedback List */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base font-semibold">Feedback History</CardTitle>
+                        <CardDescription>Individual feedback from teachers</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {feedbackData.map((feedback: any) => (
+                          <div key={feedback.id} className="border rounded-lg p-4 space-y-3">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="font-medium">{feedback.teacher?.fullName || 'Teacher'}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {feedback.subject?.name} - Semester {feedback.semester}
+                                </p>
+                              </div>
+                              {feedback.starRating && (
+                                <div className="flex items-center gap-1">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                      key={star}
+                                      className={`h-4 w-4 ${
+                                        star <= feedback.starRating
+                                          ? 'fill-yellow-400 text-yellow-400'
+                                          : 'text-gray-300'
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {feedback.reviewText && (
+                              <p className="text-sm bg-muted/50 p-3 rounded">
+                                {feedback.reviewText}
+                              </p>
+                            )}
+
+                            {feedback.categoryRatings && feedback.categoryRatings.length > 0 && (
+                              <div className="flex flex-wrap gap-2 pt-2">
+                                {feedback.categoryRatings.map((rating: any) => (
+                                  <Badge key={rating.id} variant="secondary" className="text-xs">
+                                    {rating.category?.name}: {rating.rating}/5
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(feedback.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
               </TabsContent>
             </Tabs>
           </div>

@@ -39,6 +39,9 @@ import TeacherAssignedStudents from "./pages/feedback/teacher/TeacherAssignedStu
 import CreateFeedback from "./pages/feedback/teacher/CreateFeedback";
 import EditFeedback from "./pages/feedback/teacher/EditFeedback";
 import ViewFeedback from "./pages/feedback/teacher/ViewFeedback";
+import FeedbackTemplates from "./pages/feedback/FeedbackTemplates";
+import CreateFeedbackTemplate from "./pages/feedback/CreateFeedbackTemplate";
+import ViewFeedbackTemplate from "./pages/feedback/ViewFeedbackTemplate";
 import HODAnalyticsDashboard from "./pages/analytics/hod/HODAnalyticsDashboard";
 import PendingApprovals from "./pages/analytics/hod/PendingApprovals";
 import AtRiskStudents from "./pages/analytics/hod/AtRiskStudents";
@@ -91,6 +94,11 @@ const App = () => (
             <Route path="/po-attainment" element={<POAttainmentDashboard />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
             <Route path="/co-po-traceability" element={<COPOTraceability />} />
+            
+            {/* Feedback Template Management Routes (Admin/Principal/HOD) */}
+            <Route path="/feedback/templates" element={<FeedbackTemplates />} />
+            <Route path="/feedback/templates/create" element={<CreateFeedbackTemplate />} />
+            <Route path="/feedback/templates/:id" element={<ViewFeedbackTemplate />} />
             
             {/* Teacher Feedback Routes */}
             <Route path="/feedback/teacher/assigned" element={<TeacherAssignedStudents />} />
