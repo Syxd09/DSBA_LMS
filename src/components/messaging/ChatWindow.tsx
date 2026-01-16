@@ -110,17 +110,30 @@ export function ChatWindow({ conversation, onBack }: Props) {
             No messages yet. Start the conversation!
           </div>
         ) : (
-          messages.map((message, index) => (
-            <MessageBubble
-              key={message.id}
-              message={message}
-              isOwn={message.senderId === user?.id}
-              showSender={
-                index === 0 ||
-                messages[index - 1].senderId !== message.senderId
-              }
-            />
-          ))
+          messages.map((message, index) => {
+            const isOwn = message.senderId === user?.id;
+            
+            // DEBUG LOG
+            console.log('[ChatWindow] Message:', {
+              content: message.content.substring(0, 20),
+              senderId: message.senderId,
+              userId: user?.id,
+              isOwn,
+              comparison: `${message.senderId} === ${user?.id}`
+            });
+
+            return (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                isOwn={isOwn}
+                showSender={
+                  index === 0 ||
+                  messages[index - 1].senderId !== message.senderId
+                }
+              />
+            );
+          })
         )}
 
         {typingInConvo.length > 0 && (
