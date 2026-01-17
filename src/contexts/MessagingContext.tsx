@@ -111,31 +111,17 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Real-time message received
-    newSocket.on('message-received', async (message: Message) => {
-      console.log('[Messaging] Real-time message received:', {
-        conversationId: message.conversationId,
+    newSocket.on('message-received', (message: Message) => {
+      console.log('[Messaging] WebSocket message:', {
         senderId: message.senderId,
-        hasSender: !!message.sender,
-        senderName: message.sender?.fullName
+        senderName: message.sender?.fullName,
+        senderRole: message.sender?.role,
+        content: message.content?.substring(0, 30)
       });
 
       if (activeConversation?.id === message.conversationId) {
-        // SMART APPROACH: Check if sender data is complete
-        if (message.sender && message.sender.id && message.sender.fullName) {
-          // WebSocket message has complete data - use it directly (FAST)
-          console.log('[Messaging] Using WebSocket message directly (fast path)');
-          setMessages(prev => [...prev, message]);
-        } else {
-          // Sender data incomplete - reload from API (SLOW but safe)
-          console.log('[Messaging] Reloading from API (sender data incomplete)');
-          try {
-            const { data } = await api.get(`/messaging/conversations/${message.conversationId}`);
-            setMessages(data.messages || []);
-          } catch (error) {
-            console.error('[Messaging] Error reloading messages:', error);
-            setMessages(prev => [...prev, message]);
-          }
-        }
+        // Use WebSocket message directly - backend includes complete sender data
+        setMessages(prev => [...prev, message]);
       }
       
       // Update conversation list
