@@ -30,6 +30,7 @@ export function initializeWebSocket(server: HTTPServer) {
         cors: {
             origin: [
                 'http://localhost:8080',  // Vite dev server
+                'http://localhost:8081',  // Alternative Vite port
                 'http://localhost:5173',  // Alternative Vite port
                 'http://localhost',       // Docker frontend
                 'http://localhost:80',    // Docker frontend explicit port

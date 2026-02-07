@@ -52,16 +52,34 @@ export default function MarksEntry() {
 
   // Transform sub-questions for the grid
   const subQuestionsForGrid = useMemo(() => {
-    if (!examDetails?.subQuestions || !examDetails?.questions) return [];
+    if (!examDetails?.subQuestions || !examDetails?.questions || !examDetails?.sections) return [];
+    
+    // Sort sections by sequence
+    const sortedSections = [...examDetails.sections].sort((a, b) => a.sequence - b.sequence);
+    
+    let globalQuestionNumber = 1;
+    const sectionQuestionNumbers = new Map<string, number>();
+    
+    // Build question number mapping
+    sortedSections.forEach(section => {
+      const sectionQuestions = examDetails.questions
+        .filter(q => q.section_id === section.id)
+        .sort((a, b) => a.sequence - b.sequence);
+      
+      sectionQuestions.forEach(question => {
+        sectionQuestionNumbers.set(question.id, globalQuestionNumber);
+        globalQuestionNumber++;
+      });
+    });
     
     return examDetails.subQuestions.map(sq => {
-      const question = examDetails.questions.find(q => q.id === sq.question_id);
-      const section = examDetails.sections.find(s => s.id === question?.section_id);
-      const qIndex = examDetails.questions.filter(q => q.section_id === section?.id).findIndex(q => q.id === question?.id) + 1;
+      const questionNumber = sectionQuestionNumbers.get(sq.question_id) || 0;
+      const calculatedLabel = `${questionNumber}${sq.label}`;
+      console.log(`[DEBUG] SubQ ${sq.id.substring(0,8)}: Q#${questionNumber} + "${sq.label}" = "${calculatedLabel}"`);
       
       return {
         id: sq.id,
-        label: `${qIndex}(${sq.label})`,
+        label: calculatedLabel, // e.g., "1a", "1b", "2a"
         maxMarks: sq.max_marks,
         questionId: sq.question_id,
       };
