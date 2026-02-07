@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Plus, ClipboardList, Loader2, FileEdit, Eye, CheckCircle } from 'lucide-react';
+import { Search, Plus, ClipboardList, Loader2, FileEdit, Eye, CheckCircle, Send, Lock, Unlock, ShieldCheck } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 
@@ -89,6 +89,54 @@ export default function Exams() {
     },
   });
 
+  // PHASE 1: Submit exam for approval (Faculty)
+  const submitMutation = useMutation({
+    mutationFn: (examId: string) => examsApi.submit(examId),
+    onSuccess: () => {
+      toast({ title: 'Exam submitted for approval', description: 'Awaiting HOD approval' });
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error submitting exam',
+        description: error.response?.data?.detail || 'Failed to submit exam',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // PHASE 1: Approve exam (HOD/Principal)
+  const approveMutation = useMutation({
+    mutationFn: (examId: string) => examsApi.approve(examId),
+    onSuccess: () => {
+      toast({ title: 'Exam approved', description: 'Marks entry is now allowed' });
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error approving exam',
+        description: error.response?.data?.detail || 'Failed to approve exam',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // PHASE 1: Lock exam (HOD/Principal)
+  const lockMutation = useMutation({
+    mutationFn: (examId: string) => examsApi.lock(examId),
+    onSuccess: () => {
+      toast({ title: 'Exam locked', description: 'Marks are now finalized' });
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error locking exam',
+        description: error.response?.data?.detail || 'Failed to lock exam',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const handleCreateExam = () => {
     if (!newExam.subject_id || !newExam.cohort_id) {
       toast({
@@ -109,14 +157,23 @@ export default function Exams() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'published':
-        return <Badge className="bg-green-500">Published</Badge>;
       case 'locked':
-        return <Badge className="bg-blue-500">Locked</Badge>;
+        return <Badge className="bg-purple-600">Locked</Badge>;
+      case 'approved':
+        return <Badge className="bg-green-500">Approved</Badge>;
+      case 'submitted':
+        return <Badge className="bg-yellow-500 text-black">Pending Approval</Badge>;
+      case 'published':
+        return <Badge className="bg-blue-500">Published</Badge>;
+      case 'rejected':
+        return <Badge className="bg-red-500">Rejected</Badge>;
       default:
         return <Badge variant="outline">Draft</Badge>;
     }
   };
+
+  // Check if user can approve/lock (HOD/Principal)
+  const canApprove = role === 'hod' || role === 'principal';
 
   const getExamTypeBadge = (type: string) => {
     switch (type) {
@@ -282,21 +339,67 @@ export default function Exams() {
                       <TableCell>{getStatusBadge(exam.status)}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
+                          {/* Marks entry - only for approved exams */}
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => navigate(`/marks-entry?exam=${exam.id}`)}
+                            disabled={exam.status !== 'approved'}
+                            title={exam.status === 'approved' ? 'Enter marks' : 'Exam must be approved first'}
                           >
                             <FileEdit className="w-4 h-4" />
                           </Button>
+
+                          {/* Design Structure - draft/submitted only */}
+                          {(exam.status === 'draft' || exam.status === 'submitted') && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate(`/marks-entry?exam=${exam.id}&tab=structure`)}
+                                title="Design Question Paper"
+                            >
+                                <ClipboardList className="w-4 h-4 text-blue-600" />
+                            </Button>
+                          )}
+                          
+                          {/* Submit for approval - draft only, faculty */}
                           {exam.status === 'draft' && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => publishMutation.mutate(exam.id)}
-                              disabled={publishMutation.isPending}
+                              onClick={() => submitMutation.mutate(exam.id)}
+                              disabled={submitMutation.isPending}
+                              title="Submit for HOD approval"
                             >
-                              <CheckCircle className="w-4 h-4" />
+                              <Send className="w-4 h-4" />
+                            </Button>
+                          )}
+                          
+                          {/* Approve - submitted only, HOD/Principal */}
+                          {exam.status === 'submitted' && canApprove && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-green-600 hover:text-green-700"
+                              onClick={() => approveMutation.mutate(exam.id)}
+                              disabled={approveMutation.isPending}
+                              title="Approve exam"
+                            >
+                              <ShieldCheck className="w-4 h-4" />
+                            </Button>
+                          )}
+                          
+                          {/* Lock - approved only, HOD/Principal */}
+                          {exam.status === 'approved' && canApprove && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-purple-600 hover:text-purple-700"
+                              onClick={() => lockMutation.mutate(exam.id)}
+                              disabled={lockMutation.isPending}
+                              title="Lock exam (finalize marks)"
+                            >
+                              <Lock className="w-4 h-4" />
                             </Button>
                           )}
                         </div>

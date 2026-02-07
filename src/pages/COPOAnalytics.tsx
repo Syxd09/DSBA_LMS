@@ -1,16 +1,19 @@
 import { useState } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { analyticsApi, subjectsApi } from '@/lib/api';
-import { useQuery } from '@tanstack/react-query';
+import { analyticsApi, subjectsApi, templatesApi } from '@/lib/api';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Target, Brain, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Target, Brain, Loader2, Download, FileSpreadsheet } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import { toast } from '@/hooks/use-toast';
 
 export default function COPOAnalytics() {
   const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const { data: subjects = [] } = useQuery({
     queryKey: ['subjects'],
@@ -35,6 +38,36 @@ export default function COPOAnalytics() {
       }))
     : [];
 
+  // PDF Download handler
+  const handleDownload = async (format: 'pdf' | 'xlsx') => {
+    if (!selectedSubject) return;
+    
+    setIsDownloading(true);
+    try {
+      const blob = await templatesApi.getCOAttainmentReport(selectedSubject, format);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `co_attainment_report.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast({ title: `Report downloaded as ${format.toUpperCase()}` });
+    } catch (error: any) {
+      toast({
+        title: 'Download failed',
+        description: error.response?.data?.detail || 'Could not generate report',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   return (
     <AuthenticatedLayout allowedRoles={['principal', 'hod', 'teacher']}>
       <div className="space-y-6">
@@ -43,18 +76,42 @@ export default function COPOAnalytics() {
             <h2 className="text-2xl font-bold text-foreground">CO-PO Analytics</h2>
             <p className="text-muted-foreground">Course Outcome and Program Outcome analysis</p>
           </div>
-          <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Select subject" />
-            </SelectTrigger>
-            <SelectContent>
-              {subjects.map((s: any) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.code} - {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-3">
+            <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Select subject" />
+              </SelectTrigger>
+              <SelectContent>
+                {subjects.map((s: any) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.code} - {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedSubject && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownload('pdf')}
+                  disabled={isDownloading}
+                >
+                  {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  <span className="ml-1">PDF</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownload('xlsx')}
+                  disabled={isDownloading}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span className="ml-1">Excel</span>
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
 
         {!selectedSubject ? (

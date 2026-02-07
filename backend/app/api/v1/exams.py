@@ -10,7 +10,7 @@ import uuid as uuid_lib
 from datetime import datetime
 
 from app.database import get_db
-from app.api.deps import get_current_user, require_teacher_or_above, get_user_role
+from app.api.deps import get_current_user, require_teacher_or_above, require_hod_or_above, get_user_role
 from app.models import Profile, Exam, ExamSection, Question, SubQuestion, Subject, Cohort
 from app.schemas import (
     ExamCreate, ExamUpdate, ExamResponse, ExamWithStructure, 
@@ -158,6 +158,7 @@ async def update_exam_structure(
             name=section_data.name,
             sequence=section_data.sequence,
             max_marks=section_data.max_marks,
+            max_questions=section_data.max_questions,
             required_questions=section_data.required_questions,
             selection_mode=section_data.selection_mode
         )
@@ -211,6 +212,228 @@ async def publish_exam(
     
     exam.status = "published"
     exam.published_at = datetime.utcnow()
+    db.commit()
+    db.refresh(exam)
+    
+    return exam
+
+
+# ============================================================================
+# EXAM WORKFLOW: Submit → Approve → Lock (PHASE 1 CRITICAL)
+# ============================================================================
+# Status Flow: draft → submitted → approved → locked
+# - draft: Faculty editing
+# - submitted: Faculty finished, awaiting HOD approval
+# - approved: HOD approved, marks can be entered
+# - locked: Final, no more edits allowed
+# ============================================================================
+
+@router.post("/{exam_id}/submit", response_model=ExamResponse)
+async def submit_exam(
+    exam_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_teacher_or_above)
+):
+    """
+    Submit an exam for HOD approval.
+    
+    Status transition: draft → submitted
+    Only the exam creator can submit.
+    """
+    from app.models import AuditLog
+    
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    # Only creator can submit
+    if exam.teacher_id != current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the exam creator can submit"
+        )
+    
+    # Validate status transition
+    if exam.status != "draft":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot submit exam with status '{exam.status}'. Must be 'draft'."
+        )
+    
+    # Validate exam has structure
+    sections = db.query(ExamSection).filter(ExamSection.exam_id == exam_id).count()
+    if sections == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot submit exam without sections/questions"
+        )
+    
+    old_status = exam.status
+    exam.status = "submitted"
+    exam.submitted_at = datetime.utcnow()
+    
+    # Audit log
+    audit_log = AuditLog(
+        id=uuid_lib.uuid4(),
+        user_id=current_user.user_id,
+        action="EXAM_SUBMIT",
+        entity_type="exam",
+        entity_id=str(exam_id),
+        old_value=old_status,
+        new_value="submitted",
+        reason="Faculty submitted for HOD approval"
+    )
+    db.add(audit_log)
+    
+    db.commit()
+    db.refresh(exam)
+    
+    return exam
+
+
+@router.post("/{exam_id}/approve", response_model=ExamResponse)
+async def approve_exam(
+    exam_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_hod_or_above)
+):
+    """
+    Approve an exam (HOD only).
+    
+    Status transition: submitted → approved
+    After approval, marks entry is allowed.
+    """
+    from app.models import AuditLog
+    
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    # Validate status transition
+    if exam.status != "submitted":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot approve exam with status '{exam.status}'. Must be 'submitted'."
+        )
+    
+    old_status = exam.status
+    exam.status = "approved"
+    exam.approved_at = datetime.utcnow()
+    exam.approved_by = current_user.user_id
+    
+    # Audit log
+    audit_log = AuditLog(
+        id=uuid_lib.uuid4(),
+        user_id=current_user.user_id,
+        action="EXAM_APPROVE",
+        entity_type="exam",
+        entity_id=str(exam_id),
+        old_value=old_status,
+        new_value="approved",
+        reason="HOD approved exam"
+    )
+    db.add(audit_log)
+    
+    db.commit()
+    db.refresh(exam)
+    
+    return exam
+
+
+@router.post("/{exam_id}/lock", response_model=ExamResponse)
+async def lock_exam(
+    exam_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_hod_or_above)
+):
+    """
+    Lock an exam (HOD only).
+    
+    Status transition: approved → locked
+    After locking, no marks edits are allowed.
+    """
+    from app.models import AuditLog
+    
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    # Validate status transition
+    if exam.status != "approved":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot lock exam with status '{exam.status}'. Must be 'approved'."
+        )
+    
+    old_status = exam.status
+    exam.status = "locked"
+    
+    # Audit log
+    audit_log = AuditLog(
+        id=uuid_lib.uuid4(),
+        user_id=current_user.user_id,
+        action="EXAM_LOCK",
+        entity_type="exam",
+        entity_id=str(exam_id),
+        old_value=old_status,
+        new_value="locked",
+        reason="HOD locked exam - marks finalized"
+    )
+    db.add(audit_log)
+    
+    db.commit()
+    db.refresh(exam)
+    
+    return exam
+
+
+@router.post("/{exam_id}/unlock", response_model=ExamResponse)
+async def unlock_exam(
+    exam_id: UUID,
+    reason: str,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_hod_or_above)
+):
+    """
+    Unlock an exam for corrections (HOD only, with reason).
+    
+    Status transition: locked → approved
+    Requires mandatory reason for audit trail.
+    """
+    from app.models import AuditLog
+    
+    if not reason or len(reason.strip()) < 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Reason must be at least 10 characters for audit compliance"
+        )
+    
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    if exam.status != "locked":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot unlock exam with status '{exam.status}'. Must be 'locked'."
+        )
+    
+    old_status = exam.status
+    exam.status = "approved"
+    
+    # Audit log with reason
+    audit_log = AuditLog(
+        id=uuid_lib.uuid4(),
+        user_id=current_user.user_id,
+        action="EXAM_UNLOCK",
+        entity_type="exam",
+        entity_id=str(exam_id),
+        old_value=old_status,
+        new_value="approved",
+        reason=reason.strip()
+    )
+    db.add(audit_log)
+    
     db.commit()
     db.refresh(exam)
     

@@ -60,15 +60,17 @@ export const authApi = {
         return response.data;
     },
 
-    signup: async (email: string, password: string, fullName: string) => {
+    signup: async (email: string, password: string, fullName: string, autoLogin: boolean = true) => {
         const response = await apiClient.post('/auth/signup', {
             email,
             password,
             full_name: fullName
         });
 
-        localStorage.setItem('access_token', response.data.access_token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+        if (autoLogin) {
+            localStorage.setItem('access_token', response.data.access_token);
+            localStorage.setItem('user', JSON.stringify(response.data.user));
+        }
 
         return response.data;
     },
@@ -154,16 +156,28 @@ export const cohortsApi = {
 };
 
 // Enrollments API
+// Enrollments API (Now managing Students directly)
 export const enrollmentsApi = {
-    list: (params?: { cohort_id?: string; student_id?: string }) =>
+    list: (params?: { cohort_id?: string; usn?: string }) =>
         apiClient.get('/enrollments', { params }).then(r => r.data),
 
-    create: (data: { student_id: string; cohort_id: string; roll_number: string; status?: string }) =>
+    create: (data: { usn: string; name: string; cohort_id: string; email?: string; section_id?: string; admission_semester?: number; status?: string }) =>
         apiClient.post('/enrollments', data).then(r => r.data),
 
-    get: (id: string) => apiClient.get(`/enrollments/${id}`).then(r => r.data),
+    get: (usn: string) => apiClient.get(`/enrollments/${usn}`).then(r => r.data),
 
-    delete: (id: string) => apiClient.delete(`/enrollments/${id}`),
+    update: (usn: string, data: Partial<{ name: string; email: string; cohort_id: string; section_id: string; admission_semester: number; status: string }>) =>
+        apiClient.put(`/enrollments/${usn}`, data).then(r => r.data),
+
+    delete: (usn: string) => apiClient.delete(`/enrollments/${usn}`),
+
+    bulkUpload: (file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return apiClient.post('/enrollments/bulk-upload', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        }).then(r => r.data);
+    },
 };
 
 // Assignments API (Teacher-Subject)
@@ -238,6 +252,16 @@ export const examsApi = {
 
     publish: (id: string) => apiClient.post(`/exams/${id}/publish`).then(r => r.data),
 
+    // PHASE 1: Exam workflow endpoints
+    submit: (id: string) => apiClient.post(`/exams/${id}/submit`).then(r => r.data),
+
+    approve: (id: string) => apiClient.post(`/exams/${id}/approve`).then(r => r.data),
+
+    lock: (id: string) => apiClient.post(`/exams/${id}/lock`).then(r => r.data),
+
+    unlock: (id: string, reason: string) =>
+        apiClient.post(`/exams/${id}/unlock`, null, { params: { reason } }).then(r => r.data),
+
     delete: (id: string) => apiClient.delete(`/exams/${id}`),
 };
 
@@ -285,6 +309,48 @@ export const analyticsApi = {
 
     getDepartmentStats: () =>
         apiClient.get('/analytics/department-stats').then(r => r.data),
+
+    // PSO Analytics (Phase 5)
+    getPSOAttainment: (programId: string) =>
+        apiClient.get(`/analytics/pso-attainment/${programId}`).then(r => r.data),
+
+    getPOPSOComparison: (programId: string) =>
+        apiClient.get(`/analytics/po-pso-comparison/${programId}`).then(r => r.data),
+};
+
+// Role-Scoped Analytics API (Phase 3)
+export const roleAnalyticsApi = {
+    // Student analytics (own data only)
+    getStudentPerformance: (regulationYear: number = 2021) =>
+        apiClient.get('/analytics/role/student/performance', {
+            params: { regulation_year: regulationYear }
+        }).then(r => r.data),
+
+    getStudentCOProfile: (offeringId: string) =>
+        apiClient.get(`/analytics/role/student/co-profile/${offeringId}`).then(r => r.data),
+
+    // Faculty analytics (assigned subjects)
+    getSubjectHealth: (offeringId: string) =>
+        apiClient.get(`/analytics/role/faculty/subject-health/${offeringId}`).then(r => r.data),
+
+    getQuestionAnalysis: (examId: string) =>
+        apiClient.get(`/analytics/role/faculty/question-analysis/${examId}`).then(r => r.data),
+
+    // HOD analytics (department-scoped)
+    getDepartmentHealth: () =>
+        apiClient.get('/analytics/role/hod/department-health').then(r => r.data),
+
+    getBatchComparison: (batchYears: number[]) =>
+        apiClient.get('/analytics/role/hod/batch-comparison', {
+            params: { batch_years: batchYears }
+        }).then(r => r.data),
+
+    // Principal analytics (institution-wide)
+    getInstitutionOverview: () =>
+        apiClient.get('/analytics/role/principal/institution-overview').then(r => r.data),
+
+    getDepartmentComparison: () =>
+        apiClient.get('/analytics/role/principal/department-comparison').then(r => r.data),
 };
 
 // Dashboard API
@@ -302,5 +368,128 @@ export const dashboardApi = {
         apiClient.get('/dashboard/student').then(r => r.data),
 };
 
+// Templates API (Phase 2C reports)
+export const templatesApi = {
+    getCOAttainmentReport: (offeringId: string, format: 'json' | 'pdf' | 'xlsx' = 'json') =>
+        apiClient.get(`/templates/reports/co-attainment/${offeringId}`, {
+            params: { format },
+            responseType: format !== 'json' ? 'blob' : 'json'
+        }).then(r => r.data),
+
+    getPOMatrixReport: (programId: string, academicYear: string, format: 'json' | 'pdf' | 'xlsx' = 'json') =>
+        apiClient.get(`/templates/reports/po-matrix/${programId}`, {
+            params: { academic_year: academicYear, format },
+            responseType: format !== 'json' ? 'blob' : 'json'
+        }).then(r => r.data),
+
+    // PSO Matrix Report (Phase 5)
+    getPSOMatrixReport: (programId: string, academicYear: string, format: 'json' | 'pdf' | 'xlsx' = 'json') =>
+        apiClient.get(`/templates/reports/pso-matrix/${programId}`, {
+            params: { academic_year: academicYear, format },
+            responseType: format !== 'json' ? 'blob' : 'json'
+        }).then(r => r.data),
+
+    getStudentPerformanceReport: (studentId: string, format: 'json' | 'pdf' | 'xlsx' = 'json') =>
+        apiClient.get(`/templates/reports/student-performance/${studentId}`, {
+            params: { format },
+            responseType: format !== 'json' ? 'blob' : 'json'
+        }).then(r => r.data),
+
+    // NAAC Reports (Phase 5)
+    getNAACCriterion2Report: (programId: string, academicYear: string, format: 'json' | 'pdf' = 'json') =>
+        apiClient.get(`/templates/reports/naac/criterion-2/${programId}`, {
+            params: { academic_year: academicYear, format, year: parseInt(academicYear) },
+            responseType: format !== 'json' ? 'blob' : 'json'
+        }).then(r => r.data),
+
+    getNAACCriterion3Report: (programId: string, academicYear: string, format: 'json' | 'pdf' = 'json') =>
+        apiClient.get(`/templates/reports/naac/criterion-3/${programId}`, {
+            params: { year: parseInt(academicYear), format },
+            responseType: format !== 'json' ? 'blob' : 'json'
+        }).then(r => r.data),
+
+    getNBASARReport: (programId: string, academicYear: string, format: 'json' | 'pdf' = 'json') =>
+        apiClient.get(`/templates/reports/nba/sar/${programId}`, {
+            params: { year: parseInt(academicYear), format },
+            responseType: format !== 'json' ? 'blob' : 'json'
+        }).then(r => r.data),
+};
+
+// Backlogs API (Phase 2)
+export const backlogsApi = {
+    // List backlogs with filters
+    list: (params?: {
+        usn?: string;
+        offering_id?: string;
+        cohort_id?: string;
+        result?: string;
+        skip?: number;
+        limit?: number;
+    }) =>
+        apiClient.get('/backlogs', { params }).then(r => r.data),
+
+    // Get student backlog summary
+    getStudentSummary: (usn: string) =>
+        apiClient.get(`/backlogs/student/${usn}/summary`).then(r => r.data),
+
+    // Record a new backlog attempt
+    record: (data: {
+        student_usn: string;
+        offering_id: string;
+        exam_type: string;
+        semester_attempted: number;
+        academic_year?: string;
+        external_marks?: number;
+        internal_marks_carried?: number;
+    }) =>
+        apiClient.post('/backlogs/record', data).then(r => r.data),
+
+    // Update backlog result
+    updateResult: (id: string, data: {
+        external_marks: number;
+        result?: string;
+        grade?: string;
+    }) =>
+        apiClient.put(`/backlogs/${id}/result`, data).then(r => r.data),
+
+    // Get cohort backlog analytics
+    getCohortAnalytics: (cohortId: string) =>
+        apiClient.get(`/backlogs/cohort/${cohortId}/analytics`).then(r => r.data),
+};
+
+// Promotions API (Phase 2)
+export const promotionsApi = {
+    // List promotions with filters
+    list: (params?: {
+        cohort_id?: string;
+        academic_year?: string;
+        status?: string;
+        skip?: number;
+        limit?: number;
+    }) =>
+        apiClient.get('/promotions', { params }).then(r => r.data),
+
+    // Get cohort eligibility for promotion
+    getEligibility: (cohortId: string) =>
+        apiClient.get(`/promotions/cohort/${cohortId}/eligibility`).then(r => r.data),
+
+    // Execute semester promotion
+    execute: (data: {
+        cohort_id: string;
+        academic_year: string;
+        approval_notes?: string;
+    }) =>
+        apiClient.post('/promotions/execute', data).then(r => r.data),
+
+    // Get promotion details
+    get: (id: string) =>
+        apiClient.get(`/promotions/${id}`).then(r => r.data),
+
+    // Rollback a promotion (Principal only)
+    rollback: (id: string, reason: string) =>
+        apiClient.post(`/promotions/${id}/rollback`, { reason }).then(r => r.data),
+};
+
 export default apiClient;
+
 

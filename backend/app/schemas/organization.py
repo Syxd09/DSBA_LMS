@@ -69,6 +69,32 @@ class ProgramResponse(ProgramBase):
         from_attributes = True
 
 
+# Section schemas
+class SectionBase(BaseModel):
+    """Base section schema."""
+    name: str
+    cohort_id: UUID
+
+
+class SectionCreate(SectionBase):
+    """Create section schema."""
+    pass
+
+
+class SectionUpdate(BaseModel):
+    """Update section schema."""
+    name: Optional[str] = None
+
+
+class SectionResponse(SectionBase):
+    """Section response schema."""
+    id: UUID
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
 # Cohort schemas
 class CohortBase(BaseModel):
     """Base cohort schema."""
@@ -94,6 +120,7 @@ class CohortResponse(CohortBase):
     id: UUID
     created_at: datetime
     program: Optional[ProgramResponse] = None
+    sections: List[SectionResponse] = []  # Added sections list
     student_count: int = 0
     exam_count: int = 0
     

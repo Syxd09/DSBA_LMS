@@ -15,7 +15,7 @@ class SubQuestionBase(BaseModel):
     """Base sub-question schema."""
     label: str
     max_marks: int
-    bloom_level: str
+    bloom_level: Optional[str] = None
     co_id: Optional[UUID] = None
 
 
@@ -39,7 +39,7 @@ class QuestionBase(BaseModel):
     """Base question schema."""
     sequence: int
     max_marks: int
-    bloom_level: str
+    bloom_level: Optional[str] = None
     co_id: Optional[UUID] = None
     is_optional: bool = False
     group_key: Optional[str] = None
@@ -67,6 +67,7 @@ class ExamSectionBase(BaseModel):
     name: str
     sequence: int
     max_marks: int
+    max_questions: int  # NEW: Total questions in section
     required_questions: int = 1
     selection_mode: str = "FIRST_N"  # FIRST_N, BEST_N
 
@@ -90,7 +91,8 @@ class ExamSectionResponse(ExamSectionBase):
 # Exam schemas
 class ExamBase(BaseModel):
     """Base exam schema."""
-    subject_id: UUID
+    subject_id: Optional[UUID] = None
+    offering_id: Optional[UUID] = None
     cohort_id: UUID
     exam_type: str  # internal1, internal2
     max_marks: int = 30

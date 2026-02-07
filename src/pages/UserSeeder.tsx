@@ -21,7 +21,7 @@ export default function UserSeeder() {
   const createUserMutation = useMutation({
     mutationFn: async () => {
       // First signup the user
-      const signupResult = await authApi.signup(email, password, fullName);
+      const signupResult = await authApi.signup(email, password, fullName, false);
       
       // Then update their role if not student
       if (role !== 'student' && signupResult.user?.id) {

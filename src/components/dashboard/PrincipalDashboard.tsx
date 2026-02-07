@@ -2,13 +2,14 @@ import { StatsCard } from './StatsCard';
 import { DepartmentTable } from './DepartmentTable';
 import { COAttainmentChart } from './COAttainmentChart';
 import { PerformanceTrendChart } from './PerformanceTrendChart';
-import { Users, GraduationCap, BookOpen, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Users, GraduationCap, BookOpen, AlertTriangle, CheckCircle, Building2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
-import { dashboardApi, departmentsApi, analyticsApi } from '@/lib/api';
+import { dashboardApi, departmentsApi, analyticsApi, roleAnalyticsApi } from '@/lib/api';
 
 export function PrincipalDashboard() {
+  // Primary dashboard data
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['principal-dashboard'],
     queryFn: () => dashboardApi.getPrincipalDashboard(),
@@ -23,6 +24,23 @@ export function PrincipalDashboard() {
     queryKey: ['department-stats'],
     queryFn: () => analyticsApi.getDepartmentStats(),
   });
+
+  // Phase 3: Role-scoped institution analytics
+  const { data: institutionOverview } = useQuery({
+    queryKey: ['principal-institution-overview'],
+    queryFn: () => roleAnalyticsApi.getInstitutionOverview(),
+    staleTime: 60000,
+  });
+
+  const { data: deptComparison } = useQuery({
+    queryKey: ['principal-dept-comparison'],
+    queryFn: () => roleAnalyticsApi.getDepartmentComparison(),
+    staleTime: 60000,
+  });
+
+  // Merge Phase 3 insights
+  const institutionData = institutionOverview?.data?.institution_summary || {};
+  const comparisonData = deptComparison?.data?.comparison || [];
 
   const studentCount = dashboardData?.total_students || 0;
   const teacherCount = dashboardData?.total_teachers || 0;

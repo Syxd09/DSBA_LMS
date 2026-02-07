@@ -1,16 +1,26 @@
 import { StatsCard } from './StatsCard';
-import { GraduationCap, BookOpen, TrendingUp, Award, Brain, Target } from 'lucide-react';
+import { COAttainmentChart } from './COAttainmentChart';
+import { GraduationCap, BookOpen, TrendingUp, Award, Brain, Target, AlertCircle, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
-import { dashboardApi } from '@/lib/api';
+import { dashboardApi, roleAnalyticsApi, templatesApi } from '@/lib/api';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 
 export function StudentDashboard() {
+  // Primary dashboard data
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['student-dashboard'],
     queryFn: () => dashboardApi.getStudentDashboard(),
+  });
+
+  // Phase 3: Role-scoped analytics for detailed performance
+  const { data: performanceData, isLoading: performanceLoading } = useQuery({
+    queryKey: ['student-role-performance'],
+    queryFn: () => roleAnalyticsApi.getStudentPerformance(),
+    staleTime: 60000, // Cache for 1 minute
   });
 
   const overallAverage = dashboardData?.overall_average || 0;
@@ -19,6 +29,30 @@ export function StudentDashboard() {
   const subjectsEnrolled = dashboardData?.subjects_enrolled || 0;
   const results = dashboardData?.results || [];
   const bloomPerformance = dashboardData?.bloom_performance || [];
+  const usn = dashboardData?.usn || '';
+
+  const handleDownloadReport = async () => {
+    if (!usn) return;
+    try {
+      const blob = await templatesApi.getStudentPerformanceReport(usn, 'pdf');
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Student_Report_${usn}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Failed to download report:", error);
+      alert("Failed to generate report. Please try again.");
+    }
+  };
+
+  // Phase 3 performance insights
+  const rolePerformance = performanceData?.data || {};
+  const passedCount = rolePerformance.passed_count || 0;
+  const failedCount = rolePerformance.failed_count || 0;
+  const warnings = performanceData?.warnings || [];
 
   // Prepare radar chart data from real bloom performance
   const radarData = bloomPerformance.length > 0
@@ -39,9 +73,15 @@ export function StudentDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Student Dashboard</h2>
-        <p className="text-muted-foreground">Track your academic performance and progress</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Student Dashboard</h2>
+          <p className="text-muted-foreground">Track your academic performance and progress</p>
+        </div>
+        <Button onClick={handleDownloadReport} disabled={!usn}>
+          <Download className="w-4 h-4 mr-2" />
+          Download Report
+        </Button>
       </div>
 
       {/* Stats Grid */}
@@ -136,41 +176,31 @@ export function StudentDashboard() {
         </Card>
 
         {/* CO Attainment */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Target className="w-4 h-4" />
+        <div className="col-span-1 lg:col-span-2">
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Target className="w-5 h-5" />
               Course Outcome Attainment
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+            </h3>
             {results.length > 0 ? (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={results.slice(0, 6).map((r: any, i: number) => ({
-                    name: r.subject_code || `S${i + 1}`,
-                    score: ((r.total_marks / r.max_marks) * 100) || 0,
-                  }))}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                    <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} domain={[0, 100]} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                      }}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {results.map((result: any, index: number) => (
+                  result.offering_id ? (
+                    <COAttainmentChart 
+                      key={index} 
+                      offeringId={result.offering_id} 
+                      subjectName={result.subject_name} 
                     />
-                    <Bar dataKey="score" fill="hsl(var(--primary))" name="Score %" />
-                  </BarChart>
-                </ResponsiveContainer>
+                  ) : null
+                ))}
               </div>
             ) : (
-              <p className="text-center py-8 text-muted-foreground">
-                Performance chart will appear after exams are completed.
-              </p>
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  CO Attainment data will appear after exams are evaluated.
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
+        </div>
       </div>
 
       {/* Recommendations */}

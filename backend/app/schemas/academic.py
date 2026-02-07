@@ -16,7 +16,7 @@ class SubjectBase(BaseModel):
     name: str
     code: str
     credits: int = 3
-    semester: int
+    semester: Optional[int] = None
     curriculum_version_id: Optional[UUID] = None
 
 

@@ -85,3 +85,44 @@ def get_user_role(
     """Get just the user's role."""
     user_role = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
     return user_role.role.value if user_role else "student"
+
+
+# =============================================================================
+# RBAC Exports (Option B)
+# =============================================================================
+# Re-export RBAC utilities for convenient import in endpoints
+
+from app.core.policies import Permission, has_permission, PermissionDenied
+from app.core.scope import ScopeResolver, AccessScope, ScopeType, check_scope_access
+from app.core.authorization import (
+    AuthorizationContext,
+    require_permission,
+    PermissionChecker,
+    get_authorization_context
+)
+
+__all__ = [
+    # Existing
+    'get_db',
+    'get_current_user',
+    'get_current_user_with_role',
+    'get_user_role',
+    'RoleChecker',
+    'require_principal',
+    'require_hod_or_above',
+    'require_teacher_or_above',
+    'require_authenticated',
+    # RBAC
+    'Permission',
+    'has_permission',
+    'PermissionDenied',
+    'ScopeResolver',
+    'AccessScope',
+    'ScopeType',
+    'check_scope_access',
+    'AuthorizationContext',
+    'require_permission',
+    'PermissionChecker',
+    'get_authorization_context',
+]
+

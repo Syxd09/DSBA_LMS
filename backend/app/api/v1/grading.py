@@ -1,6 +1,9 @@
 """
 EduMetrics Backend - Grading Router
 Grade calculation and management endpoints
+
+NOTE: MarksComputed has been REMOVED per the "no stored analytics" rule.
+All computation is now on-demand via Phase-2A functions.
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,15 +16,76 @@ from datetime import datetime
 from app.database import get_db
 from app.api.deps import require_teacher_or_above, require_hod_or_above
 from app.models import (
-    Profile, GradingRule, FinalMarks, Exam, MarksComputed, 
-    Subject, SemesterResult, StudentEnrollment
+    Profile, GradingRule, FinalMarks, Exam, StudentMarks,
+    Subject, SemesterResult, StudentEnrollment, SubQuestion, Question, ExamSection
 )
 from app.schemas import (
     GradingRuleResponse, FinalMarksResponse,
     CalculateGradesRequest, CalculateSGPARequest, SemesterResultResponse
 )
+from app.core.audit import create_audit_log
 
 router = APIRouter(prefix="/grading", tags=["Grading"])
+
+
+def _compute_exam_total_for_student(
+    db: Session,
+    exam_id: UUID,
+    student_id: UUID
+) -> Decimal:
+    """
+    Compute exam total for a student on-demand.
+    
+    This replaces the stored MarksComputed table.
+    Implements BEST_N selection logic.
+    """
+    # Get all sections
+    sections = db.query(ExamSection).filter(ExamSection.exam_id == exam_id).all()
+    
+    # Get all marks for this student and exam
+    student_marks = db.query(StudentMarks).filter(
+        StudentMarks.exam_id == exam_id,
+        StudentMarks.student_id == student_id
+    ).all()
+    
+    if not student_marks:
+        return None
+    
+    total = Decimal(0)
+    
+    for section in sections:
+        section_questions = db.query(Question).filter(Question.section_id == section.id).all()
+        
+        if section.selection_mode == "BEST_N":
+            # Calculate total for each question
+            question_totals = []
+            for question in section_questions:
+                sub_questions = db.query(SubQuestion).filter(SubQuestion.question_id == question.id).all()
+                sq_ids = [sq.id for sq in sub_questions]
+                
+                q_marks = sum(
+                    m.marks for m in student_marks 
+                    if m.sub_question_id in sq_ids
+                )
+                question_totals.append(q_marks)
+            
+            # Sort and take best N
+            question_totals.sort(reverse=True)
+            best = question_totals[:section.required_questions]
+            total += sum(best)
+        else:
+            # FIRST_N or ALL - sum all at marks
+            for question in section_questions[:section.required_questions]:
+                sub_questions = db.query(SubQuestion).filter(SubQuestion.question_id == question.id).all()
+                sq_ids = [sq.id for sq in sub_questions]
+                
+                q_marks = sum(
+                    m.marks for m in student_marks 
+                    if m.sub_question_id in sq_ids
+                )
+                total += q_marks
+    
+    return total
 
 
 @router.get("/rules", response_model=List[GradingRuleResponse])
@@ -67,6 +131,17 @@ async def create_grading_rule(
         grade_point=Decimal(str(rule_data["grade_point"]))
     )
     db.add(rule)
+    
+    # Audit Log
+    create_audit_log(
+        db=db,
+        user_id=current_user.user_id,
+        action="INSERT",
+        table_name="grading_rules",
+        record_id=rule.id,
+        new_data=rule_data
+    )
+    
     db.commit()
     db.refresh(rule)
     
@@ -85,6 +160,17 @@ async def delete_grading_rule(
         raise HTTPException(status_code=404, detail="Grading rule not found")
     
     db.delete(rule)
+    
+    # Audit Log
+    create_audit_log(
+        db=db,
+        user_id=current_user.user_id,
+        action="DELETE",
+        table_name="grading_rules",
+        record_id=rule.id,
+        old_data={"grade": rule.grade}
+    )
+    
     db.commit()
     
     return {"message": "Grading rule deleted successfully"}
@@ -96,7 +182,11 @@ async def calculate_grades(
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_hod_or_above)
 ):
-    """Calculate grades for a cohort and subject."""
+    """
+    Calculate grades for a cohort and subject.
+    
+    NOTE: Now uses on-demand computation instead of MarksComputed table.
+    """
     # Get grading rules
     rules = db.query(GradingRule).order_by(GradingRule.min_percentage.desc()).all()
     if not rules:
@@ -128,25 +218,19 @@ async def calculate_grades(
     for enrollment in enrollments:
         student_id = enrollment.student_id
         
-        # Get internal 1 marks
+        # Compute internal 1 marks ON-DEMAND (no MarksComputed)
         internal1_marks = None
         if internal1_exam:
-            computed = db.query(MarksComputed).filter(
-                MarksComputed.exam_id == internal1_exam.id,
-                MarksComputed.student_id == student_id
-            ).first()
-            if computed:
-                internal1_marks = float(computed.total_marks)
+            computed = _compute_exam_total_for_student(db, internal1_exam.id, student_id)
+            if computed is not None:
+                internal1_marks = float(computed)
         
-        # Get internal 2 marks
+        # Compute internal 2 marks ON-DEMAND (no MarksComputed)
         internal2_marks = None
         if internal2_exam:
-            computed = db.query(MarksComputed).filter(
-                MarksComputed.exam_id == internal2_exam.id,
-                MarksComputed.student_id == student_id
-            ).first()
-            if computed:
-                internal2_marks = float(computed.total_marks)
+            computed = _compute_exam_total_for_student(db, internal2_exam.id, student_id)
+            if computed is not None:
+                internal2_marks = float(computed)
         
         # Calculate best internal
         best_internal = max(internal1_marks or 0, internal2_marks or 0)
@@ -244,3 +328,4 @@ async def get_final_marks(
     
     marks = query.all()
     return marks
+

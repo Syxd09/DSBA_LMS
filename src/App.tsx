@@ -3,6 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { RoleProvider } from "@/components/auth/RoleContext";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -21,10 +23,14 @@ import StudentEnrollments from "./pages/StudentEnrollments";
 import TeacherAssignments from "./pages/TeacherAssignments";
 import GradeManagement from "./pages/GradeManagement";
 import COPOAnalytics from "./pages/COPOAnalytics";
+import Reports from "./pages/Reports";  // NEW: NAAC/NBA Reports
 import AuditLogs from "./pages/AuditLogs";
 import UserSeeder from "./pages/UserSeeder";
 import Profile from "./pages/Profile";
 import Settings from "./pages/Settings";
+import BacklogManagement from "./pages/BacklogManagement";
+import SemesterPromotions from "./pages/SemesterPromotions";
+import ExternalResults from "./pages/ExternalResults";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,35 +41,140 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/marks-entry" element={<MarksEntry />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/users" element={<Users />} />
-          <Route path="/departments" element={<Departments />} />
-          <Route path="/subjects" element={<Subjects />} />
-          <Route path="/results" element={<Results />} />
-          <Route path="/performance" element={<Performance />} />
-          <Route path="/programs" element={<Programs />} />
-          <Route path="/cohorts" element={<Cohorts />} />
-          <Route path="/exams" element={<Exams />} />
-          <Route path="/course-outcomes" element={<CourseOutcomes />} />
-          <Route path="/student-enrollments" element={<StudentEnrollments />} />
-          <Route path="/teacher-assignments" element={<TeacherAssignments />} />
-          <Route path="/grade-management" element={<GradeManagement />} />
-          <Route path="/co-po-analytics" element={<COPOAnalytics />} />
-          <Route path="/seed-users" element={<UserSeeder />} />
-          <Route path="/audit-logs" element={<AuditLogs />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/settings" element={<Settings />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <RoleProvider>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            
+            {/* Protected: Any authenticated user */}
+            <Route path="/dashboard" element={
+              <ProtectedRoute><Dashboard /></ProtectedRoute>
+            } />
+            <Route path="/profile" element={
+              <ProtectedRoute><Profile /></ProtectedRoute>
+            } />
+            <Route path="/settings" element={
+              <ProtectedRoute><Settings /></ProtectedRoute>
+            } />
+            <Route path="/results" element={
+              <ProtectedRoute><Results /></ProtectedRoute>
+            } />
+            
+            {/* Protected: Teacher, HOD, Principal only */}
+            <Route path="/marks-entry" element={
+              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
+                <MarksEntry />
+              </ProtectedRoute>
+            } />
+            <Route path="/exams" element={
+              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
+                <Exams />
+              </ProtectedRoute>
+            } />
+            <Route path="/grade-management" element={
+              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
+                <GradeManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/analytics" element={
+              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
+                <Analytics />
+              </ProtectedRoute>
+            } />
+            <Route path="/co-po-analytics" element={
+              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
+                <COPOAnalytics />
+              </ProtectedRoute>
+            } />
+            <Route path="/performance" element={
+              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
+                <Performance />
+              </ProtectedRoute>
+            } />
+            
+            {/* Protected: HOD, Principal only */}
+            <Route path="/reports" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <Reports />
+              </ProtectedRoute>
+            } />
+            <Route path="/departments" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <Departments />
+              </ProtectedRoute>
+            } />
+            <Route path="/programs" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <Programs />
+              </ProtectedRoute>
+            } />
+            <Route path="/cohorts" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <Cohorts />
+              </ProtectedRoute>
+            } />
+            <Route path="/subjects" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <Subjects />
+              </ProtectedRoute>
+            } />
+            <Route path="/course-outcomes" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <CourseOutcomes />
+              </ProtectedRoute>
+            } />
+            <Route path="/student-enrollments" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <StudentEnrollments />
+              </ProtectedRoute>
+            } />
+            <Route path="/teacher-assignments" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <TeacherAssignments />
+              </ProtectedRoute>
+            } />
+            <Route path="/audit-logs" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <AuditLogs />
+              </ProtectedRoute>
+            } />
+            <Route path="/backlog-management" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <BacklogManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/semester-promotions" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <SemesterPromotions />
+              </ProtectedRoute>
+            } />
+            <Route path="/external-results" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <ExternalResults />
+              </ProtectedRoute>
+            } />
+            
+            {/* Protected: Principal only */}
+            <Route path="/users" element={
+              <ProtectedRoute allowedRoles={['principal']}>
+                <Users />
+              </ProtectedRoute>
+            } />
+            <Route path="/seed-users" element={
+              <ProtectedRoute allowedRoles={['principal']}>
+                <UserSeeder />
+              </ProtectedRoute>
+            } />
+            
+            {/* Catch-all */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </RoleProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
 
 export default App;
+

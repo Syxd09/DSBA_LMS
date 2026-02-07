@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 import uuid
 
 from app.database import get_db
+from app.api.deps import get_current_user
 from app.config import settings
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.models import Profile, UserRole
@@ -137,10 +138,20 @@ async def signup(
 
 @router.get("/me", response_model=ProfileResponse)
 async def get_current_user_info(
-    db: Session = Depends(get_db),
-    current_user: Profile = Depends(lambda db=Depends(get_db): None)  # Will be replaced by proper dep
+    current_user: Profile = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """Get current user profile and role."""
-    from app.api.deps import get_current_user
-    # This is a placeholder - actual implementation uses proper dependency
-    pass
+    # Get role
+    user_role = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
+    role = user_role.role.value if user_role else "student"
+    
+    return ProfileResponse(
+        id=current_user.id,
+        user_id=current_user.user_id,
+        email=current_user.email,
+        full_name=current_user.full_name,
+        avatar_url=current_user.avatar_url,
+        department=current_user.department,
+        role=role
+    )

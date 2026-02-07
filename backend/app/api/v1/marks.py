@@ -1,6 +1,9 @@
 """
 EduMetrics Backend - Marks Router
 Marks entry and management endpoints
+
+NOTE: MarksComputed has been REMOVED per the "no stored analytics" rule.
+All computation is now on-demand via Phase-2A functions.
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,8 +16,8 @@ from decimal import Decimal
 
 from app.database import get_db
 from app.api.deps import get_current_user, require_teacher_or_above, require_authenticated
-from app.models import Profile, Exam, StudentMarks, MarksComputed, SubQuestion, Question, ExamSection
-from app.schemas import BulkMarksCreate, StudentMarksResponse, MarksComputedResponse
+from app.models import Profile, Exam, StudentMarks, SubQuestion, Question, ExamSection
+from app.schemas import BulkMarksCreate, StudentMarksResponse
 
 router = APIRouter(prefix="/marks", tags=["Marks"])
 
@@ -37,15 +40,45 @@ async def save_marks(
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above)
 ):
-    """Bulk save marks for an exam."""
+    """
+    Bulk save marks for an exam.
+    
+    IMMUTABILITY RULES:
+    - Only 'approved' status allows marks entry
+    - 'draft' and 'submitted' block marks (exam structure not finalized)
+    - 'locked' blocks all edits (immutable)
+    
+    AUDIT LOGGING:
+    - Every mark entry/edit is logged with old/new values
+    """
+    from app.models import AuditLog
+    
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
+    # Immutability enforcement (CRITICAL)
     if exam.status == "locked":
-        raise HTTPException(status_code=400, detail="Exam is locked, cannot modify marks")
+        raise HTTPException(
+            status_code=400, 
+            detail="Exam is locked. Marks cannot be modified. Contact HOD to unlock."
+        )
+    
+    if exam.status in ["draft", "submitted"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Exam status is '{exam.status}'. Marks entry only allowed after HOD approval."
+        )
+    
+    if exam.status != "approved":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unexpected exam status '{exam.status}'. Only 'approved' allows marks entry."
+        )
     
     saved_count = 0
+    audit_entries = []
+    
     for entry in marks_data.marks:
         # Check if mark already exists
         existing = db.query(StudentMarks).filter(
@@ -55,9 +88,21 @@ async def save_marks(
         ).first()
         
         if existing:
+            old_value = float(existing.marks)
             existing.marks = Decimal(str(entry.marks))
             existing.entered_by = current_user.user_id
             existing.entered_at = datetime.utcnow()
+            
+            # Audit log for edit
+            audit_entries.append({
+                "action": "MARKS_EDIT",
+                "entity_type": "student_marks",
+                "entity_id": str(existing.id),
+                "old_value": str(old_value),
+                "new_value": str(entry.marks),
+                "student_id": str(entry.student_id),
+                "sub_question_id": str(entry.sub_question_id)
+            })
         else:
             new_mark = StudentMarks(
                 id=uuid_lib.uuid4(),
@@ -68,20 +113,55 @@ async def save_marks(
                 entered_by=current_user.user_id
             )
             db.add(new_mark)
+            
+            # Audit log for new entry
+            audit_entries.append({
+                "action": "MARKS_ENTRY",
+                "entity_type": "student_marks",
+                "entity_id": str(new_mark.id),
+                "old_value": None,
+                "new_value": str(entry.marks),
+                "student_id": str(entry.student_id),
+                "sub_question_id": str(entry.sub_question_id)
+            })
         saved_count += 1
+    
+    # Write audit logs
+    for audit_data in audit_entries:
+        audit_log = AuditLog(
+            id=uuid_lib.uuid4(),
+            user_id=current_user.user_id,
+            action=audit_data["action"],
+            entity_type=audit_data["entity_type"],
+            entity_id=audit_data["entity_id"],
+            old_value=audit_data["old_value"],
+            new_value=audit_data["new_value"],
+            reason=f"Marks for student {audit_data['student_id']}, subq {audit_data['sub_question_id']}"
+        )
+        db.add(audit_log)
     
     db.commit()
     
-    return {"success": True, "saved_count": saved_count}
+    return {
+        "success": True, 
+        "saved_count": saved_count,
+        "audit_logged": len(audit_entries)
+    }
 
 
-@router.post("/compute/{exam_id}", response_model=List[MarksComputedResponse])
+@router.get("/compute/{exam_id}")
 async def compute_marks(
     exam_id: UUID,
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above)
 ):
-    """Compute final marks for an exam (applies Best-N selection if applicable)."""
+    """
+    Compute marks for an exam on-demand.
+    
+    NOTE: This endpoint now computes marks dynamically without storing them.
+    Per the "no stored analytics" rule, all derived values are computed on-demand.
+    For detailed analytics, use the Phase-2B Analytics APIs.
+    """
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
@@ -141,38 +221,21 @@ async def compute_marks(
                     total += q_marks
                     selected_questions.append(str(question.id))
         
-        # Save computed marks
-        existing = db.query(MarksComputed).filter(
-            MarksComputed.exam_id == exam_id,
-            MarksComputed.student_id == student_id
-        ).first()
-        
-        if existing:
-            existing.total_marks = total
-            existing.selected_questions = selected_questions
-            existing.computed_at = datetime.utcnow()
-        else:
-            computed = MarksComputed(
-                id=uuid_lib.uuid4(),
-                exam_id=exam_id,
-                student_id=student_id,
-                total_marks=total,
-                selected_questions=selected_questions
-            )
-            db.add(computed)
-        
-        results.append(MarksComputedResponse(
-            id=existing.id if existing else uuid_lib.uuid4(),
-            exam_id=exam_id,
-            student_id=student_id,
-            total_marks=float(total),
-            selected_questions=selected_questions,
-            computed_at=datetime.utcnow()
-        ))
+        # Return computed result (NOT stored)
+        results.append({
+            "student_id": str(student_id),
+            "exam_id": str(exam_id),
+            "total_marks": float(total),
+            "selected_questions": selected_questions,
+            "computed_at": datetime.utcnow().isoformat(),
+            "note": "Computed on-demand, not stored"
+        })
     
-    db.commit()
-    
-    return results
+    return {
+        "exam_id": str(exam_id),
+        "student_count": len(results),
+        "results": results
+    }
 
 
 @router.get("/student/{student_id}", response_model=List[StudentMarksResponse])
@@ -183,7 +246,7 @@ async def get_student_marks(
 ):
     """Get marks for a specific student (students can only view their own)."""
     # Check authorization
-    from app.api.deps import get_user_role
+    from app.models import UserRole
     role = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
     user_role = role.role.value if role else "student"
     
@@ -194,5 +257,186 @@ async def get_student_marks(
     return marks
 
 
-# Import at the bottom to avoid circular imports
-from app.models import UserRole
+# ============= APPROVAL WORKFLOW =============
+
+@router.post("/submit-for-approval/{exam_id}")
+async def submit_for_approval(
+    exam_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_teacher_or_above)
+):
+    """
+    Submit exam marks for HOD approval.
+    Faculty can submit, only HOD/Principal can approve.
+    RBAC: Teacher (submitter).
+    """
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    if exam.status not in ["draft", "rejected"]:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot submit exam with status '{exam.status}'"
+        )
+    
+    # Verify marks exist
+    marks_count = db.query(StudentMarks).filter(StudentMarks.exam_id == exam_id).count()
+    if marks_count == 0:
+        raise HTTPException(status_code=400, detail="No marks entered for this exam")
+    
+    exam.status = "submitted"
+    exam.submitted_at = datetime.utcnow()
+    db.commit()
+    
+    return {
+        "success": True,
+        "exam_id": str(exam_id),
+        "status": "submitted",
+        "submitted_by": str(current_user.user_id),
+        "submitted_at": exam.submitted_at.isoformat()
+    }
+
+
+@router.post("/approve/{exam_id}")
+async def approve_marks(
+    exam_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_teacher_or_above)
+):
+    """
+    Approve submitted exam marks.
+    Only HOD/Principal can approve marks.
+    RBAC: HOD/Principal (approver).
+    """
+    # Verify HOD or above
+    from app.models import UserRole
+    from app.core.permissions import AppRole
+    role_record = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
+    if not role_record or role_record.role not in [AppRole.HOD, AppRole.PRINCIPAL]:
+        raise HTTPException(status_code=403, detail="Only HOD or Principal can approve marks")
+    
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    if exam.status != "submitted":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot approve exam with status '{exam.status}'. Must be 'submitted'."
+        )
+    
+    exam.status = "approved"
+    exam.approved_at = datetime.utcnow()
+    exam.approved_by = current_user.user_id
+    db.commit()
+    
+    return {
+        "success": True,
+        "exam_id": str(exam_id),
+        "status": "approved",
+        "approved_by": str(current_user.user_id),
+        "approved_at": exam.approved_at.isoformat()
+    }
+
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class RejectRequest(PydanticBaseModel):
+    reason: str
+
+
+@router.post("/reject/{exam_id}")
+async def reject_marks(
+    exam_id: UUID,
+    data: RejectRequest,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_teacher_or_above)
+):
+    """
+    Reject submitted exam marks with reason.
+    Only HOD/Principal can reject marks.
+    RBAC: HOD/Principal (rejector).
+    """
+    # Verify HOD or above
+    from app.models import UserRole
+    from app.core.permissions import AppRole
+    role_record = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
+    if not role_record or role_record.role not in [AppRole.HOD, AppRole.PRINCIPAL]:
+        raise HTTPException(status_code=403, detail="Only HOD or Principal can reject marks")
+    
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    if exam.status != "submitted":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot reject exam with status '{exam.status}'. Must be 'submitted'."
+        )
+    
+    exam.status = "rejected"
+    db.commit()
+    
+    # Audit log the rejection with reason
+    from app.models.audit import AuditLog
+    audit = AuditLog(
+        id=uuid_lib.uuid4(),
+        table_name="exams",
+        record_id=exam_id,
+        action="REJECT",
+        old_values=None,
+        new_values={"status": "rejected", "reason": data.reason},
+        user_id=current_user.user_id
+    )
+    db.add(audit)
+    db.commit()
+    
+    return {
+        "success": True,
+        "exam_id": str(exam_id),
+        "status": "rejected",
+        "rejected_by": str(current_user.user_id),
+        "reason": data.reason
+    }
+
+
+@router.post("/lock/{exam_id}")
+async def lock_marks(
+    exam_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_teacher_or_above)
+):
+    """
+    Lock approved marks - no further edits allowed.
+    Only HOD/Principal can lock after approval.
+    RBAC: HOD/Principal.
+    """
+    # Verify HOD or above
+    from app.models import UserRole
+    from app.core.permissions import AppRole
+    role_record = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
+    if not role_record or role_record.role not in [AppRole.HOD, AppRole.PRINCIPAL]:
+        raise HTTPException(status_code=403, detail="Only HOD or Principal can lock marks")
+    
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    if exam.status != "approved":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot lock exam with status '{exam.status}'. Must be 'approved' first."
+        )
+    
+    exam.status = "locked"
+    db.commit()
+    
+    return {
+        "success": True,
+        "exam_id": str(exam_id),
+        "status": "locked",
+        "locked_by": str(current_user.user_id)
+    }
+
+

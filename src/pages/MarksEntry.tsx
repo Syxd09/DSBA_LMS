@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
@@ -26,6 +27,15 @@ export default function MarksEntry() {
       setSelectedExamId(examFromUrl);
     }
   }, [examFromUrl]);
+
+  const tabFromUrl = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabFromUrl || 'marks');
+
+  useEffect(() => {
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
 
   // Fetch exams
   const { exams, isLoading: examsLoading } = useExams();
@@ -191,7 +201,8 @@ export default function MarksEntry() {
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : selectedExamId && examDetails ? (
-          <Tabs defaultValue="marks">
+
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
               <TabsTrigger value="marks">Enter Marks</TabsTrigger>
               <TabsTrigger value="structure">Exam Structure</TabsTrigger>
@@ -201,9 +212,12 @@ export default function MarksEntry() {
               {sections.length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center">
-                    <p className="text-muted-foreground">
-                      No exam structure found. Create the exam structure first in the "Exam Structure" tab.
+                    <p className="text-muted-foreground mb-4">
+                      No exam structure defined yet.
                     </p>
+                    <Button onClick={() => setActiveTab('structure')}>
+                        Create Question Paper
+                    </Button>
                   </CardContent>
                 </Card>
               ) : studentsLoading || marksLoading ? (

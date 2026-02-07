@@ -57,6 +57,12 @@ class SubjectPerformance(BaseModel):
     total_students: int
 
 
+class PerformanceTrend(BaseModel):
+    """Performance trend data."""
+    name: str # Period name e.g. "Sem 1"
+    average: float
+
+
 class DepartmentStats(BaseModel):
     """Department statistics."""
     id: str
@@ -65,6 +71,9 @@ class DepartmentStats(BaseModel):
     students: int
     teachers: int
     programs: int
+    average_score: float = 0.0
+    pass_percentage: float = 0.0
+    at_risk_students: int = 0
 
 
 class AtRiskStudent(BaseModel):
@@ -88,6 +97,7 @@ class PrincipalDashboardData(BaseModel):
     avg_pass_rate: float
     co_attainment: List[COAttainmentData]
     department_stats: List[DepartmentStats]
+    performance_trend: List[PerformanceTrend] = []
 
 
 class HODDashboardData(BaseModel):
@@ -98,6 +108,8 @@ class HODDashboardData(BaseModel):
     at_risk_students: int
     subject_performance: List[SubjectPerformance]
     co_attainment: List[COAttainmentData]
+    bloom_distribution: List[BloomDistribution] = []
+    programs: List[dict] = []
 
 
 class TeacherDashboardData(BaseModel):
@@ -111,6 +123,7 @@ class TeacherDashboardData(BaseModel):
 
 class StudentDashboardData(BaseModel):
     """Student dashboard aggregated data."""
+    usn: str
     overall_average: float
     sgpa: float
     cgpa: float

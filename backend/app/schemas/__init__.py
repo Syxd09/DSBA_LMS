@@ -7,7 +7,8 @@ from app.schemas.user import (
 from app.schemas.organization import (
     DepartmentCreate, DepartmentUpdate, DepartmentResponse,
     ProgramCreate, ProgramUpdate, ProgramResponse,
-    CohortCreate, CohortUpdate, CohortResponse
+    CohortCreate, CohortUpdate, CohortResponse,
+    SectionCreate, SectionUpdate, SectionResponse
 )
 from app.schemas.academic import (
     SubjectCreate, SubjectUpdate, SubjectResponse, SubjectWithOutcomes,
@@ -40,7 +41,8 @@ from app.schemas.analytics import (
     COAttainmentData, BloomDistribution, BloomPerformance,
     SubjectPerformance, DepartmentStats, AtRiskStudent,
     PrincipalDashboardData, HODDashboardData,
-    TeacherDashboardData, StudentDashboardData
+    TeacherDashboardData, StudentDashboardData,
+    COAttainmentResponse, POContribution, PerformanceTrend
 )
 
 __all__ = [
@@ -53,6 +55,7 @@ __all__ = [
     "DepartmentCreate", "DepartmentUpdate", "DepartmentResponse",
     "ProgramCreate", "ProgramUpdate", "ProgramResponse",
     "CohortCreate", "CohortUpdate", "CohortResponse",
+    "SectionCreate", "SectionUpdate", "SectionResponse",
     # Academic
     "SubjectCreate", "SubjectUpdate", "SubjectResponse", "SubjectWithOutcomes",
     "CurriculumVersionCreate", "CurriculumVersionResponse",
@@ -80,4 +83,8 @@ __all__ = [
     "SubjectPerformance", "DepartmentStats", "AtRiskStudent",
     "PrincipalDashboardData", "HODDashboardData",
     "TeacherDashboardData", "StudentDashboardData",
+    "COAttainmentResponse", "POContribution", "PerformanceTrend",
+    # Student
+    "StudentCreate", "StudentUpdate", "StudentResponse",
 ]
+from app.schemas.student import StudentCreate, StudentUpdate, StudentResponse

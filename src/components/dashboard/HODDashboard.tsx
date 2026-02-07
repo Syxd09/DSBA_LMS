@@ -1,19 +1,32 @@
 import { StatsCard } from './StatsCard';
 import { COAttainmentChart } from './COAttainmentChart';
 import { BloomTaxonomyChart } from './BloomTaxonomyChart';
-import { Users, GraduationCap, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Users, GraduationCap, TrendingUp, AlertTriangle, Building2, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { useQuery } from '@tanstack/react-query';
-import { dashboardApi } from '@/lib/api';
+import { dashboardApi, roleAnalyticsApi, templatesApi } from '@/lib/api';
 
 export function HODDashboard() {
+  // Primary dashboard data
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['hod-dashboard'],
     queryFn: () => dashboardApi.getHODDashboard(),
   });
+
+  // Phase 3: Role-scoped department analytics
+  const { data: deptHealth } = useQuery({
+    queryKey: ['hod-department-health'],
+    queryFn: () => roleAnalyticsApi.getDepartmentHealth(),
+    staleTime: 60000,
+  });
+
+  // Merge Phase 3 insights
+  const healthData = deptHealth?.data || {};
+  const healthStatus = healthData.health_status || 'LOADING';
 
   const deptStudents = dashboardData?.department_students || 0;
   const deptTeachers = dashboardData?.department_teachers || 0;
@@ -147,6 +160,57 @@ export function HODDashboard() {
           </CardContent>
         </Card>
       )}
+      {/* Program Reports */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base font-semibold">Program Reports</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {dashboardData?.programs && dashboardData.programs.length > 0 ? (
+            <div className="space-y-3">
+              {dashboardData.programs.map((prog: any) => (
+                <div key={prog.id} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-full">
+                      <Building2 className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{prog.name}</p>
+                      <p className="text-xs text-muted-foreground">{prog.code}</p>
+                    </div>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={async () => {
+                      try {
+                        const blob = await templatesApi.getPOMatrixReport(prog.id, '2023-24', 'pdf');
+                        const url = window.URL.createObjectURL(new Blob([blob]));
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.setAttribute('download', `PO_Matrix_${prog.code}.pdf`);
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                      } catch (err) {
+                        console.error("Download failed", err);
+                        alert("Failed to download PO Matrix");
+                      }
+                    }}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download PO Matrix
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center py-4 text-muted-foreground">
+              No programs found required for report generation.
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

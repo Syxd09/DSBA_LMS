@@ -1,20 +1,42 @@
 import { StatsCard } from './StatsCard';
-import { BookOpen, Users, Clock, TrendingUp, Plus, FileText } from 'lucide-react';
+import { BookOpen, Users, Clock, TrendingUp, Plus, FileText, Activity, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
-import { dashboardApi } from '@/lib/api';
+import { dashboardApi, roleAnalyticsApi, templatesApi } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export function TeacherDashboard() {
   const navigate = useNavigate();
   
+  // Primary dashboard data
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['teacher-dashboard'],
     queryFn: () => dashboardApi.getTeacherDashboard(),
   });
+
+  const handleDownloadReport = async (offeringId: string, subjectName: string) => {
+    if (!offeringId) return;
+    try {
+      // For pilot verification, we might want JSON first if PDF fails, but PDF is preferred
+      const blob = await templatesApi.getCOAttainmentReport(offeringId, 'pdf');
+      const url = window.URL.createObjectURL(new Blob([blob]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `CO_Attainment_${subjectName}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Failed to download report:", error);
+      alert("Failed to generate report. Please try again.");
+    }
+  };
+
+  // Note: Phase 3 roleAnalyticsApi.getSubjectHealth() and getQuestionAnalysis()
+  // can be called when a specific subject/exam is selected for detailed analytics
 
   const assignedSubjects = dashboardData?.assigned_subjects || 0;
   const totalStudents = dashboardData?.total_students || 0;
@@ -77,7 +99,7 @@ export function TeacherDashboard() {
           value={`${classAverage}%`}
           subtitle="Overall performance"
           icon={TrendingUp}
-          variant="success"
+          variant={classAverage >= 70 ? "success" : "default"}
         />
       </div>
 
@@ -122,6 +144,11 @@ export function TeacherDashboard() {
                       <Badge variant={subject.exams_count > 0 ? 'default' : 'outline'}>
                         {subject.exams_count > 0 ? 'Active' : 'No Exams'}
                       </Badge>
+                      {subject.offering_id && (
+                        <Button size="sm" variant="ghost" onClick={() => handleDownloadReport(subject.offering_id, subject.name)} title="Download Report">
+                          <Download className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button size="sm" variant="ghost" onClick={() => navigate('/marks-entry')}>
                         <FileText className="w-4 h-4" />
                       </Button>

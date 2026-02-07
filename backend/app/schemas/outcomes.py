@@ -83,3 +83,59 @@ class COPOMappingResponse(COPOMappingBase):
     
     class Config:
         from_attributes = True
+
+
+# Program Specific Outcome (PSO) schemas
+class ProgramSpecificOutcomeBase(BaseModel):
+    """Base program specific outcome schema."""
+    program_id: UUID
+    pso_number: int
+    description: str
+
+
+class ProgramSpecificOutcomeCreate(ProgramSpecificOutcomeBase):
+    """Create program specific outcome schema."""
+    pass
+
+
+class ProgramSpecificOutcomeUpdate(BaseModel):
+    """Update program specific outcome schema."""
+    description: Optional[str] = None
+
+
+class ProgramSpecificOutcomeResponse(ProgramSpecificOutcomeBase):
+    """Program specific outcome response schema."""
+    id: UUID
+    pso_code: str
+    threshold: float
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# CO-PSO Mapping schemas
+class COPSOMappingBase(BaseModel):
+    """Base CO-PSO mapping schema."""
+    co_id: UUID
+    pso_id: UUID
+    correlation_level: int  # 1=Low, 2=Medium, 3=High
+
+
+class COPSOMappingCreate(COPSOMappingBase):
+    """Create CO-PSO mapping schema."""
+    pass
+
+
+class COPSOMappingBulkCreate(BaseModel):
+    """Bulk create CO-PSO mappings."""
+    mappings: List[COPSOMappingCreate]
+
+
+class COPSOMappingResponse(COPSOMappingBase):
+    """CO-PSO mapping response schema."""
+    id: UUID
+    
+    class Config:
+        from_attributes = True
+
