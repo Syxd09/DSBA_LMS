@@ -75,7 +75,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        - VITE_API_URL=http://localhost/api
+        - VITE_API_URL=http://localhost
     container_name: edumetrics-frontend
     restart: unless-stopped
     networks:

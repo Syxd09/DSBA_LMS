@@ -10,7 +10,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/edumetrics
       - SECRET_KEY=dev-secret-key
-      - CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+      - CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost
       - REDIS_URL=redis://redis:6379/0
       - CSRF_SECRET=csrf-dev-secret-key-change-in-production
       - CSRF_COOKIE_SECURE=false
@@ -32,7 +32,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost/api
+      - VITE_API_URL=http://localhost
     volumes:
       - ./frontend:/app
       - /app/node_modules
