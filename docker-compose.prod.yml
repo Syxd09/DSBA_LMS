@@ -45,6 +45,7 @@ services:
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - MAIL_FROM=${MAIL_FROM}
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
     depends_on:
       db:
         condition: service_healthy
@@ -71,8 +72,8 @@ services:
   # Frontend Web Service
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
+      context: ./frontend
+      dockerfile: Dockerfile.prod
       args:
         - VITE_API_URL=http://localhost/api
     container_name: edumetrics-frontend
@@ -81,6 +82,9 @@ services:
       - edumetrics-network
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
       interval: 30s
       timeout: 10s
       retries: 3
