@@ -1,66 +1,106 @@
-#!/usr/bin/env python3
 """
-EduMetrics - Fix Pilot Passwords
-Updates pilot users with valid password hashes for login verification.
+Fix Pilot Data and Passwords
+Updates passwords, links HOD to Department, creates Grading Rules, and ensures Student Profiles exist.
 """
-import os
-import sys
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from app.database import SessionLocal
-from app.models import Profile, UserRole, Student, Subject, SubjectOffering, TeacherAssignment, Cohort
-from app.core.permissions import AppRole
-from app.core.security import get_password_hash
 import uuid
+from decimal import Decimal
+from app.database import SessionLocal
+from app.models import Profile, UserRole, Student, Department, GradeScale, GradingRule
+from app.core.security import get_password_hash
+from app.core.permissions import AppRole
 
-def fix_passwords():
-    print("re-hashing pilot user passwords...")
+def fix_data():
     db = SessionLocal()
-    
-    # 1. Update Staff Passwords
-    users_to_update = {
-        "principal@pilot.edu": "admin123",
-        "hod.cse@pilot.edu": "secure_password",
-        "teacher.ds@pilot.edu": "secure_password",
-    }
-    
-    updated_count = 0
     try:
-        # Update Staff
-        for email, plain_password in users_to_update.items():
+        print("Starting Data Fixes...")
+        
+        # 1. Fix Staff Passwords
+        print("\n1. Fixing Staff Passwords...")
+        staff_users = {
+            "principal@pilot.edu": "principal123",
+            "hod.cse@pilot.edu": "hodcse123",
+            "teacher.ds@pilot.edu": "faculty123"
+        }
+        
+        hod_user_id = None
+        
+        for email, password in staff_users.items():
             user = db.query(Profile).filter(Profile.email == email).first()
             if user:
-                print(f"  Updating password for {email}...")
-                user.password_hash = get_password_hash(plain_password)
-                updated_count += 1
+                user.password_hash = get_password_hash(password)
+                print(f"  ✓ Updated password for {email}")
+                if "hod" in email:
+                    hod_user_id = user.user_id
             else:
-                print(f"  Warning: User {email} not found")
-        
-        # 2. Create Student Accounts if missing
-        print("  Checking Student accounts...")
+                print(f"  ❌ User {email} not found!")
+
+        # 2. Link HOD to Department
+        print("\n2. Linking HOD to Department...")
+        if hod_user_id:
+            dept = db.query(Department).filter(Department.code == "CSE").first()
+            if dept:
+                dept.hod_id = hod_user_id
+                print(f"  ✓ Linked HOD {hod_user_id} to Department {dept.name}")
+            else:
+                print("  ❌ CSE Department not found")
+        else:
+            print("  ❌ HOD user not found, skipping link")
+
+        # 3. Seed Grading Rules
+        print("\n3. Seeding Grading Rules...")
+        scale = db.query(GradeScale).filter(GradeScale.name == "Absolute").first()
+        if not scale:
+            scale = GradeScale(
+                id=uuid.uuid4(),
+                name="Absolute",
+                description="Standard Absolute Grading"
+            )
+            db.add(scale)
+            db.flush()
+            print("  ✓ Created 'Absolute' GradeScale")
+            
+            rules = [
+                ("S", 90, 100, 10.0),
+                ("A", 80, 89.99, 9.0),
+                ("B", 70, 79.99, 8.0),
+                ("C", 60, 69.99, 7.0),
+                ("D", 50, 59.99, 6.0),
+                ("E", 40, 49.99, 5.0),
+                ("F", 0, 39.99, 0.0)
+            ]
+            
+            for grade, min_p, max_p, point in rules:
+                rule = GradingRule(
+                    id=uuid.uuid4(),
+                    grade_scale_id=scale.id,
+                    grade=grade,
+                    min_percentage=Decimal(str(min_p)),
+                    max_percentage=Decimal(str(max_p)),
+                    grade_point=Decimal(str(point))
+                )
+                db.add(rule)
+            print(f"  ✓ Created {len(rules)} Grading Rules")
+        else:
+            print("  → Grading Rules already exist")
+
+        # 4. Create Student Profiles
+        print("\n4. Creating Student Profiles...")
         students = db.query(Student).all()
         for student in students:
-            if not student.email:
-                print(f"  Skipping student {student.usn} (no email)")
-                continue
-                
-            # Check if profile exists
-            profile = db.query(Profile).filter(Profile.email == student.email).first()
+            student_email = student.email
+            profile = db.query(Profile).filter(Profile.email == student_email).first()
             
             if not profile:
-                print(f"  Creating Profile for {student.name} ({student.email})...")
                 user_id = uuid.uuid4()
                 profile = Profile(
                     id=uuid.uuid4(),
                     user_id=user_id,
-                    email=student.email,
+                    email=student_email,
                     full_name=student.name,
                     password_hash=get_password_hash("student123")
                 )
                 db.add(profile)
                 
-                # Create Role
                 role = UserRole(
                     id=uuid.uuid4(),
                     user_id=user_id,
@@ -68,59 +108,22 @@ def fix_passwords():
                 )
                 db.add(role)
                 
-                updated_count += 1
-            else:
-                print(f"  Updating password for existing student {student.email}...")
-                profile.password_hash = get_password_hash("student123")
-                user_id = profile.user_id
-                updated_count += 1
-            
-            # Link Student to Profile
-            if student.user_id != user_id:
-                print(f"  Linking Student {student.usn} to User {user_id}...")
                 student.user_id = user_id
-
-        # 3. Create Teacher Assignment if missing
-        print("  Checking Teacher Assignment...")
-        teacher = db.query(Profile).filter(Profile.email == "teacher.ds@pilot.edu").first()
-        if teacher:
-            # Find subject offering (CS201)
-            subject = db.query(Subject).filter(Subject.code == "CS201").first()
-            if subject:
-                offering = db.query(SubjectOffering).filter(SubjectOffering.subject_id == subject.id).first()
-                if offering:
-                    assignment = db.query(TeacherAssignment).filter(
-                        TeacherAssignment.teacher_id == teacher.user_id,
-                        TeacherAssignment.offering_id == offering.id
-                    ).first()
-                    
-                    if not assignment:
-                        print("  Creating Teacher Assignment for Data Structures...")
-                        ta = TeacherAssignment(
-                            id=uuid.uuid4(),
-                            teacher_id=teacher.user_id,
-                            offering_id=offering.id,
-                            cohort_id=offering.cohort_id,
-                            academic_year="2023-24",
-                            subject_id=subject.id
-                        )
-                        db.add(ta)
-                        updated_count += 1
-                    else:
-                         print("  Teacher Assignment exists.")
-                else:
-                    print("  Warning: Subject Offering for CS201 not found")
+                print(f"  ✓ Created profile for {student.name}")
             else:
-                print("  Warning: Subject CS201 not found")
-
+                profile.password_hash = get_password_hash("student123")
+                # print(f"  ✓ Updated password for {student.name}")
+        
         db.commit()
-        print(f"✅ Updated/Created {updated_count} user accounts successfully")
+        print("\n✅ DATA FIX COMPLETED SUCCESSFULLY")
         
     except Exception as e:
+        print(f"\n❌ DATA FIX FAILED: {e}")
         db.rollback()
-        print(f"❌ Failed to fix data: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         db.close()
 
 if __name__ == "__main__":
-    fix_passwords()
+    fix_data()

@@ -18,12 +18,34 @@ from app.database import get_db
 from app.api.deps import get_current_user, require_teacher_or_above, require_authenticated
 from app.models import Profile, Exam, StudentQuestionMark, SubQuestion, Question, ExamSection, Student
 from app.schemas import BulkMarksCreate, StudentMarksResponse
+from app.core.cache import cache_manager, settings  # Import cache
 
 router = APIRouter(prefix="/marks", tags=["Marks"])
 
 
+
+from typing import Optional
+from fastapi import BackgroundTasks
+
+def invalidate_analytics_cache_bg(offering_id: UUID, program_id: Optional[UUID]):
+    """
+    Background task to invalidate analytics cache.
+    Does NOT require DB session (pure Redis).
+    """
+    try:
+        # Invalidate CO cache
+        cache_manager.delete(f"co_attainment:{offering_id}")
+        
+        if program_id:
+            from app.core.cache import invalidate_cache
+            invalidate_cache(f"po_attainment:{program_id}:*")
+            
+    except Exception as e:
+        print(f"Background cache invalidation failed: {e}")
+
+
 @router.get("/exam/{exam_id}", response_model=List[StudentMarksResponse])
-async def get_exam_marks(
+def get_exam_marks(
     exam_id: UUID,
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above)
@@ -53,7 +75,7 @@ async def get_exam_marks(
          pass 
 
     # Better approach: Joined query
-    results = db.query(StudentQuestionMark, Student.id.label("student_uuid")).join(
+    results = db.query(StudentQuestionMark, Student.user_id.label("student_uuid")).join(
         Student, Student.usn == StudentQuestionMark.usn
     ).filter(StudentQuestionMark.exam_id == exam_id).all()
     
@@ -70,9 +92,10 @@ async def get_exam_marks(
 
 
 @router.post("/exam/{exam_id}", response_model=dict)
-async def save_marks(
+def save_marks(
     exam_id: UUID,
     marks_data: BulkMarksCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above)
 ):
@@ -111,6 +134,15 @@ async def save_marks(
             status_code=400,
             detail=f"Unexpected exam status '{exam.status}'. Only 'approved' allows marks entry."
         )
+
+    # Pre-fetch offering details for cache invalidation (Sync DB access)
+    offering_id = exam.offering_id
+    program_id = None
+    if offering_id:
+        from app.models.subject_offering import SubjectOffering
+        off = db.query(SubjectOffering).filter(SubjectOffering.id == offering_id).first()
+        if off:
+            program_id = off.program_id
     
     saved_count = 0
     audit_entries = []
@@ -118,8 +150,8 @@ async def save_marks(
     # Pre-fetch students map for UUID->USN conversion (since frontend sends UUIDs)
     # Front-end sends student_id (UUID). We need to resolve to USN.
     student_uuids = [entry.student_id for entry in marks_data.marks]
-    students = db.query(Student).filter(Student.id.in_(student_uuids)).all()
-    uuid_to_usn = {s.id: s.usn for s in students}
+    students = db.query(Student).filter(Student.user_id.in_(student_uuids)).all()
+    uuid_to_usn = {s.user_id: s.usn for s in students}
     
     for entry in marks_data.marks:
         if entry.student_id not in uuid_to_usn:
@@ -127,6 +159,17 @@ async def save_marks(
             
         usn = uuid_to_usn[entry.student_id]
         
+        # [Validation] Check Max Marks
+        sub_q = db.query(SubQuestion).filter(SubQuestion.id == entry.sub_question_id).first()
+        if not sub_q:
+            continue # Skip invalid sub-question (or raise error)
+            
+        if entry.marks < 0 or entry.marks > sub_q.max_marks:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Marks {entry.marks} out of range [0, {sub_q.max_marks}] for sub-question {sub_q.label}"
+            )
+
         # Check if mark already exists
         existing = db.query(StudentQuestionMark).filter(
             StudentQuestionMark.exam_id == exam_id,
@@ -173,31 +216,41 @@ async def save_marks(
             })
         saved_count += 1
     
-    # Write audit logs
-    for audit_data in audit_entries:
-        audit_log = AuditLog(
-            id=uuid_lib.uuid4(),
-            user_id=current_user.user_id,
-            action=audit_data["action"],
-            entity_type=audit_data["entity_type"],
-            entity_id=audit_data["entity_id"],
-            old_value=audit_data["old_value"],
-            new_value=audit_data["new_value"],
-            reason=f"Marks for student {audit_data['student_id']}, subq {audit_data['sub_question_id']}"
-        )
-        db.add(audit_log)
-    
-    db.commit()
-    
+    try:
+        # Write audit logs
+        for audit_data in audit_entries:
+            audit_log = AuditLog(
+                id=uuid_lib.uuid4(),
+                user_id=current_user.user_id,
+                action=audit_data["action"],
+                entity_type=audit_data["entity_type"],
+                entity_id=audit_data["entity_id"],
+                old_value=audit_data["old_value"],
+                new_value=audit_data["new_value"],
+                reason=f"Marks for student {audit_data['student_id']}, subq {audit_data['sub_question_id']}"
+            )
+            db.add(audit_log)
+        
+        db.commit()
+        
+        # Invalidate Cache (Background)
+        if offering_id:
+            background_tasks.add_task(invalidate_analytics_cache_bg, offering_id, program_id)
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
+        
     return {
-        "success": True, 
-        "saved_count": saved_count,
-        "audit_logged": len(audit_entries)
+        "success": True,
+        "success_count": saved_count, # Assuming saved_count is the success count
+        "error_count": len(marks_data.marks) - saved_count, # Assuming errors are skipped entries
+        "errors": [] # No specific error details are captured in the current loop
     }
 
 
 @router.get("/compute/{exam_id}")
-async def compute_marks(
+def compute_marks(
     exam_id: UUID,
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above)
@@ -231,7 +284,7 @@ async def compute_marks(
     # Get map of USN -> Student UUID for response
     all_usns = list(student_marks_map.keys())
     students = db.query(Student).filter(Student.usn.in_(all_usns)).all()
-    usn_to_uuid = {s.usn: str(s.id) for s in students}
+    usn_to_uuid = {s.usn: str(s.user_id) for s in students}
 
     for usn, marks in student_marks_map.items():
         total = Decimal(0)
@@ -291,7 +344,7 @@ async def compute_marks(
 
 
 @router.get("/student/{student_id}", response_model=List[StudentMarksResponse])
-async def get_student_marks(
+def get_student_marks(
     student_id: UUID,
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_authenticated)
@@ -307,7 +360,7 @@ async def get_student_marks(
     
     # Updated to use USN for StudentQuestionMark
     # First get student USN from UUID
-    student = db.query(Student).filter(Student.id == student_id).first()
+    student = db.query(Student).filter(Student.user_id == student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
         
@@ -329,7 +382,7 @@ async def get_student_marks(
 # ============= APPROVAL WORKFLOW =============
 
 @router.post("/submit-for-approval/{exam_id}")
-async def submit_for_approval(
+def submit_for_approval(
     exam_id: UUID,
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above)
@@ -368,7 +421,7 @@ async def submit_for_approval(
 
 
 @router.post("/approve/{exam_id}")
-async def approve_marks(
+def approve_marks(
     exam_id: UUID,
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above)
@@ -416,7 +469,7 @@ class RejectRequest(PydanticBaseModel):
 
 
 @router.post("/reject/{exam_id}")
-async def reject_marks(
+def reject_marks(
     exam_id: UUID,
     data: RejectRequest,
     db: Session = Depends(get_db),
@@ -471,7 +524,7 @@ async def reject_marks(
 
 
 @router.post("/lock/{exam_id}")
-async def lock_marks(
+def lock_marks(
     exam_id: UUID,
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above)
@@ -518,7 +571,7 @@ import io
 
 
 @router.get("/template/{exam_id}")
-async def get_marks_template(
+def get_marks_template(
     exam_id: UUID,
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above)
@@ -532,18 +585,18 @@ async def get_marks_template(
         raise HTTPException(status_code=404, detail="Exam not found")
     
     # Get all sections, questions, sub-questions
-    sections = db.query(ExamSection).filter(ExamSection.exam_id == exam_id).order_by(ExamSection.section_label).all()
+    sections = db.query(ExamSection).filter(ExamSection.exam_id == exam_id).order_by(ExamSection.sequence).all()
     
     # Build header row
     headers = ["USN", "Student Name"]
     sq_mapping = []  # (sub_question_id, column_name, max_marks)
     
     for section in sections:
-        questions = db.query(Question).filter(Question.section_id == section.id).order_by(Question.question_number).all()
+        questions = db.query(Question).filter(Question.section_id == section.id).order_by(Question.sequence).all()
         for question in questions:
             sub_questions = db.query(SubQuestion).filter(SubQuestion.question_id == question.id).all()
             for sq in sub_questions:
-                col_name = f"S{section.section_label}_Q{question.question_number}_{sq.label or 'a'} (Max:{sq.max_marks})"
+                col_name = f"S{section.name}_Q{question.sequence}_{sq.label or 'a'} (Max:{sq.max_marks})"
                 headers.append(col_name)
                 sq_mapping.append((str(sq.id), col_name, float(sq.max_marks)))
     
@@ -574,8 +627,9 @@ async def get_marks_template(
 
 
 @router.post("/import/{exam_id}")
-async def import_marks_csv(
+def import_marks_csv(
     exam_id: UUID,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above)
@@ -606,14 +660,30 @@ async def import_marks_csv(
             status_code=400,
             detail=f"Exam status is '{exam.status}'. Marks entry only allowed after HOD approval."
         )
+
+    # Pre-fetch offering details for cache invalidation (Sync DB access)
+    offering_id = exam.offering_id
+    program_id = None
+    if offering_id:
+        from app.models.subject_offering import SubjectOffering
+        off = db.query(SubjectOffering).filter(SubjectOffering.id == offering_id).first()
+        if off:
+            program_id = off.program_id
     
-    # Read CSV content
-    content = await file.read()
+    # Read CSV content (async read, need run_in_threadpool? No, file.read() is async)
+    # But we are in Sync function.
+    # calling in sync function is SyntaxError.
+    # UploadFile.read() is async.
+    # We can use file.file.read() (spooled temp file) which is sync?
+    # file.file is a SpooledTemporaryFile.
+    content = file.file.read() 
     try:
         decoded = content.decode('utf-8')
         csv_reader = csv.DictReader(io.StringIO(decoded))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to read CSV: {str(e)}")
+    
+    # ... rest of logic ...
     
     # Build sub-question mapping from headers
     # Headers format: "S{section}_Q{qnum}_{label} (Max:{marks})"
@@ -627,7 +697,7 @@ async def import_marks_csv(
         for question in questions:
             sub_qs = db.query(SubQuestion).filter(SubQuestion.question_id == question.id).all()
             for sq in sub_qs:
-                col_name = f"S{section.section_label}_Q{question.question_number}_{sq.label or 'a'} (Max:{sq.max_marks})"
+                col_name = f"S{section.name}_Q{question.sequence}_{sq.label or 'a'} (Max:{sq.max_marks})"
                 all_sub_questions.append((sq.id, str(sq.max_marks), col_name))
     
     sq_col_to_id = {sq[2]: sq[0] for sq in all_sub_questions}
@@ -743,6 +813,10 @@ async def import_marks_csv(
             db.add(audit_log)
         
         db.commit()
+        
+        # Invalidate Cache
+        _invalidate_cache_for_exam(exam_id, db)
+        
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")

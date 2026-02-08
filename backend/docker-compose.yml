@@ -10,7 +10,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/edumetrics
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key}
-      - CORS_ORIGINS=http://localhost:5173
+      - CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
     depends_on:
       db:
         condition: service_healthy

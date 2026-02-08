@@ -77,6 +77,7 @@ class Cohort(Base):
     exams = relationship("Exam", back_populates="cohort")
     teacher_assignments = relationship("TeacherAssignment", back_populates="cohort")
     promotions = relationship("SemesterPromotion", back_populates="cohort")  # NEW
+    semesters = relationship("Semester", back_populates="cohort")  # Fixed: Missing relationship
     
     def __repr__(self):
         return f"<Cohort {self.name} ({self.year})>"

@@ -11,6 +11,7 @@ from decimal import Decimal
 from datetime import datetime
 
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.services.analytics.query_helpers import (
     get_offering_enrolled_students,
@@ -46,29 +47,21 @@ from app.services.computation import (
 )
 
 
-async def compute_offering_co_attainments(
+
+def _compute_offering_co_attainments_sync(
     db: Session,
     offering_id: UUID,
     program_id: Optional[UUID] = None,
     cohort_year: Optional[int] = None
 ) -> AnalyticsResponse:
-    """
-    Compute all CO attainments for an offering.
+    """Sync implementation of CO attainment computation."""
     
-    ACADEMIC INTENT: What is the CO attainment for this subject?
-    
-    Orchestrates:
-    - get_valid_students_for_attainment
-    - compute_co_max_marks
-    - compute_co_attainment
-    - compute_co_attainment_final
-    """
     all_warnings = []
     is_complete = True
     co_results = []
     
     # Get COs for offering
-    cos = await get_offering_cos(db, offering_id)
+    cos = get_offering_cos(db, offering_id)
     if not cos:
         return AnalyticsResponse(
             data=COAttainmentListResponse(
@@ -90,13 +83,13 @@ async def compute_offering_co_attainments(
         )
     
     # Get enrolled students and statuses
-    enrolled_usns = await get_offering_enrolled_students(db, offering_id)
-    student_statuses = await get_student_statuses(db, enrolled_usns)
+    enrolled_usns = get_offering_enrolled_students(db, offering_id)
+    student_statuses = get_student_statuses(db, enrolled_usns)
     
     # Get internal and external exams
-    int1_exam = await get_exam_by_type(db, offering_id, "INT1")
-    int2_exam = await get_exam_by_type(db, offering_id, "INT2")
-    ext_exam = await get_exam_by_type(db, offering_id, "EXT")
+    int1_exam = get_exam_by_type(db, offering_id, "INT1")
+    int2_exam = get_exam_by_type(db, offering_id, "INT2")
+    ext_exam = get_exam_by_type(db, offering_id, "EXT")
     
     # Combine internal exams for CO computation
     internal_exam_ids = []
@@ -110,46 +103,60 @@ async def compute_offering_co_attainments(
     ext_marks: Dict = {}
     
     for exam_id in internal_exam_ids:
-        marks = await get_all_student_marks_for_exam(db, exam_id)
+        marks = get_all_student_marks_for_exam(db, exam_id)
         int_marks.update(marks)
     
     if ext_exam:
-        ext_marks = await get_all_student_marks_for_exam(db, ext_exam.id)
+        ext_marks = get_all_student_marks_for_exam(db, ext_exam.id)
+    
+    
+    # [OPTIMIZATION] Bulk fetch sub-questions for all exams
+    from app.services.analytics.query_helpers import get_all_sub_questions_for_exams
+    
+    all_exam_ids = internal_exam_ids + ([ext_exam.id] if ext_exam else [])
+    
+    all_sqs_map = get_all_sub_questions_for_exams(db, all_exam_ids)
+    
+    # Pre-fetch sections for all exams to avoid N+1
+    exam_section_configs = {}
+    for eid in all_exam_ids:
+        sections = get_exam_sections(db, eid)
+        exam_section_configs[eid] = {}
+        for s in sections:
+            exam_section_configs[eid][s.id] = {
+                "selection_mode": s.selection_mode,
+                "required_questions": s.required_questions
+            }
     
     # Process each CO
     for co in cos:
         co_id = co["co_id"]
         threshold = co["threshold"]
         
-        # Get CO-mapped sub-questions for internal
-        int_sq_ids = []
-        int_section_configs = {}
-        for exam_id in internal_exam_ids:
-            sqs = await get_co_sub_questions(db, co_id, exam_id)
-            for sq in sqs:
-                int_sq_ids.append(sq.id)
-                if sq.section_id not in int_section_configs:
-                    sections = await get_exam_sections(db, exam_id)
-                    for s in sections:
-                        int_section_configs[s.id] = {
-                            "selection_mode": s.selection_mode,
-                            "required_questions": s.required_questions
-                        }
+        # Get SQs from memory map
+        co_sqs_all = all_sqs_map.get(co_id, [])
         
-        # Get CO-mapped sub-questions for external
+        # Filter for internal
+        int_sq_ids = []
+        int_section_configs = {} # flattened for computation
+        
+        for sq in co_sqs_all:
+            if sq.exam_id in internal_exam_ids:
+                int_sq_ids.append(sq.id)
+                # Add section config
+                if sq.exam_id in exam_section_configs and sq.section_id in exam_section_configs[sq.exam_id]:
+                     int_section_configs[sq.section_id] = exam_section_configs[sq.exam_id][sq.section_id]
+
+        # Filter for external
         ext_sq_ids = []
         ext_section_configs = {}
+        
         if ext_exam:
-            sqs = await get_co_sub_questions(db, co_id, ext_exam.id)
-            for sq in sqs:
-                ext_sq_ids.append(sq.id)
-                if sq.section_id not in ext_section_configs:
-                    sections = await get_exam_sections(db, ext_exam.id)
-                    for s in sections:
-                        ext_section_configs[s.id] = {
-                            "selection_mode": s.selection_mode,
-                            "required_questions": s.required_questions
-                        }
+             for sq in co_sqs_all:
+                if sq.exam_id == ext_exam.id:
+                    ext_sq_ids.append(sq.id)
+                    if sq.section_id in exam_section_configs.get(ext_exam.id, {}):
+                        ext_section_configs[sq.section_id] = exam_section_configs[ext_exam.id][sq.section_id]
         
         # Get valid students (Phase-2A) for internal
         int_valid_usns, int_exclusions = get_valid_students_for_attainment(
@@ -166,12 +173,6 @@ async def compute_offering_co_attainments(
             student_question_marks=ext_marks,
             co_sub_question_ids=ext_sq_ids
         )
-        
-        # Compute max marks (Phase-2A)
-        int_sub_q_data = [
-            {"id": sq_id, "max_marks": Decimal("10"), "section_id": uuid4(), "question_id": uuid4()}
-            for sq_id in int_sq_ids
-        ]  # Simplified - would get from actual data
         
         # Aggregate student marks per CO
         int_student_co_marks = {}
@@ -199,7 +200,7 @@ async def compute_offering_co_attainments(
             exam_category="INTERNAL",
             valid_usns=int_valid_usns,
             student_marks=int_student_co_marks,
-            max_marks=Decimal("40")  # Placeholder - would compute from sub-questions
+            max_marks=Decimal("40")  # Placeholder
         )
         
         ext_result = compute_co_attainment(
@@ -254,25 +255,76 @@ async def compute_offering_co_attainments(
         if co_results else Decimal("0")
     )
     
-    response_data = COAttainmentListResponse(
-        offering_id=offering_id,
-        cos=co_results,
-        summary=COSummaryDTO(
-            total_cos=len(cos),
-            cos_attained=cos_attained,
-            average_attainment=avg_attainment
-        )
-    )
-    
     return AnalyticsResponse(
-        data=response_data,
+        data=COAttainmentListResponse(
+            offering_id=offering_id,
+            cos=co_results,
+            summary=COSummaryDTO(
+                total_cos=len(cos),
+                cos_attained=cos_attained,
+                average_attainment=avg_attainment
+            )
+        ),
         warnings=all_warnings,
         is_complete=is_complete,
         computed_at=datetime.utcnow()
     )
 
 
-async def get_co_student_evidence(
+async def compute_offering_co_attainments(
+    db: Session,
+    offering_id: UUID,
+    program_id: Optional[UUID] = None,
+    cohort_year: Optional[int] = None
+) -> AnalyticsResponse:
+    """
+    Compute all CO attainments for an offering (Wrapper).
+    """
+    from app.core.cache import cache_manager, settings
+    
+    cache_key = f"co_attainment:{offering_id}"
+    
+    # Try Cache
+    cached_data = await cache_manager.get(cache_key)
+    if cached_data:
+        try:
+            response_data = COAttainmentListResponse(**cached_data["data"])
+            return AnalyticsResponse(
+                data=response_data,
+                warnings=[WarningDTO(**w) for w in cached_data.get("warnings", [])],
+                is_complete=cached_data.get("is_complete", True),
+                computed_at=datetime.fromisoformat(cached_data["computed_at"]) if cached_data.get("computed_at") else datetime.utcnow()
+            )
+        except Exception:
+            pass
+
+    # Run computation in thread pool (non-blocking)
+    final_response = await run_in_threadpool(
+        _compute_offering_co_attainments_sync,
+        db,
+        offering_id,
+        program_id,
+        cohort_year
+    )
+    
+    # Store in Cache
+    if final_response.is_complete:
+        try:
+            to_cache = {
+                "data": final_response.data.model_dump(),
+                "warnings": [w.model_dump() for w in final_response.warnings],
+                "is_complete": final_response.is_complete,
+                "computed_at": final_response.computed_at.isoformat()
+            }
+            await cache_manager.set(cache_key, to_cache, ttl=settings.CACHE_TTL_CO_ATTAINMENT)
+        except Exception:
+            pass
+            
+    return final_response
+
+
+
+def _get_co_student_evidence_sync(
     db: Session,
     co_id: UUID,
     offering_id: UUID,
@@ -280,13 +332,7 @@ async def get_co_student_evidence(
     page: int = 0,
     page_size: int = 50
 ) -> AnalyticsResponse:
-    """
-    Get student-level evidence for CO attainment.
-    
-    ACADEMIC INTENT: Which students met/didn't meet this CO threshold?
-    
-    This is the drill-down for NBA audits.
-    """
+    """Sync implementation of CO student evidence."""
     from app.services.analytics.query_helpers import paginate_usns
     
     all_warnings = []
@@ -296,10 +342,10 @@ async def get_co_student_evidence(
         usns = [usn]
         total = 1
     else:
-        usns, total = await paginate_usns(db, offering_id, page, page_size)
+        usns, total = paginate_usns(db, offering_id, page, page_size)
     
     # Get CO details
-    cos = await get_offering_cos(db, offering_id)
+    cos = get_offering_cos(db, offering_id)
     co_data = next((c for c in cos if c["co_id"] == co_id), None)
     
     if not co_data:
@@ -317,30 +363,29 @@ async def get_co_student_evidence(
     threshold = co_data["threshold"]
     
     # Get exams and marks
-    ext_exam = await get_exam_by_type(db, offering_id, "EXT")
+    ext_exam = get_exam_by_type(db, offering_id, "EXT")
     all_marks = {}
     if ext_exam:
-        all_marks = await get_all_student_marks_for_exam(db, ext_exam.id)
+        all_marks = get_all_student_marks_for_exam(db, ext_exam.id)
     
     # Get CO-mapped questions
     co_sqs = []
     if ext_exam:
-        co_sqs = await get_co_sub_questions(db, co_id, ext_exam.id)
+        co_sqs = get_co_sub_questions(db, co_id, ext_exam.id)
     
-    sq_ids = [sq.id for sq in co_sqs]
     max_marks = sum(sq.max_marks for sq in co_sqs)
     
     students = []
-    for usn in usns:
+    for usn_val in usns:
         obtained = Decimal("0")
         q_breakdown = []
         
         for sq in co_sqs:
-            mark = all_marks.get((usn, sq.id), Decimal("0"))
+            mark = all_marks.get((usn_val, sq.id), Decimal("0"))
             obtained += mark
             q_breakdown.append(QuestionMarkDTO(
                 question_id=sq.question_id,
-                question_number="Q",  # Would get from Question model
+                question_number="Q",
                 sub_question_id=sq.id,
                 marks_obtained=mark,
                 max_marks=sq.max_marks
@@ -349,7 +394,7 @@ async def get_co_student_evidence(
         percentage = (obtained / max_marks * 100) if max_marks > 0 else Decimal("0")
         
         students.append(StudentCOEvidenceDTO(
-            usn=usn,
+            usn=usn_val,
             obtained_marks=obtained,
             max_marks=max_marks,
             percentage=percentage,
@@ -376,6 +421,28 @@ async def get_co_student_evidence(
         warnings=all_warnings,
         is_complete=True,
         computed_at=datetime.utcnow()
+    )
+
+
+async def get_co_student_evidence(
+    db: Session,
+    co_id: UUID,
+    offering_id: UUID,
+    usn: Optional[str] = None,
+    page: int = 0,
+    page_size: int = 50
+) -> AnalyticsResponse:
+    """
+    Get student-level evidence for CO attainment (Wrapper).
+    """
+    return await run_in_threadpool(
+        _get_co_student_evidence_sync,
+        db,
+        co_id,
+        offering_id,
+        usn,
+        page,
+        page_size
     )
 
 

@@ -54,13 +54,15 @@ class SubQuestionDTO:
         question_id: UUID,
         section_id: UUID,
         max_marks: Decimal,
-        co_id: Optional[UUID]
+        co_id: Optional[UUID],
+        exam_id: Optional[UUID] = None
     ):
         self.id = id
         self.question_id = question_id
         self.section_id = section_id
         self.max_marks = max_marks
         self.co_id = co_id
+        self.exam_id = exam_id
 
 
 class SectionConfigDTO:
@@ -112,7 +114,7 @@ class COPOMappingDTO:
 # Student Data Queries
 # =============================================================================
 
-async def get_offering_enrolled_students(
+def get_offering_enrolled_students(
     db: Session,
     offering_id: UUID
 ) -> List[str]:
@@ -132,7 +134,7 @@ async def get_offering_enrolled_students(
     return [row[0] for row in result.fetchall()]
 
 
-async def get_student_statuses(
+def get_student_statuses(
     db: Session,
     usns: List[str]
 ) -> Dict[str, Optional[str]]:
@@ -148,7 +150,7 @@ async def get_student_statuses(
     return {row[0]: row[1] for row in result.fetchall()}
 
 
-async def get_student_by_usn(
+def get_student_by_usn(
     db: Session,
     usn: str
 ) -> Optional[Student]:
@@ -160,7 +162,7 @@ async def get_student_by_usn(
 # Exam & Section Queries
 # =============================================================================
 
-async def get_offering_exams(
+def get_offering_exams(
     db: Session,
     offering_id: UUID
 ) -> List[ExamDTO]:
@@ -179,7 +181,7 @@ async def get_offering_exams(
     ]
 
 
-async def get_exam_by_type(
+def get_exam_by_type(
     db: Session,
     offering_id: UUID,
     exam_type: str
@@ -198,7 +200,7 @@ async def get_exam_by_type(
     return None
 
 
-async def get_exam_sections(
+def get_exam_sections(
     db: Session,
     exam_id: UUID
 ) -> List[SectionConfigDTO]:
@@ -230,7 +232,7 @@ async def get_exam_sections(
 # Question & Marks Queries
 # =============================================================================
 
-async def get_exam_sub_questions(
+def get_exam_sub_questions(
     db: Session,
     exam_id: UUID
 ) -> List[SubQuestionDTO]:
@@ -261,7 +263,55 @@ async def get_exam_sub_questions(
     ]
 
 
-async def get_co_sub_questions(
+def get_all_sub_questions_for_exams(
+    db: Session,
+    exam_ids: List[UUID]
+) -> Dict[UUID, List[SubQuestionDTO]]:
+    """
+    Fetch all sub-questions for multiple exams, grouped by CO ID.
+    
+    Returns dict: {co_id: [SubQuestionDTO, ...]}
+    Also attaches exam_id to DTOs.
+    """
+    if not exam_ids:
+        return {}
+        
+    result = db.execute(
+        select(
+            SubQuestion.id,
+            SubQuestion.question_id,
+            Question.section_id,
+            SubQuestion.max_marks,
+            SubQuestion.co_id,
+            ExamSection.exam_id
+        )
+        .join(Question, Question.id == SubQuestion.question_id)
+        .join(ExamSection, ExamSection.id == Question.section_id)
+        .where(ExamSection.exam_id.in_(exam_ids))
+    )
+    
+    grouped: Dict[UUID, List[SubQuestionDTO]] = {}
+    
+    for row in result.fetchall():
+        co_id = row[4]
+        
+        sq = SubQuestionDTO(
+            id=row[0],
+            question_id=row[1],
+            section_id=row[2],
+            max_marks=row[3],
+            co_id=co_id,
+            exam_id=row[5]
+        )
+        
+        if co_id:
+            if co_id not in grouped:
+                grouped[co_id] = []
+            grouped[co_id].append(sq)
+            
+    return grouped
+
+def get_co_sub_questions(
     db: Session,
     co_id: UUID,
     exam_id: UUID
@@ -296,7 +346,7 @@ async def get_co_sub_questions(
     ]
 
 
-async def get_student_question_marks(
+def get_student_question_marks(
     db: Session,
     usn: str,
     exam_id: UUID
@@ -317,7 +367,7 @@ async def get_student_question_marks(
     return {row[0]: row[1] for row in result.fetchall()}
 
 
-async def get_all_student_marks_for_exam(
+def get_all_student_marks_for_exam(
     db: Session,
     exam_id: UUID
 ) -> Dict[Tuple[str, UUID], Decimal]:
@@ -342,7 +392,7 @@ async def get_all_student_marks_for_exam(
 # Component Marks Queries (Assignment, Attendance, Activity)
 # =============================================================================
 
-async def get_assignment_marks(
+def get_assignment_marks(
     db: Session,
     usn: str,
     offering_id: UUID
@@ -363,7 +413,7 @@ async def get_assignment_marks(
     return {row[0]: row[1] for row in result.fetchall()}
 
 
-async def get_attendance_mark(
+def get_attendance_mark(
     db: Session,
     usn: str,
     offering_id: UUID
@@ -380,7 +430,7 @@ async def get_attendance_mark(
     return row[0] if row else None
 
 
-async def get_activity_mark(
+def get_activity_mark(
     db: Session,
     usn: str,
     offering_id: UUID
@@ -401,7 +451,7 @@ async def get_activity_mark(
 # CO / PO Queries
 # =============================================================================
 
-async def get_offering_cos(
+def get_offering_cos(
     db: Session,
     offering_id: UUID
 ) -> List[Dict]:
@@ -431,7 +481,7 @@ async def get_offering_cos(
     ]
 
 
-async def get_program_pos(
+def get_program_pos(
     db: Session,
     program_id: UUID
 ) -> List[Dict]:
@@ -459,7 +509,7 @@ async def get_program_pos(
     ]
 
 
-async def get_co_po_mappings(
+def get_co_po_mappings(
     db: Session,
     po_id: UUID,
     academic_year: Optional[int] = None
@@ -495,7 +545,7 @@ async def get_co_po_mappings(
     ]
 
 
-async def get_all_co_po_mappings_for_program(
+def get_all_co_po_mappings_for_program(
     db: Session,
     program_id: UUID,
     academic_year: int
@@ -541,7 +591,7 @@ async def get_all_co_po_mappings_for_program(
 # Grading & Config Queries
 # =============================================================================
 
-async def get_grading_rules(
+def get_grading_rules(
     db: Session,
     regulation_year: int
 ) -> List[Dict]:
@@ -573,7 +623,7 @@ async def get_grading_rules(
     ]
 
 
-async def get_pass_criteria(
+def get_pass_criteria(
     db: Session,
     regulation_year: int
 ) -> Optional[Dict]:
@@ -602,7 +652,7 @@ async def get_pass_criteria(
     return None
 
 
-async def get_attainment_config(
+def get_attainment_config(
     db: Session,
     program_id: UUID,
     cohort_year: int
@@ -642,7 +692,7 @@ async def get_attainment_config(
 # Final Marks / Backlog Queries
 # =============================================================================
 
-async def get_student_attempts(
+def get_student_attempts(
     db: Session,
     usn: str,
     offering_id: UUID
@@ -676,7 +726,7 @@ async def get_student_attempts(
     ]
 
 
-async def get_student_backlogs(
+def get_student_backlogs(
     db: Session,
     usn: str
 ) -> List[Dict]:
@@ -716,7 +766,7 @@ async def get_student_backlogs(
 # Pagination Helper
 # =============================================================================
 
-async def paginate_usns(
+def paginate_usns(
     db: Session,
     offering_id: UUID,
     page: int,

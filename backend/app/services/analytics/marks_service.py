@@ -66,7 +66,7 @@ def _warning_to_dto(w: ComputationWarning) -> WarningDTO:
     )
 
 
-async def compute_student_internal_marks(
+def compute_student_internal_marks(
     db: Session,
     usn: str,
     offering_id: UUID
@@ -86,21 +86,21 @@ async def compute_student_internal_marks(
     is_complete = True
     
     # Get INT1 and INT2 exams
-    int1_exam = await get_exam_by_type(db, offering_id, "INT1")
-    int2_exam = await get_exam_by_type(db, offering_id, "INT2")
+    int1_exam = get_exam_by_type(db, offering_id, "INT1")
+    int2_exam = get_exam_by_type(db, offering_id, "INT2")
     
     int1_raw = None
     int2_raw = None
     
     # Fetch INT1 marks
     if int1_exam:
-        int1_marks = await get_student_question_marks(db, usn, int1_exam.id)
+        int1_marks = get_student_question_marks(db, usn, int1_exam.id)
         if int1_marks:
             int1_raw = sum(int1_marks.values())
     
     # Fetch INT2 marks
     if int2_exam:
-        int2_marks = await get_student_question_marks(db, usn, int2_exam.id)
+        int2_marks = get_student_question_marks(db, usn, int2_exam.id)
         if int2_marks:
             int2_raw = sum(int2_marks.values())
     
@@ -115,9 +115,9 @@ async def compute_student_internal_marks(
     is_complete = is_complete and best_result.is_complete
     
     # Fetch component marks
-    assignments = await get_assignment_marks(db, usn, offering_id)
-    attendance = await get_attendance_mark(db, usn, offering_id)
-    activity = await get_activity_mark(db, usn, offering_id)
+    assignments = get_assignment_marks(db, usn, offering_id)
+    attendance = get_attendance_mark(db, usn, offering_id)
+    activity = get_activity_mark(db, usn, offering_id)
     
     # Compute internal total (Phase-2A)
     total_result = compute_internal_total(
@@ -142,7 +142,7 @@ async def compute_student_internal_marks(
     ), all_warnings, is_complete
 
 
-async def compute_student_external_marks(
+def compute_student_external_marks(
     db: Session,
     usn: str,
     offering_id: UUID
@@ -164,7 +164,7 @@ async def compute_student_external_marks(
     total_marks = Decimal("0")
     
     # Get external exam
-    ext_exam = await get_exam_by_type(db, offering_id, "EXT")
+    ext_exam = get_exam_by_type(db, offering_id, "EXT")
     if not ext_exam:
         all_warnings.append(WarningDTO(
             code=WarningCode.EXAM_NOT_FOUND.value,
@@ -174,13 +174,13 @@ async def compute_student_external_marks(
         return ExternalMarksDTO(total=Decimal("0"), sections=[]), all_warnings, False
     
     # Get sections
-    sections = await get_exam_sections(db, ext_exam.id)
+    sections = get_exam_sections(db, ext_exam.id)
     
     # Get all sub-questions
-    sub_questions = await get_exam_sub_questions(db, ext_exam.id)
+    sub_questions = get_exam_sub_questions(db, ext_exam.id)
     
     # Get student marks
-    student_marks = await get_student_question_marks(db, usn, ext_exam.id)
+    student_marks = get_student_question_marks(db, usn, ext_exam.id)
     
     # Group sub-questions by section
     sq_by_section: Dict[UUID, List] = {}
@@ -219,7 +219,7 @@ async def compute_student_external_marks(
     ), all_warnings, is_complete
 
 
-async def compute_student_grade(
+def compute_student_grade(
     internal: Decimal,
     external: Decimal,
     total: Decimal,
@@ -239,8 +239,8 @@ async def compute_student_grade(
     all_warnings = []
     
     # Get grading config
-    rules_data = await get_grading_rules(db, regulation_year)
-    criteria_data = await get_pass_criteria(db, regulation_year)
+    rules_data = get_grading_rules(db, regulation_year)
+    criteria_data = get_pass_criteria(db, regulation_year)
     
     if not rules_data:
         # Use defaults
@@ -283,7 +283,7 @@ async def compute_student_grade(
     ), all_warnings, grade_result.is_complete
 
 
-async def get_student_marks_for_offering(
+def get_student_marks_for_offering(
     db: Session,
     usn: str,
     offering_id: UUID,
@@ -301,14 +301,14 @@ async def get_student_marks_for_offering(
     is_complete = True
     
     # Compute internal
-    internal, int_warnings, int_complete = await compute_student_internal_marks(
+    internal, int_warnings, int_complete = compute_student_internal_marks(
         db, usn, offering_id
     )
     all_warnings.extend(int_warnings)
     is_complete = is_complete and int_complete
     
     # Compute external
-    external, ext_warnings, ext_complete = await compute_student_external_marks(
+    external, ext_warnings, ext_complete = compute_student_external_marks(
         db, usn, offering_id
     )
     all_warnings.extend(ext_warnings)
@@ -318,7 +318,7 @@ async def get_student_marks_for_offering(
     total_result = compute_total_marks(internal.total, external.total)
     
     # Compute grade
-    grade, grade_warnings, grade_complete = await compute_student_grade(
+    grade, grade_warnings, grade_complete = compute_student_grade(
         internal=internal.total,
         external=external.total,
         total=total_result.total,
@@ -329,7 +329,7 @@ async def get_student_marks_for_offering(
     is_complete = is_complete and grade_complete
     
     # Get attempt info
-    attempts = await get_student_attempts(db, usn, offering_id)
+    attempts = get_student_attempts(db, usn, offering_id)
     attempt_count = len(attempts) if attempts else 1
     is_backlog = attempt_count > 1
     
@@ -357,7 +357,7 @@ async def get_student_marks_for_offering(
     )
 
 
-async def get_offering_marks_paginated(
+def get_offering_marks_paginated(
     db: Session,
     offering_id: UUID,
     page: int = 0,
@@ -373,11 +373,11 @@ async def get_offering_marks_paginated(
     is_complete = True
     
     # Paginate USNs
-    usns, total_count = await paginate_usns(db, offering_id, page, page_size)
+    usns, total_count = paginate_usns(db, offering_id, page, page_size)
     
     results = []
     for usn in usns:
-        student_response = await get_student_marks_for_offering(
+        student_response = get_student_marks_for_offering(
             db, usn, offering_id, regulation_year
         )
         results.append(student_response.data)

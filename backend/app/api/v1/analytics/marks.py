@@ -30,7 +30,7 @@ router = APIRouter(prefix="/analytics/marks", tags=["Analytics - Marks"])
     description="Get complete marks breakdown for a student. RBAC: STUDENT_MARKS_READ.",
     dependencies=[Depends(PermissionChecker(Permission.STUDENT_MARKS_READ))]
 )
-async def get_student_marks(
+def get_student_marks(
     usn: str,
     offering_id: UUID,
     regulation_year: int = Query(default=2021, description="Regulation year for grading"),
@@ -47,7 +47,7 @@ async def get_student_marks(
     - compute_grade
     """
     try:
-        return await get_student_marks_for_offering(
+        return get_student_marks_for_offering(
             db=db,
             usn=usn,
             offering_id=offering_id,
@@ -66,7 +66,7 @@ async def get_student_marks(
     description="Get marks for all students (paginated). RBAC: STUDENT_MARKS_READ.",
     dependencies=[Depends(PermissionChecker(Permission.STUDENT_MARKS_READ))]
 )
-async def get_offering_marks(
+def get_offering_marks(
     offering_id: UUID,
     page: int = Query(default=0, ge=0, description="Page number (0-indexed)"),
     page_size: int = Query(default=50, ge=1, le=100, description="Items per page"),
@@ -79,7 +79,7 @@ async def get_offering_marks(
     EXECUTION GUARD #5: USN-alphabetical ordering for determinism.
     """
     try:
-        return await get_offering_marks_paginated(
+        return get_offering_marks_paginated(
             db=db,
             offering_id=offering_id,
             page=page,
@@ -99,7 +99,7 @@ async def get_offering_marks(
     description="Internal marks breakdown (INT1, INT2, assignments). RBAC: STUDENT_MARKS_READ.",
     dependencies=[Depends(PermissionChecker(Permission.STUDENT_MARKS_READ))]
 )
-async def get_internal_marks(
+def get_internal_marks(
     offering_id: UUID,
     page: int = Query(default=0, ge=0),
     page_size: int = Query(default=50, ge=1, le=100),
@@ -114,14 +114,14 @@ async def get_internal_marks(
     from datetime import datetime
     
     try:
-        usns, total = await paginate_usns(db, offering_id, page, page_size)
+        usns, total = paginate_usns(db, offering_id, page, page_size)
         
         results = []
         all_warnings = []
         is_complete = True
         
         for usn in usns:
-            internal, warnings, complete = await compute_student_internal_marks(
+            internal, warnings, complete = compute_student_internal_marks(
                 db, usn, offering_id
             )
             results.append({"usn": usn, "internal": internal})
@@ -155,7 +155,7 @@ async def get_internal_marks(
     description="External marks breakdown (per section). RBAC: STUDENT_MARKS_READ.",
     dependencies=[Depends(PermissionChecker(Permission.STUDENT_MARKS_READ))]
 )
-async def get_external_marks(
+def get_external_marks(
     offering_id: UUID,
     page: int = Query(default=0, ge=0),
     page_size: int = Query(default=50, ge=1, le=100),
@@ -170,14 +170,14 @@ async def get_external_marks(
     from datetime import datetime
     
     try:
-        usns, total = await paginate_usns(db, offering_id, page, page_size)
+        usns, total = paginate_usns(db, offering_id, page, page_size)
         
         results = []
         all_warnings = []
         is_complete = True
         
         for usn in usns:
-            external, warnings, complete = await compute_student_external_marks(
+            external, warnings, complete = compute_student_external_marks(
                 db, usn, offering_id
             )
             results.append({"usn": usn, "external": external})

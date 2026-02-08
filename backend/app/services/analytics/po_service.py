@@ -11,6 +11,7 @@ from decimal import Decimal
 from datetime import datetime
 
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.services.analytics.query_helpers import (
     get_program_pos,
@@ -53,11 +54,31 @@ async def compute_program_po_attainments(
     - compute_offering_co_attainments (per offering)
     - compute_po_attainment (per PO)
     """
+    from app.core.cache import cache_manager, settings
+    
+    # Cache Key
+    # po_attainment:{program_id}:{academic_year}
+    cache_key = f"po_attainment:{program_id}:{academic_year}"
+    
+    # Try Cache
+    cached_data = await cache_manager.get(cache_key)
+    if cached_data:
+        try:
+            response_data = POAttainmentListResponse(**cached_data["data"])
+            return AnalyticsResponse(
+                data=response_data,
+                warnings=[WarningDTO(**w) for w in cached_data.get("warnings", [])],
+                is_complete=cached_data.get("is_complete", True),
+                computed_at=datetime.fromisoformat(cached_data["computed_at"]) if cached_data.get("computed_at") else datetime.utcnow()
+            )
+        except Exception as e:
+            pass
+
     all_warnings = []
     is_complete = True
     
     # Get all POs for program
-    pos = await get_program_pos(db, program_id)
+    pos = await run_in_threadpool(get_program_pos, db, program_id)
     if not pos:
         return AnalyticsResponse(
             data=POAttainmentListResponse(
@@ -80,10 +101,10 @@ async def compute_program_po_attainments(
         )
     
     # Get CO-PO mappings
-    co_po_mappings = await get_all_co_po_mappings_for_program(db, program_id, academic_year)
+    co_po_mappings = await run_in_threadpool(get_all_co_po_mappings_for_program, db, program_id, academic_year)
     
     # Get attainment thresholds
-    config_data = await get_attainment_config(db, program_id, academic_year)
+    config_data = await run_in_threadpool(get_attainment_config, db, program_id, academic_year)
     thresholds = None
     if config_data:
         thresholds = AttainmentThresholds(
@@ -216,12 +237,29 @@ async def compute_program_po_attainments(
         )
     )
     
-    return AnalyticsResponse(
+    final_response = AnalyticsResponse(
         data=response_data,
         warnings=all_warnings,
         is_complete=is_complete,
         computed_at=datetime.utcnow()
     )
+    
+    # Store in Cache
+    if is_complete:
+        try:
+            to_cache = {
+                "data": response_data.model_dump(),
+                "warnings": [w.model_dump() for w in all_warnings],
+                "is_complete": is_complete,
+                "computed_at": final_response.computed_at.isoformat()
+            }
+            # Use longer TTL for PO attainment (e.g. 1 hour or same as CO)
+            # CO attainment changes more often (marks entry). PO changes when COs change.
+            await cache_manager.set(cache_key, to_cache, ttl=settings.CACHE_TTL_CO_ATTAINMENT)
+        except Exception:
+            pass
+            
+    return final_response
 
 
 async def get_po_contributing_cos(
@@ -239,7 +277,7 @@ async def get_po_contributing_cos(
     all_warnings = []
     
     # Get CO-PO mappings for this PO
-    all_mappings = await get_all_co_po_mappings_for_program(db, program_id, academic_year)
+    all_mappings = await run_in_threadpool(get_all_co_po_mappings_for_program, db, program_id, academic_year)
     po_mappings = all_mappings.get(po_id, [])
     
     if not po_mappings:

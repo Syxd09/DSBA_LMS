@@ -626,7 +626,7 @@ class HODAnalyticsService:
         
         # Get teacher assignments
         assignments = db.query(TeacherAssignment).filter(
-            TeacherAssignment.subject_offering_id.in_(offering_ids)
+            TeacherAssignment.offering_id.in_(offering_ids)
         ).all() if offering_ids else []
         
         # Group by teacher
@@ -857,9 +857,9 @@ class PrincipalAnalyticsService:
         
         # Exam stats
         total_exams = db.query(Exam).count()
-        locked_exams = db.query(Exam).filter(Exam.marks_locked == True).count()
+        locked_exams = db.query(Exam).filter(Exam.status == "locked").count()
         pending_approval = db.query(Exam).filter(
-            Exam.marks_locked == False
+            Exam.status != "locked"
         ).count()
         
         # Department-wise breakdown
@@ -888,8 +888,11 @@ class PrincipalAnalyticsService:
             co_count = 0
             for offering in offerings:
                 co_count += db.query(CourseOutcome).filter(
-                    CourseOutcome.subject_offering_id == offering.id
+                    CourseOutcome.offering_id == offering.id
                 ).count()
+            
+            # Get HOD name manually
+            hod = db.query(Profile).filter(Profile.user_id == dept.hod_id).first() if dept.hod_id else None
             
             dept_analytics.append({
                 "id": str(dept.id),
@@ -900,7 +903,7 @@ class PrincipalAnalyticsService:
                 "students": dept_students,
                 "offerings": len(offerings),
                 "total_cos": co_count,
-                "hod_name": dept.hod.full_name if dept.hod else "Not Assigned"
+                "hod_name": hod.full_name if hod else "Not Assigned"
             })
         
         # Sort by student count
@@ -945,7 +948,7 @@ class PrincipalAnalyticsService:
         
         for offering in offerings:
             cos = db.query(CourseOutcome).filter(
-                CourseOutcome.subject_offering_id == offering.id
+                CourseOutcome.offering_id == offering.id
             ).count()
             if cos > 0:
                 offerings_with_cos += 1
@@ -968,7 +971,7 @@ class PrincipalAnalyticsService:
         
         # Check for locked exams (marks finalized)
         total_exams = db.query(Exam).count()
-        locked_exams = db.query(Exam).filter(Exam.marks_locked == True).count()
+        locked_exams = db.query(Exam).filter(Exam.status == "locked").count()
         marks_completion = (locked_exams / total_exams * 100) if total_exams else 0
         
         overall_readiness = (co_coverage + po_coverage + marks_completion) / 3
@@ -992,9 +995,11 @@ class PrincipalAnalyticsService:
                     }
                 },
                 "recommendations": [
-                    {"priority": "HIGH", "action": f"Define COs for {len(offerings) - offerings_with_cos} offerings"} if offerings_with_cos < len(offerings) else None,
-                    {"priority": "HIGH", "action": f"Define POs for {len(programs) - programs_with_pos} programs"} if programs_with_pos < len(programs) else None,
-                    {"priority": "MEDIUM", "action": f"Finalize marks for {total_exams - locked_exams} exams"} if locked_exams < total_exams else None,
+                    r for r in [
+                        {"priority": "HIGH", "action": f"Define COs for {len(offerings) - offerings_with_cos} offerings"} if offerings_with_cos < len(offerings) else None,
+                        {"priority": "HIGH", "action": f"Define POs for {len(programs) - programs_with_pos} programs"} if programs_with_pos < len(programs) else None,
+                        {"priority": "MEDIUM", "action": f"Finalize marks for {total_exams - locked_exams} exams"} if locked_exams < total_exams else None,
+                    ] if r is not None
                 ],
                 "status": "READY" if overall_readiness >= 80 else "NEEDS_ATTENTION" if overall_readiness >= 50 else "NOT_READY"
             },
