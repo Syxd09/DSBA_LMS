@@ -22,6 +22,7 @@ class Profile(Base):
     full_name = Column(String, nullable=False)
     avatar_url = Column(String, nullable=True)
     department = Column(String, nullable=True)
+    notification_preferences = Column(String, default='{"email": true, "in_app": true}', nullable=True) # JSON string
     password_hash = Column(String, nullable=True)  # For custom auth
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

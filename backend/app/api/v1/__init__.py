@@ -31,6 +31,8 @@ from app.api.v1.offerings import router as offerings_router
 from app.api.v1.units import router as units_router
 # Phase I: Export endpoints
 from app.api.v1.export import router as export_router
+# Phase J: Notifications
+from app.api.v1.notifications import router as notifications_router
 
 router = APIRouter()
 
@@ -60,7 +62,7 @@ router.include_router(offerings_router)
 # Phase F-01: Unit and Topic Management
 router.include_router(units_router)
 # Phase I: Export endpoints
+router.include_router(export_router, prefix="/export", tags=["Export"])
+router.include_router(notifications_router, prefix="/notifications", tags=["Notifications"])
+# Phase J: Notifications
 router.include_router(export_router)
-
-
-

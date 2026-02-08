@@ -34,6 +34,7 @@ import ExternalResults from "./pages/ExternalResults";
 import Units from "./pages/Units";
 import AssessmentComponents from "./pages/AssessmentComponents";
 import Colleges from "./pages/Colleges";
+import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,9 @@ const App = () => (
             } />
             <Route path="/results" element={
               <ProtectedRoute><Results /></ProtectedRoute>
+            } />
+            <Route path="/notifications" element={
+              <ProtectedRoute><Notifications /></ProtectedRoute>
             } />
             
             {/* Protected: Teacher, HOD, Principal only */}
@@ -101,7 +105,7 @@ const App = () => (
               </ProtectedRoute>
             } />
             <Route path="/performance" element={
-              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
+              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal', 'student']}>
                 <Performance />
               </ProtectedRoute>
             } />

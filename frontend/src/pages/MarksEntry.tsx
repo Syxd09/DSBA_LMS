@@ -15,6 +15,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { ApprovalWorkflowCard } from '@/components/workflow/ApprovalWorkflowCard';
+import { EditRequestModal } from '@/components/modals/EditRequestModal';
+// Removed duplicate useAuth import
 
 export default function MarksEntry() {
   const queryClient = useQueryClient();
@@ -102,6 +105,11 @@ export default function MarksEntry() {
       });
     },
   });
+
+  // Edit Request Modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  
+  const { user } = useAuth();
 
   // Publish exam mutation
   const publishMutation = useMutation({
@@ -201,8 +209,22 @@ export default function MarksEntry() {
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : selectedExamId && examDetails ? (
+          <div className="space-y-6">
+            {/* Approval Workflow Status */}
+            <div className="mb-6">
+              <ApprovalWorkflowCard 
+                examId={selectedExamId}
+                examName={`${selectedExam?.subject?.code} - ${selectedExam?.subject?.name} (${selectedExam?.exam_type})`}
+                currentStatus={selectedExam?.status}
+                userRole={user?.role as any}
+                onStatusChange={() => {
+                  queryClient.invalidateQueries({ queryKey: ['exams'] });
+                  queryClient.invalidateQueries({ queryKey: ['exam-details', selectedExamId] });
+                }}
+              />
+            </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
               <TabsTrigger value="marks">Enter Marks</TabsTrigger>
               <TabsTrigger value="structure">Exam Structure</TabsTrigger>
@@ -225,19 +247,35 @@ export default function MarksEntry() {
                   <Loader2 className="w-6 h-6 animate-spin" />
                 </div>
               ) : (
-                <MarksEntryGrid
-                  students={students}
-                  subQuestions={subQuestions}
-                  existingMarks={formattedMarks}
-                  onSave={async (data) => {
-                    await saveMarksMutation.mutateAsync(data);
-                  }}
-                  onPublish={async () => {
-                    await publishMutation.mutateAsync();
-                  }}
-                  isSaving={saveMarksMutation.isPending}
-                  isPublished={selectedExam?.status === 'published'}
-                />
+                <div className="space-y-6">
+                  <MarksEntryGrid
+                    students={students}
+                    subQuestions={subQuestions}
+                    existingMarks={formattedMarks}
+                    onSave={async (data) => {
+                      await saveMarksMutation.mutateAsync(data);
+                    }}
+                    onPublish={async () => {
+                      await publishMutation.mutateAsync();
+                    }}
+                    isSaving={saveMarksMutation.isPending}
+                    isPublished={selectedExam?.status === 'published'}
+                    onRequestEdit={() => setIsEditModalOpen(true)}
+                  />
+                  
+                  <EditRequestModal 
+                    isOpen={isEditModalOpen}
+                    onClose={() => setIsEditModalOpen(false)}
+                    entityType="marks"
+                    entityId={selectedExamId || ''}
+                    entityName={`Marks for ${selectedExam?.subject?.code}`}
+                    currentValue="Locked Dataset"
+                    onSuccess={() => {
+                      toast({ title: 'Edit request submitted' });
+                      setIsEditModalOpen(false);
+                    }}
+                  />
+                </div>
               )}
             </TabsContent>
 
@@ -252,6 +290,7 @@ export default function MarksEntry() {
               />
             </TabsContent>
           </Tabs>
+          </div>
         ) : (
           <Card>
             <CardContent className="py-12 text-center">

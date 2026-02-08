@@ -1,7 +1,8 @@
 import { Button } from '@/components/ui/button';
-import { Bell, LogOut, Search } from 'lucide-react';
+import { LogOut, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { AppRole } from '@/hooks/useAuth';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 interface Profile {
   full_name: string;
@@ -28,10 +29,7 @@ export function Header({ profile, role, onSignOut }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
-        </Button>
+        <NotificationBell />
 
         <div className="w-px h-6 bg-border mx-2" />
 

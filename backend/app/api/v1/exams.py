@@ -284,6 +284,24 @@ async def submit_exam(
         reason="Faculty submitted for HOD approval"
     )
     db.add(audit_log)
+
+    # NOTIFICATION: Notify HOD
+    # Find HOD via Subject -> Department
+    if exam.subject and exam.subject.department_id:
+        from app.models.organization import Department
+        dept = db.query(Department).filter(Department.id == exam.subject.department_id).first()
+        if dept and dept.hod_id:
+            from app.models.notification import Notification
+            # Notify HOD
+            notif = Notification(
+                id=uuid_lib.uuid4(),
+                user_id=dept.hod_id,
+                type="info",
+                title="Exam Submitted for Approval",
+                message=f"Exam '{exam.subject.code} - {exam.exam_type}' submitted by {current_user.full_name}.",
+                link=f"/exams"
+            )
+            db.add(notif)
     
     db.commit()
     db.refresh(exam)
@@ -333,10 +351,116 @@ async def approve_exam(
         reason="HOD approved exam"
     )
     db.add(audit_log)
+
+    # NOTIFICATION: Notify Faculty (Creator)
+    if exam.teacher_id:
+        from app.models.notification import Notification
+        notif = Notification(
+            id=uuid_lib.uuid4(),
+            user_id=exam.teacher_id,
+            type="success",
+            title="Exam Approved",
+            message=f"Your exam '{exam.subject.code} - {exam.exam_type}' has been approved.",
+            link=f"/marks-entry?exam={exam.id}"
+        )
+        db.add(notif)
     
     db.commit()
     db.refresh(exam)
     
+    return exam
+
+
+@router.post("/{exam_id}/reject", response_model=ExamResponse)
+async def reject_exam(
+    exam_id: UUID,
+    reason: str, # Expect JSON body { "reason": "..." }? No, query param for simplicity or body?
+                 # Standard is body. But keeping consistent with unlock which used query param in this file signature (Step 668 line 393)
+                 # Wait, unlock used `reason: str`. FastAPI treats simple types as query params by default.
+                 # Let's stick to Pydantic body for cleanliness? Or Query param?
+                 # Step 668 line 393: reason: str. This is a query param.
+                 # I will use Body for reject to be better, but consistent with unlock...
+                 # Let's use Body for better practice.
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_hod_or_above)
+):
+    """
+    Reject an exam (HOD only).
+    
+    Status transition: submitted → draft
+    """
+    from app.models import AuditLog
+    # Note: If reason is body, we need a Pydantic model. 
+    # If using Body(embed=True) it expects {"reason": "..."}
+    # For now, let's assume query param to match unlock signature style, or fix both.
+    # Unlock signature: `reason: str`. This implies query param `?reason=...`
+    # Let's check `lib/api.ts` implementation of reject.
+    # `apiClient.post(/exams/${id}/reject, { reason })` -> This sends JSON BODY.
+    # So `reason` must be declared as Body.
+    
+    # Correction: I cannot easily change signature to Body without import.
+    # I will use `from fastapi import Body`.
+    
+    # Wait, I am replacing a chunk. I can add imports.
+    pass
+
+# Redefining reject properly below in replacement content:
+
+@router.post("/{exam_id}/reject", response_model=ExamResponse)
+async def reject_exam(
+    exam_id: UUID,
+    payload: dict = None, # JSON body
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_hod_or_above)
+):
+    """
+    Reject an exam (HOD only).
+    Status transition: submitted → draft
+    """
+    from app.models import AuditLog
+    from app.models.notification import Notification
+    
+    reason = payload.get("reason") if payload else None
+    
+    if not reason or len(reason.strip()) < 5:
+        raise HTTPException(status_code=400, detail="Rejection reason is required")
+
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    if exam.status != "submitted":
+        raise HTTPException(status_code=400, detail=f"Cannot reject exam with status '{exam.status}'")
+    
+    old_status = exam.status
+    exam.status = "draft" # Reverts to draft
+    
+    audit_log = AuditLog(
+        id=uuid_lib.uuid4(),
+        user_id=current_user.user_id,
+        action="EXAM_REJECT",
+        entity_type="exam",
+        entity_id=str(exam_id),
+        old_value=old_status,
+        new_value="draft",
+        reason=reason
+    )
+    db.add(audit_log)
+    
+    # Notify Faculty
+    if exam.teacher_id:
+        notif = Notification(
+            id=uuid_lib.uuid4(),
+            user_id=exam.teacher_id,
+            type="error", # or warning
+            title="Exam Rejected",
+            message=f"Your exam '{exam.subject.code}' was rejected. Reason: {reason}",
+            link=f"/exams/{exam_id}"
+        )
+        db.add(notif)
+        
+    db.commit()
+    db.refresh(exam)
     return exam
 
 
@@ -380,6 +504,19 @@ async def lock_exam(
         reason="HOD locked exam - marks finalized"
     )
     db.add(audit_log)
+    
+    # NOTIFICATION: Notify Faculty
+    if exam.teacher_id:
+        from app.models.notification import Notification
+        notif = Notification(
+            id=uuid_lib.uuid4(),
+            user_id=exam.teacher_id,
+            type="info",
+            title="Exam Locked",
+            message=f"Exam '{exam.subject.code}' has been locked by HOD.",
+            link=f"/marks-entry?exam={exam.id}"
+        )
+        db.add(notif)
     
     db.commit()
     db.refresh(exam)
@@ -433,6 +570,19 @@ async def unlock_exam(
         reason=reason.strip()
     )
     db.add(audit_log)
+    
+    # NOTIFICATION: Notify Faculty
+    if exam.teacher_id:
+        from app.models.notification import Notification
+        notif = Notification(
+            id=uuid_lib.uuid4(),
+            user_id=exam.teacher_id,
+            type="warning",
+            title="Exam Unlocked",
+            message=f"Exam '{exam.subject.code}' unlocked for edits. Reason: {reason}",
+            link=f"/marks-entry?exam={exam.id}"
+        )
+        db.add(notif)
     
     db.commit()
     db.refresh(exam)

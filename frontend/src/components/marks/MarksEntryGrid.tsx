@@ -27,6 +27,8 @@ interface MarksEntryGridProps {
   onPublish: () => Promise<void>;
   isPublished?: boolean;
   isSaving?: boolean;
+  isLocked?: boolean;
+  onRequestEdit?: () => void;
 }
 
 export function MarksEntryGrid({ 
@@ -37,6 +39,8 @@ export function MarksEntryGrid({
   onPublish,
   isPublished = false,
   isSaving = false,
+  isLocked = false,
+  onRequestEdit,
 }: MarksEntryGridProps) {
   const [marksData, setMarksData] = useState<Record<string, Record<string, number>>>({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -195,6 +199,18 @@ export function MarksEntryGrid({
             </Button>
           </div>
         )}
+        
+        {isLocked && onRequestEdit && (
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="gap-1 border-yellow-500 text-yellow-600">
+              <AlertCircle className="w-3 h-3" />
+              Dataset Locked
+            </Badge>
+            <Button variant="outline" size="sm" onClick={onRequestEdit}>
+              Request Unlock / Edit
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="border border-border bg-card overflow-x-auto rounded-lg">
@@ -238,7 +254,7 @@ export function MarksEntryGrid({
                         value={marksData[student.studentId]?.[sq.id] ?? 0}
                         onChange={(e) => handleMarkChange(student.studentId, sq.id, e.target.value)}
                         className="w-16 text-center h-8"
-                        disabled={isPublished}
+                        disabled={isPublished || isLocked}
                       />
                     </TableCell>
                   ))}

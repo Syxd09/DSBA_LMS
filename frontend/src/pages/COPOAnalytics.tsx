@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { analyticsApi, subjectsApi, templatesApi } from '@/lib/api';
+import { analyticsApi, subjectsApi, templatesApi, topicCoverageApi } from '@/lib/api';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,7 +11,68 @@ import { Target, Brain, Loader2, Download, FileSpreadsheet } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { toast } from '@/hooks/use-toast';
 
+
+function TopicHeatmap({ offeringId }: { offeringId: string }) {
+  const { data: coverage, isLoading } = useQuery({
+    queryKey: ['topic-coverage', offeringId],
+    queryFn: () => topicCoverageApi.getOfferingCoverage(offeringId),
+    enabled: !!offeringId
+  });
+
+  if (isLoading) return <div className="h-48 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>;
+
+  if (!coverage || !coverage.units) return null;
+
+  return (
+    <Card className="md:col-span-2">
+      <CardHeader>
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <Brain className="w-4 h-4" />
+          Topic Performance Analysis
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-6">
+          {coverage.units.map((unit: any) => (
+            <div key={unit.unit_no} className="space-y-2">
+              <h4 className="text-sm font-medium">Unit {unit.unit_no}: {unit.unit_name}</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {unit.topics.map((topic: any) => {
+                   const perf = topic.avg_percentage;
+                   let colorClass = "bg-secondary text-secondary-foreground";
+                   if (perf !== null) {
+                     if (perf >= 70) colorClass = "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300";
+                     else if (perf >= 50) colorClass = "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300";
+                     else colorClass = "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300";
+                   }
+                   
+                   return (
+                     <div 
+                       key={topic.topic_name} 
+                       className={`p-2 rounded text-xs border ${colorClass} flex flex-col justify-between h-20 transition-all hover:scale-105`}
+                       title={`${topic.topic_name}: ${perf !== null ? perf + '%' : 'Not assessed'}`}
+                     >
+                       <span className="line-clamp-2 font-medium">{topic.topic_name}</span>
+                       <span className="text-right font-bold mt-1">
+                         {perf !== null ? `${perf}%` : '-'}
+                       </span>
+                     </div>
+                   );
+                })}
+              </div>
+            </div>
+          ))}
+          {coverage.units.length === 0 && (
+              <p className="text-center py-8 text-muted-foreground">No topic data available.</p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function COPOAnalytics() {
+
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -227,6 +288,10 @@ export default function COPOAnalytics() {
                 )}
               </CardContent>
             </Card>
+
+            
+            {/* Topic Weakness Heatmap (P3-03) */}
+            <TopicHeatmap offeringId={selectedSubject} />
           </>
         )}
       </div>

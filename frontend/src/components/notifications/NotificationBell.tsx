@@ -1,10 +1,5 @@
-/**
- * Approval Notifications Component
- * Provides toast notifications for approval/rejection events
- */
-import { useEffect, useState } from 'react';
-import { toast } from '@/hooks/use-toast';
-import { Bell, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
+import { Bell, CheckCircle, XCircle, AlertTriangle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -15,66 +10,64 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
-
-interface Notification {
-  id: string;
-  type: 'approval' | 'rejection' | 'pending' | 'info';
-  title: string;
-  message: string;
-  timestamp: Date;
-  read: boolean;
-}
-
-// Simulated notifications for demo - in production, fetch from API
-const mockNotifications: Notification[] = [
-  {
-    id: '1',
-    type: 'approval',
-    title: 'Marks Approved',
-    message: 'Internal Assessment 1 marks for CS101 have been approved by HOD.',
-    timestamp: new Date(),
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'pending',
-    title: 'Approval Required',
-    message: 'New marks submission for CS201 awaiting your approval.',
-    timestamp: new Date(Date.now() - 3600000),
-    read: false,
-  },
-];
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { notificationsApi } from '@/lib/api';
+import { toast } from '@/components/ui/use-toast';
 
 export function NotificationBell() {
-  const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+  const { data: notifications = [], refetch } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => notificationsApi.list({ limit: 10 }),
+    refetchInterval: 30000, // Poll every 30 seconds
+  });
+
+  const { data: unreadCount = 0, refetch: refetchCount } = useQuery({
+    queryKey: ['notifications-unread'],
+    queryFn: () => notificationsApi.getUnreadCount(),
+    refetchInterval: 30000,
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: notificationsApi.markAsRead,
+    onSuccess: () => {
+      refetch();
+      refetchCount();
+    },
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: notificationsApi.markAllAsRead,
+    onSuccess: () => {
+      refetch();
+      refetchCount();
+      toast({ title: 'All notifications marked as read' });
+    },
+  });
+
   const [isOpen, setIsOpen] = useState(false);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, read: true } : n
-    ));
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
-  };
-
-  const getIcon = (type: Notification['type']) => {
-    switch (type) {
-      case 'approval':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'rejection':
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      case 'pending':
-        return <Clock className="h-4 w-4 text-yellow-500" />;
-      default:
-        return <AlertTriangle className="h-4 w-4 text-blue-500" />;
+  const handleMarkAsRead = (id: string, link?: string) => {
+    markReadMutation.mutate(id);
+    if (link) {
+      window.location.href = link; // Simple navigation, or use router
     }
   };
 
-  const formatTime = (date: Date) => {
+  const getIcon = (type: string) => {
+    switch (type) {
+      case 'success':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'error':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'warning':
+        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+      default:
+        return <Bell className="h-4 w-4 text-blue-500" />;
+    }
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z'); // Ensure UTC
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / 60000);
@@ -105,7 +98,12 @@ export function NotificationBell() {
         <DropdownMenuLabel className="flex items-center justify-between">
           <span>Notifications</span>
           {unreadCount > 0 && (
-            <Button variant="ghost" size="sm" onClick={markAllAsRead}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => markAllReadMutation.mutate()}
+              disabled={markAllReadMutation.isPending}
+            >
               Mark all read
             </Button>
           )}
@@ -116,65 +114,38 @@ export function NotificationBell() {
             No notifications
           </div>
         ) : (
-          notifications.slice(0, 5).map((notification) => (
+          notifications.map((notification: any) => (
             <DropdownMenuItem 
               key={notification.id}
-              className={`flex gap-3 p-3 cursor-pointer ${!notification.read ? 'bg-muted/50' : ''}`}
-              onClick={() => markAsRead(notification.id)}
+              className={`flex gap-3 p-3 cursor-pointer ${!notification.is_read ? 'bg-muted/50' : ''}`}
+              onClick={() => handleMarkAsRead(notification.id, notification.link)}
             >
               {getIcon(notification.type)}
               <div className="flex-1 space-y-1">
                 <p className="text-sm font-medium leading-none">{notification.title}</p>
                 <p className="text-xs text-muted-foreground line-clamp-2">{notification.message}</p>
-                <p className="text-xs text-muted-foreground">{formatTime(notification.timestamp)}</p>
+                <p className="text-xs text-muted-foreground">{formatTime(notification.created_at)}</p>
               </div>
-              {!notification.read && (
+              {!notification.is_read && (
                 <div className="h-2 w-2 rounded-full bg-primary" />
               )}
             </DropdownMenuItem>
           ))
         )}
+        <DropdownMenuSeparator />
+        <div className="p-2 border-t">
+          <Button 
+            variant="ghost" 
+            className="w-full text-xs h-8 justify-center text-muted-foreground"
+            onClick={() => {
+              setIsOpen(false);
+              window.location.href = '/notifications';
+            }}
+          >
+            View all notifications
+          </Button>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
-
-// Utility functions for showing notification toasts
-export const showApprovalToast = (title: string, description: string) => {
-  toast({
-    title: (
-      <div className="flex items-center gap-2">
-        <CheckCircle className="h-4 w-4 text-green-500" />
-        <span>{title}</span>
-      </div>
-    ) as any,
-    description,
-  });
-};
-
-export const showRejectionToast = (title: string, description: string) => {
-  toast({
-    title: (
-      <div className="flex items-center gap-2">
-        <XCircle className="h-4 w-4 text-red-500" />
-        <span>{title}</span>
-      </div>
-    ) as any,
-    description,
-    variant: 'destructive',
-  });
-};
-
-export const showPendingToast = (title: string, description: string) => {
-  toast({
-    title: (
-      <div className="flex items-center gap-2">
-        <Clock className="h-4 w-4 text-yellow-500" />
-        <span>{title}</span>
-      </div>
-    ) as any,
-    description,
-  });
-};
-
-export default NotificationBell;

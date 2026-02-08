@@ -96,6 +96,21 @@ export default function StudentEnrollments() {
     },
   });
 
+  // Helper to download error log
+  const downloadErrorLog = (errors: any[]) => {
+    const csvContent = "data:text/csv;charset=utf-8," 
+        + "Row,Error\n" 
+        + errors.map((e: any) => `${e.row},"${e.error.replace(/"/g, '""')}"`).join("\n");
+        
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "bulk_upload_errors.csv");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
   const bulkUploadMutation = useMutation({
     mutationFn: (file: File) => enrollmentsApi.bulkUpload(file),
     onSuccess: (data: any) => {
@@ -103,15 +118,17 @@ export default function StudentEnrollments() {
         title: 'Bulk upload complete', 
         description: `Success: ${data.success_count}, Errors: ${data.errors.length}` 
       });
+      
       if (data.errors.length > 0) {
         console.error("Bulk Upload Errors:", data.errors);
-        // Could show a dialog with errors here
         toast({
             title: "Upload finished with errors",
-            description: "Check console for details or download error log (not implemented)",
+            description: "Downloading error log...",
             variant: "destructive"
-        })
+        });
+        downloadErrorLog(data.errors);
       }
+      
       setIsBulkOpen(false);
       queryClient.invalidateQueries({ queryKey: ['enrollments'] });
     },

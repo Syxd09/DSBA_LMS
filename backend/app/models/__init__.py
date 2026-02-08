@@ -63,6 +63,9 @@ from app.models.grading import GradingRule, GradeScale
 # Audit
 from app.models.audit import AuditLog
 
+# Notification
+from app.models.notification import Notification
+
 # Semester
 from app.models.semester import Semester, SemesterType, SemesterStatus, SemesterService
 
@@ -123,5 +126,7 @@ __all__ = [
     "GradeScale",
     # Audit
     "AuditLog",
+    # Notification
+    "Notification",
 ]
 

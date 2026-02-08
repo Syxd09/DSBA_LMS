@@ -299,6 +299,21 @@ export const gradingApi = {
         apiClient.get('/grading/final-marks', { params }).then(r => r.data),
 };
 
+// Notifications API
+export const notificationsApi = {
+    list: (params?: { skip?: number; limit?: number }) =>
+        apiClient.get('/notifications', { params }).then(r => r.data),
+
+    getUnreadCount: () =>
+        apiClient.get('/notifications/unread-count').then(r => r.data),
+
+    markAsRead: (id: string) =>
+        apiClient.put(`/notifications/${id}/read`).then(r => r.data),
+
+    markAllAsRead: () =>
+        apiClient.post('/notifications/mark-all-read').then(r => r.data),
+};
+
 // Analytics API
 export const analyticsApi = {
     getCOAttainment: (subjectId: string) =>

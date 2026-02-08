@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { gradingApi } from '@/lib/api';
+import { gradingApi, usersApi } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,23 +8,59 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Settings as SettingsIcon, Award, Calendar, Palette, Bell, Plus, Loader2, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Award, Calendar, Palette, Bell, Plus, Loader2, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Settings() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-  const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem('notifications_enabled');
-    return saved !== null ? JSON.parse(saved) : true;
+  
+  // Fetch current user profile to get preferences
+  const { data: profile } = useQuery({
+    queryKey: ['profile', user?.user_id],
+    queryFn: () => usersApi.get(user?.user_id || ''),
+    enabled: !!user?.user_id,
   });
 
-  // Persist notification preference
+  const [notifications, setNotifications] = useState(true);
+
   useEffect(() => {
-    localStorage.setItem('notifications_enabled', JSON.stringify(notifications));
-  }, [notifications]);
+    if (profile?.notification_preferences) {
+      try {
+        const prefs = JSON.parse(profile.notification_preferences);
+        setNotifications(prefs.in_app !== false); // Default to true
+      } catch (e) {
+        setNotifications(true);
+      }
+    }
+  }, [profile]);
+
+  const updateProfileMutation = useMutation({
+    mutationFn: (data: { notification_preferences: string }) => 
+      usersApi.updateProfile({ ...profile, ...data }),
+    onSuccess: () => {
+      toast({ title: 'Preferences saved' });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+    },
+    onError: () => {
+      toast({ title: 'Failed to save preferences', variant: 'destructive' });
+    }
+  });
+
+  const handleNotificationToggle = (enabled: boolean) => {
+    setNotifications(enabled);
+    updateProfileMutation.mutate({
+      notification_preferences: JSON.stringify({
+        email: enabled, // For now sync both
+        in_app: enabled
+      })
+    });
+  };
+
   const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
   const [deleteRuleId, setDeleteRuleId] = useState<string | null>(null);
   const [newRule, setNewRule] = useState({
@@ -80,8 +116,16 @@ export default function Settings() {
     toast({ title: `Theme changed to ${newTheme} mode` });
   };
 
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+    }
+  }, []);
+
   return (
-    <AuthenticatedLayout allowedRoles={['principal']}>
+    <AuthenticatedLayout allowedRoles={['principal', 'hod', 'teacher', 'student']}>
       <div className="max-w-3xl mx-auto space-y-6">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Settings</h2>
@@ -99,9 +143,9 @@ export default function Settings() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Dark Mode</p>
-                <p className="text-sm text-muted-foreground">Toggle between light and dark theme</p>
+              <div className="space-y-0.5">
+                <Label>Dark Mode</Label>
+                <p className="text-sm text-muted-foreground">Enable dark theme for the application</p>
               </div>
               <Switch checked={theme === 'dark'} onCheckedChange={toggleTheme} />
             </div>
@@ -115,155 +159,152 @@ export default function Settings() {
               <Bell className="w-4 h-4" />
               Notifications
             </CardTitle>
-            <CardDescription>Manage notification preferences</CardDescription>
+            <CardDescription>Manage how you receive alerts</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Email Notifications</p>
-                <p className="text-sm text-muted-foreground">Receive updates via email</p>
+              <div className="space-y-0.5">
+                <Label>Enable Notifications</Label>
+                <p className="text-sm text-muted-foreground">Receive alerts for important updates</p>
               </div>
-              <Switch checked={notifications} onCheckedChange={setNotifications} />
+              <Switch 
+                checked={notifications} 
+                onCheckedChange={handleNotificationToggle} 
+                disabled={updateProfileMutation.isPending}
+              />
             </div>
           </CardContent>
         </Card>
 
-        {/* Grading Scale */}
+        {/* Grading Scale - Only for Principal */}
+        {user?.role === 'principal' && (
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Award className="w-4 h-4" />
-                  Grading Scale
-                </CardTitle>
-                <CardDescription>Configure grade boundaries and points</CardDescription>
-              </div>
-              <Dialog open={isRuleDialogOpen} onOpenChange={setIsRuleDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Grade
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add Grading Rule</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label>Grade</Label>
-                      <Input
-                        value={newRule.grade}
-                        onChange={(e) => setNewRule({ ...newRule, grade: e.target.value.toUpperCase() })}
-                        placeholder="e.g., A+"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Min %</Label>
-                        <Input
-                          type="number"
-                          value={newRule.min_percentage}
-                          onChange={(e) => setNewRule({ ...newRule, min_percentage: parseInt(e.target.value) || 0 })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Max %</Label>
-                        <Input
-                          type="number"
-                          value={newRule.max_percentage}
-                          onChange={(e) => setNewRule({ ...newRule, max_percentage: parseInt(e.target.value) || 100 })}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Grade Point</Label>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        value={newRule.grade_point}
-                        onChange={(e) => setNewRule({ ...newRule, grade_point: parseFloat(e.target.value) || 0 })}
-                      />
-                    </div>
-                    <Button
-                      className="w-full"
-                      onClick={() => createRuleMutation.mutate(newRule)}
-                      disabled={createRuleMutation.isPending}
-                    >
-                      {createRuleMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                      Add Rule
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Award className="w-4 h-4" />
+                Grading Scale
+              </CardTitle>
+              <CardDescription>Define grade ranges and points</CardDescription>
             </div>
+            <Button size="sm" onClick={() => setIsRuleDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Rule
+            </Button>
           </CardHeader>
           <CardContent>
             {rulesLoading ? (
-              <div className="flex justify-center py-8">
+              <div className="flex justify-center py-4">
                 <Loader2 className="w-6 h-6 animate-spin" />
               </div>
-            ) : gradingRules.length === 0 ? (
-              <p className="text-center py-8 text-muted-foreground">No grading rules configured</p>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            ) : gradingRules.length > 0 ? (
+              <div className="space-y-2">
                 {gradingRules.map((rule: any) => (
-                  <div key={rule.id} className="relative p-4 border rounded-lg text-center bg-secondary/20 group">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 h-6 w-6"
-                      onClick={() => setDeleteRuleId(rule.id)}
-                    >
-                      <Trash2 className="w-3 h-3 text-destructive" />
+                  <div key={rule.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                        {rule.grade}
+                      </div>
+                      <div>
+                        <p className="font-medium">{rule.min_percentage}% - {rule.max_percentage}%</p>
+                        <p className="text-sm text-muted-foreground">Grade Point: {rule.grade_point}</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteRuleId(rule.id)}>
+                      <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
-                    <p className="text-2xl font-bold text-primary">{rule.grade}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {rule.min_percentage}% - {rule.max_percentage}%
-                    </p>
-                    <Badge variant="outline" className="mt-2">
-                      GP: {rule.grade_point}
-                    </Badge>
                   </div>
                 ))}
               </div>
+            ) : (
+              <p className="text-center py-4 text-muted-foreground">No grading rules defined</p>
             )}
           </CardContent>
         </Card>
+        )}
 
-        {/* Academic Year */}
+        {/* Academic Years - Placeholder */}
+        {user?.role === 'principal' && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Calendar className="w-4 h-4" />
-              Academic Year
+              Academic Years
             </CardTitle>
-            <CardDescription>Current academic year settings</CardDescription>
+            <CardDescription>Manage academic sessions</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <Label>Current Academic Year</Label>
-                <Input value="2024-2025" className="mt-2" disabled />
+            <div className="flex items-center justify-between p-3 border rounded-lg opacity-50 cursor-not-allowed">
+              <div>
+                <p className="font-medium">2023-2024</p>
+                <p className="text-sm text-muted-foreground">Current Session</p>
               </div>
+              <Badge>Active</Badge>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Academic year is configured at the system level.
-            </p>
           </CardContent>
         </Card>
+        )}
 
-        {/* Delete Confirmation */}
+        {/* Rule Dialog */}
+        <Dialog open={isRuleDialogOpen} onOpenChange={setIsRuleDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Grading Rule</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Grade (e.g., A+)</Label>
+                  <Input 
+                    value={newRule.grade}
+                    onChange={(e) => setNewRule({...newRule, grade: e.target.value.toUpperCase()})}
+                    placeholder="A+"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Grade Point</Label>
+                  <Input 
+                    type="number" 
+                    step="0.1"
+                    value={newRule.grade_point}
+                    onChange={(e) => setNewRule({...newRule, grade_point: parseFloat(e.target.value)})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Min %</Label>
+                  <Input 
+                    type="number" 
+                    value={newRule.min_percentage}
+                    onChange={(e) => setNewRule({...newRule, min_percentage: parseFloat(e.target.value)})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Max %</Label>
+                  <Input 
+                    type="number" 
+                    value={newRule.max_percentage}
+                    onChange={(e) => setNewRule({...newRule, max_percentage: parseFloat(e.target.value)})}
+                  />
+                </div>
+              </div>
+              <Button 
+                onClick={() => createRuleMutation.mutate(newRule)} 
+                disabled={createRuleMutation.isPending || !newRule.grade}
+                className="w-full"
+              >
+                {createRuleMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Save Rule
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <ConfirmDialog
-          open={!!deleteRuleId}
-          onOpenChange={() => setDeleteRuleId(null)}
-          title="Delete Grading Rule"
-          description="Are you sure you want to delete this grading rule? This action cannot be undone."
-          confirmLabel="Delete"
-          variant="destructive"
+          isOpen={!!deleteRuleId}
+          onClose={() => setDeleteRuleId(null)}
           onConfirm={() => deleteRuleId && deleteRuleMutation.mutate(deleteRuleId)}
-          isLoading={deleteRuleMutation.isPending}
+          title="Delete Rule"
+          description="Are you sure you want to delete this grading rule?"
         />
       </div>
     </AuthenticatedLayout>
