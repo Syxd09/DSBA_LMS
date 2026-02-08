@@ -66,6 +66,9 @@ from app.models.audit import AuditLog
 # Notification
 from app.models.notification import Notification
 
+# Config
+from app.models.config import AttainmentConfig
+
 # Semester
 from app.models.semester import Semester, SemesterType, SemesterStatus, SemesterService
 
@@ -128,5 +131,7 @@ __all__ = [
     "AuditLog",
     # Notification
     "Notification",
+    # Config
+    "AttainmentConfig",
 ]
 

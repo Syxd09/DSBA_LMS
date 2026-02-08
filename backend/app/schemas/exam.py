@@ -107,6 +107,7 @@ class ExamUpdate(BaseModel):
     """Update exam schema."""
     max_marks: Optional[int] = None
     status: Optional[str] = None
+    exam_type: Optional[str] = None  # Added to support updates
 
 
 class ExamResponse(ExamBase):

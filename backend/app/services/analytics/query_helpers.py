@@ -216,7 +216,7 @@ def get_exam_sections(
             ExamSection.required_questions
         )
         .where(ExamSection.exam_id == exam_id)
-        .order_by(ExamSection.section_order)
+        .order_by(ExamSection.sequence)
     )
     return [
         SectionConfigDTO(
@@ -494,7 +494,7 @@ def get_program_pos(
         select(
             ProgramOutcome.id,
             ProgramOutcome.po_code,
-            ProgramOutcome.po_statement
+            ProgramOutcome.description
         )
         .where(ProgramOutcome.program_id == program_id)
         .order_by(ProgramOutcome.po_code)
@@ -567,7 +567,8 @@ def get_all_co_po_mappings_for_program(
         .join(ProgramOutcome, ProgramOutcome.id == COPOMapping.po_id)
         .where(and_(
             ProgramOutcome.program_id == program_id,
-            COPOMapping.academic_year == academic_year
+            # Handle versioning: Use specific year OR null (default)
+            (COPOMapping.version_year == academic_year) | (COPOMapping.version_year.is_(None))
         ))
     )
     

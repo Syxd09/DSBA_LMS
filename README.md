@@ -84,10 +84,27 @@ The Academic Intelligence System is a six-phase project that transforms traditio
 - Audit & Compliance Module
 
 ### Phase 6: Development Roadmap
+- ✅ **Phase 1**: Academic Data Model & Database Schema
+- ✅ **Phase 2**: Assessment Engine & Question Papers
+- ✅ **Phase 3**: Analytics Engine & CO/PO Calculations
+- ✅ **Phase 4**: Reporting Templates & Exports
+- ✅ **Phase 5**: UI Development & Role-Based Dashboards
+- ✅ **Phase 6**: Pilot Testing, Security Hardening & Documentation
 
-- 12-week MVP timeline with clear milestones
-- Production-ready deployment strategy
-- Risk management and mitigation strategies
+### MVP Scope (Completed)
+
+**Implemented features:**
+- ✅ Department, Program, Batch, Semester setup
+- ✅ Subject Offering configuration
+- ✅ CO, PO definitions and CO-PO mapping
+- ✅ Internal Exam 1 & 2
+- ✅ Question paper builder with sections
+- ✅ Question-wise marks entry
+- ✅ CO attainment calculations
+- ✅ Unit and topic analysis
+- ✅ Basic reporting (CO attainment, CO-PO matrix)
+- ✅ Principal Dashboard & Institution Analytics
+- ✅ NAAC/NBA Report Templates
 
 ## Tech Stack
 
@@ -467,6 +484,16 @@ For complete API documentation, interactive Swagger UI is available at:
 - ❌ Principal dashboard
 - ❌ Deep backlog analysis
 - ❌ NAAC automation
+
+## Documentation
+
+Comprehensive documentation is available in the `docs/` directory:
+
+- [**Deployment Guide**](docs/DEPLOYMENT.md): Docker setup, environment configuration, and maintenance.
+- [**User Manual**](docs/USER_MANUAL.md): Role-based guide for Students, Faculty, HODs, and Principals.
+- [**API Documentation**](docs/API.md): Details on REST endpoints (also see Swagger UI).
+- [**Architecture Guide**](docs/ARCHITECTURE.md): System design and component interaction.
+
 
 ## Performance & Safety Guarantees
 

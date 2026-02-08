@@ -49,6 +49,7 @@ class Program(Base):
     program_outcomes = relationship("ProgramOutcome", back_populates="program")
     program_specific_outcomes = relationship("ProgramSpecificOutcome", back_populates="program")  # NEW: PSO
     subject_offerings = relationship("SubjectOffering", back_populates="program")
+    attainment_configs = relationship("AttainmentConfig", back_populates="program", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Program {self.code}: {self.name}>"

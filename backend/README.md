@@ -19,25 +19,16 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```
 
-## Docker Setup
+## Documentation
 
-```bash
-docker-compose up --build
-```
-
-## API Documentation
-
-Once running, visit:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+- **Deployment**: See [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md) for production setup.
+- **API Reference**: See [`../docs/API.md`](../docs/API.md) or visit `/docs` when running.
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and configure:
+Copy `.env.example` to `.env`. See the [Deployment Guide](../docs/DEPLOYMENT.md) for detailed variable descriptions.
 
-```
+```bash
 DATABASE_URL=postgresql://user:pass@localhost:5432/edumetrics
 SECRET_KEY=your-secret-key
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
 ```
