@@ -1,6 +1,9 @@
 import { StatsCard } from './StatsCard';
 import { COAttainmentChart } from './COAttainmentChart';
 import { TopicWeaknessHeatmap } from './TopicWeaknessHeatmap';
+import { InternalExternalGapChart } from './InternalExternalGapChart';
+import { InsightsCard } from './InsightsCard';
+import { SemesterTrendChart } from './SemesterTrendChart';
 import { GraduationCap, BookOpen, TrendingUp, Award, Brain, Target, AlertCircle, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -178,8 +181,17 @@ export function StudentDashboard() {
 
         {/* Topic Weakness Heatmap */}
         <TopicWeaknessHeatmap results={results} />
+      </div>
 
-        {/* CO Attainment */}
+      {/* New Analytics Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <SemesterTrendChart usn={usn} />
+        <InternalExternalGapChart usn={usn} />
+        <InsightsCard usn={usn} />
+      </div>
+
+      {/* CO Attainment Row */}
+      <div className="grid grid-cols-1 gap-6">
         <div className="col-span-1 lg:col-span-2">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Target className="w-5 h-5" />

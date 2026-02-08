@@ -1,7 +1,8 @@
 import { StatsCard } from './StatsCard';
 import { DepartmentTable } from './DepartmentTable';
-import { COAttainmentChart } from './COAttainmentChart';
+import { DashboardCOChart } from './DashboardCOChart';
 import { PerformanceTrendChart } from './PerformanceTrendChart';
+import { YoYTrendChart } from './YoYTrendChart';
 import { Users, GraduationCap, BookOpen, AlertTriangle, CheckCircle, Building2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -149,13 +150,16 @@ export function PrincipalDashboard() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <COAttainmentChart data={coAttainment.length > 0 ? coAttainment.map((co: any) => ({
+        <DashboardCOChart data={coAttainment.length > 0 ? coAttainment.map((co: any) => ({
           co: `CO${co.co_number || co.co}`,
           attainment: co.attainment || 0,
           target: co.target || 70,
-        })) : []} />
+        })) : []} title="Institution CO Attainment" />
         <PerformanceTrendChart data={trendData} />
       </div>
+
+      {/* Year-on-Year Trend */}
+      <YoYTrendChart />
 
       {/* Department Table */}
       {tableData.length > 0 ? (

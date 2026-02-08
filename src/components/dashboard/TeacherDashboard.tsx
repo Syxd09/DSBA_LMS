@@ -1,6 +1,7 @@
 import { StatsCard } from './StatsCard';
 import { AtRiskStudentsList } from './AtRiskStudentsList';
-import { BookOpen, Users, Clock, TrendingUp, Plus, FileText, Activity, Download } from 'lucide-react';
+import { QuestionDifficultyChart } from './QuestionDifficultyChart';
+import { BookOpen, Users, Clock, TrendingUp, Plus, FileText, Activity, Download, Upload, BarChart2, Settings } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -124,6 +125,18 @@ export function TeacherDashboard() {
               <TrendingUp className="w-4 h-4 mr-2" />
               View Analytics
             </Button>
+            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/course-outcomes')}>
+              <BarChart2 className="w-4 h-4 mr-2" />
+              Manage COs
+            </Button>
+            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/units')}>
+              <Settings className="w-4 h-4 mr-2" />
+              Units & Topics
+            </Button>
+            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/assessment-components')}>
+              <Upload className="w-4 h-4 mr-2" />
+              Upload Attendance/Activity
+            </Button>
           </CardContent>
         </Card>
 
@@ -201,6 +214,11 @@ export function TeacherDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Question Difficulty Analysis */}
+      {subjects.length > 0 && subjects[0]?.offering_id && (
+        <QuestionDifficultyChart offeringId={subjects[0].offering_id} />
+      )}
     </div>
   );
 }

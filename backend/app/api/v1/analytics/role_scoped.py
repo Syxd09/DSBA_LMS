@@ -434,3 +434,27 @@ async def get_principal_accreditation_readiness(
     """
     return await PrincipalAnalyticsService.get_accreditation_readiness(db=db)
 
+
+@router.get(
+    "/principal/year-on-year-trend",
+    response_model=AnalyticsResponse,
+    summary="Year-on-Year Trend",
+    description="Get historical CO/PO attainment trends. RBAC: DASHBOARD_PRINCIPAL.",
+    dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_PRINCIPAL))]
+)
+async def get_principal_year_on_year_trend(
+    years: List[int] = Query(None, description="Years to analyze (defaults to last 5)"),
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """
+    Get year-on-year CO/PO attainment trends.
+    
+    Returns:
+    - Yearly pass rates
+    - Yearly CO attainment estimates
+    - Overall trend direction (IMPROVING/STABLE/DECLINING)
+    """
+    from app.services.analytics.trends import get_year_on_year_trend
+    return await get_year_on_year_trend(db=db, years=years)
+

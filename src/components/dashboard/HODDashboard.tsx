@@ -1,7 +1,10 @@
 import { StatsCard } from './StatsCard';
-import { COAttainmentChart } from './COAttainmentChart';
+import { DashboardCOChart } from './DashboardCOChart';
 import { BloomTaxonomyChart } from './BloomTaxonomyChart';
+import { FacultyComparisonTable } from './FacultyComparisonTable';
+import { BacklogRootCauseAnalysis } from './BacklogRootCauseAnalysis';
 import { Users, GraduationCap, TrendingUp, AlertTriangle, Building2, Download } from 'lucide-react';
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -84,11 +87,11 @@ export function HODDashboard() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <COAttainmentChart data={coAttainment.length > 0 ? coAttainment.map((co: any) => ({
+        <DashboardCOChart data={coAttainment.length > 0 ? coAttainment.map((co: any) => ({
           co: `CO${co.co_number || co.co}`,
           attainment: co.attainment || 0,
           target: co.target || 70,
-        })) : []} />
+        })) : []} title="Department CO Attainment" />
         <BloomTaxonomyChart data={bloomData} />
       </div>
 
@@ -160,6 +163,9 @@ export function HODDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Faculty Comparison (P3-12 Requirement) */}
+      <FacultyComparisonTable />
       {/* Program Reports */}
       <Card>
         <CardHeader>
@@ -211,6 +217,9 @@ export function HODDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Backlog Root Cause Analysis */}
+      <BacklogRootCauseAnalysis departmentId={dashboardData?.department_id} />
     </div>
   );
 }

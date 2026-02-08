@@ -33,6 +33,7 @@ import SemesterPromotions from "./pages/SemesterPromotions";
 import ExternalResults from "./pages/ExternalResults";
 import Units from "./pages/Units";
 import AssessmentComponents from "./pages/AssessmentComponents";
+import Colleges from "./pages/Colleges";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -176,6 +177,11 @@ const App = () => (
             <Route path="/seed-users" element={
               <ProtectedRoute allowedRoles={['principal']}>
                 <UserSeeder />
+              </ProtectedRoute>
+            } />
+            <Route path="/colleges" element={
+              <ProtectedRoute allowedRoles={['principal']}>
+                <Colleges />
               </ProtectedRoute>
             } />
             

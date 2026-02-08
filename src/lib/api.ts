@@ -262,6 +262,9 @@ export const examsApi = {
     unlock: (id: string, reason: string) =>
         apiClient.post(`/exams/${id}/unlock`, null, { params: { reason } }).then(r => r.data),
 
+    reject: (id: string, reason: string) =>
+        apiClient.post(`/exams/${id}/reject`, { reason }).then(r => r.data),
+
     delete: (id: string) => apiClient.delete(`/exams/${id}`),
 };
 
@@ -373,6 +376,12 @@ export const roleAnalyticsApi = {
     // HOD teacher effectiveness
     getTeacherEffectiveness: () =>
         apiClient.get('/analytics/role/hod/teacher-effectiveness').then(r => r.data),
+
+    // Principal year-on-year trend
+    getYearOnYearTrend: (years?: number[]) =>
+        apiClient.get('/analytics/role/principal/year-on-year-trend', {
+            params: years ? { years } : {}
+        }).then(r => r.data),
 };
 
 // Export API (for downloading data in various formats)
