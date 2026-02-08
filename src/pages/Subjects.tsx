@@ -254,14 +254,9 @@ export default function Subjects() {
                     </div>
                   </div>
                   <div className="mt-4 pt-4 border-t border-border">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => navigate(`/course-outcomes?subject=${subject.id}`)}
-                    >
-                      Manage COs
-                    </Button>
+                    <p className="text-xs text-muted-foreground text-center">
+                        Subject Master Record
+                    </p>
                   </div>
                 </CardContent>
               </Card>

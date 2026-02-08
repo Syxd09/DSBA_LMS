@@ -14,7 +14,8 @@ from app.schemas.academic import (
     SubjectCreate, SubjectUpdate, SubjectResponse, SubjectWithOutcomes,
     CurriculumVersionCreate, CurriculumVersionResponse,
     StudentEnrollmentCreate, StudentEnrollmentResponse,
-    TeacherAssignmentCreate, TeacherAssignmentResponse
+    TeacherAssignmentCreate, TeacherAssignmentResponse,
+    SubjectOfferingResponse
 )
 from app.schemas.outcomes import (
     CourseOutcomeCreate, CourseOutcomeUpdate, CourseOutcomeResponse,
@@ -45,6 +46,13 @@ from app.schemas.analytics import (
     COAttainmentResponse, POContribution, PerformanceTrend
 )
 
+from app.schemas.student import StudentCreate, StudentUpdate, StudentResponse
+from app.schemas.unit_topic import (
+    UnitCreate, UnitUpdate, UnitResponse, UnitWithTopicsResponse,
+    TopicCreate, TopicUpdate, TopicResponse,
+    UnitReorderRequest, BulkTopicCreate
+)
+
 __all__ = [
     # Common
     "ResponseBase", "PaginatedResponse", "ErrorResponse",
@@ -61,6 +69,7 @@ __all__ = [
     "CurriculumVersionCreate", "CurriculumVersionResponse",
     "StudentEnrollmentCreate", "StudentEnrollmentResponse",
     "TeacherAssignmentCreate", "TeacherAssignmentResponse",
+    "SubjectOfferingResponse",
     # Outcomes
     "CourseOutcomeCreate", "CourseOutcomeUpdate", "CourseOutcomeResponse",
     "ProgramOutcomeCreate", "ProgramOutcomeResponse",
@@ -86,5 +95,9 @@ __all__ = [
     "COAttainmentResponse", "POContribution", "PerformanceTrend",
     # Student
     "StudentCreate", "StudentUpdate", "StudentResponse",
+    # Unit & Topic
+    "UnitCreate", "UnitUpdate", "UnitResponse", "UnitWithTopicsResponse",
+    "TopicCreate", "TopicUpdate", "TopicResponse",
+    "UnitReorderRequest", "BulkTopicCreate",
 ]
-from app.schemas.student import StudentCreate, StudentUpdate, StudentResponse
+

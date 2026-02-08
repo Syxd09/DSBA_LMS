@@ -54,6 +54,27 @@ def test_data(db: Session):
     # 4. Create Subject Offering
     offering = SubjectOffering(id=uuid4(), cohort_id=cohort.id)
     db.add(offering)
+
+    # 5. Create Exam, Section, Question, SubQuestion (for marks tests)
+    exam_setup = Exam(
+        id=uuid4(),
+        exam_type="IA1",
+        status="approved", # Default to approved for setup
+        cohort_id=cohort.id,
+        offering_id=offering.id,
+        max_marks=40
+    )
+    db.add(exam_setup)
+    
+    from app.models import ExamSection, Question, SubQuestion
+    section = ExamSection(id=uuid4(), exam_id=exam_setup.id, name="A", max_marks=10)
+    db.add(section)
+    
+    question = Question(id=uuid4(), section_id=section.id, sequence=1, max_marks=2)
+    db.add(question)
+    
+    sub_question = SubQuestion(id=uuid4(), question_id=question.id, label="a", max_marks=2)
+    db.add(sub_question)
     
     db.commit()
     return {
@@ -61,7 +82,8 @@ def test_data(db: Session):
         "hod": hod,
         "student": student,
         "cohort": cohort,
-        "offering": offering
+        "offering": offering,
+        "sub_question": sub_question
     }
 
 
@@ -91,15 +113,37 @@ class TestMarksAPI:
         db.commit()
         
         token = create_token(teacher.id, "teacher")
+        
+        # Valid payload but on locked exam
+        from app.models import SubQuestion # Use the available one or mock
+        # We need a valid sub_question_id. 
+        # Since we created a generic one in test_data, we can't easily access it here as 'exam' is new.
+        # But we really just need ANY UUID for validation, OR we attach to the new exam.
+        # Let's attach a question to THIS locked exam to be safe.
+        
+        # Actually, simpler to just mock the UUIDs since validation is type-based mostly.
+        # BUT foreign key checks might happen if validation is deep? 
+        # Schema only checks types. DB checks FKs.
+        # If 422 happens, it's schema.
+        
         response = client.post(
             f"/api/v1/marks/{exam.id}",
             headers={"Authorization": f"Bearer {token}"},
-            json={"marks": [{"student_usn": "1MS24CS001", "marks": 35}]}
+            json={
+                "exam_id": str(exam.id), # Schema requires exam_id in body too? Check BulkMarksCreate.
+                "marks": [
+                    {
+                        "student_id": str(test_data["student"].user_id), # UUID
+                        "sub_question_id": str(uuid4()), # Random UUID is fine for schema validation
+                        "marks": 5
+                    }
+                ]
+            }
         )
         
-        # Locked exams cannot accept marks -> 403 Forbidden or 400 Bad Request depending on implementation
-        # Assuming 403 based on logic
-        assert response.status_code in [400, 403]
+        # Locked exams cannot accept marks -> 400 Bad Request (as per implementation)
+        assert response.status_code == 400
+        assert "locked" in response.json()["detail"].lower()
 
 
 class TestExamAPI:

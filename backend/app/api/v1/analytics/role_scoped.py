@@ -73,6 +73,83 @@ async def get_student_co_profile(
     )
 
 
+@router.get(
+    "/student/insights",
+    summary="Student Personalized Insights",
+    description="Get rule-based personalized insights. RBAC: DASHBOARD_STUDENT.",
+    dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_STUDENT))]
+)
+async def get_student_insights(
+    offering_id: UUID = Query(None, description="Optional: scope to specific subject"),
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """
+    Generate personalized insights for the student.
+    
+    Insights include:
+    - Bloom taxonomy patterns (recall vs application)
+    - Exam consistency (internal vs external)
+    - Unit-wise weaknesses
+    - CO attainment patterns
+    - Improvement trends
+    """
+    from app.services.insights import get_student_insights as get_insights
+    
+    # Get student USN from enrollment
+    enrollment = db.query(StudentEnrollment).filter(
+        StudentEnrollment.user_id == current_user.user_id
+    ).first()
+    
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Student enrollment not found")
+    
+    insights = await get_insights(db, enrollment.usn, offering_id)
+    
+    return {
+        "success": True,
+        "data": insights,
+        "count": len(insights)
+    }
+
+
+@router.get(
+    "/student/topic-heatmap/{offering_id}",
+    summary="Student Topic Weakness Heatmap",
+    description="Get topic-wise performance for heatmap visualization. RBAC: DASHBOARD_STUDENT.",
+    dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_STUDENT))]
+)
+async def get_student_topic_heatmap_endpoint(
+    offering_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """
+    Get student's topic-wise performance per unit.
+    
+    Returns:
+    - Unit-wise breakdown with topics
+    - Percentage scored per topic
+    - Visual heatmap data for weak areas
+    """
+    from app.services.analytics.topic_coverage import get_student_topic_heatmap
+    
+    # Get student USN
+    enrollment = db.query(StudentEnrollment).filter(
+        StudentEnrollment.user_id == current_user.user_id
+    ).first()
+    
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Student enrollment not found")
+    
+    heatmap = await get_student_topic_heatmap(db, enrollment.usn, offering_id)
+    
+    return {
+        "success": True,
+        "data": heatmap
+    }
+
+
 # ============================================================================
 # FACULTY ANALYTICS (Assigned subjects only)
 # ============================================================================
@@ -109,17 +186,89 @@ async def get_faculty_question_analysis(
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_authenticated)
 ):
-    """Get question analysis for an exam."""
-    # Note: Could add teacher ownership check here
-    return await FacultyAnalyticsService.get_question_analysis(
+    """
+    Get comprehensive question analysis for an exam.
+    
+    Shows:
+    - Difficulty index per question/sub-question
+    - Attempt percentages
+    - Average marks
+    - Bloom level correlation
+    - Hardest/easiest questions
+    """
+    from app.services.analytics.question_analysis import get_exam_question_analysis
+    
+    analysis = await get_exam_question_analysis(db, exam_id)
+    
+    return {
+        "success": True,
+        "data": analysis
+    }
+
+
+
+@router.get(
+    "/faculty/topic-coverage/{offering_id}",
+    summary="Topic Coverage Analysis",
+    description="Get topic coverage and performance for a subject. RBAC: DASHBOARD_TEACHER.",
+    dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_TEACHER))]
+)
+async def get_faculty_topic_coverage(
+    offering_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """
+    Get topic coverage analysis for a subject offering.
+    
+    Shows:
+    - Topics taught vs assessed
+    - Student performance per topic
+    - Gap analysis (unassessed topics)
+    """
+    from app.services.analytics.topic_coverage import get_topic_coverage
+    
+    coverage = await get_topic_coverage(db, offering_id)
+    
+    return {
+        "success": True,
+        "data": coverage
+    }
+
+
+@router.get(
+    "/faculty/at-risk-students/{offering_id}",
+    response_model=AnalyticsResponse,
+    summary="At-Risk Students",
+    description="Get at-risk students for a specific offering. RBAC: DASHBOARD_TEACHER.",
+    dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_TEACHER))]
+)
+async def get_faculty_at_risk_students(
+    offering_id: UUID,
+    threshold: float = Query(default=50.0, ge=0, le=100, description="Percentage threshold (default 50%)"),
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """
+    Get at-risk students for teacher's assigned subject.
+    
+    Returns students below the threshold with:
+    - USN and name
+    - Current percentage
+    - Risk reason (critical/needs attention)
+    - Marks obtained vs max
+    
+    Scoped to teacher's assigned offerings only.
+    """
+    return await FacultyAnalyticsService.get_at_risk_students(
         db=db,
-        exam_id=exam_id
+        offering_id=offering_id,
+        teacher_id=current_user.user_id,
+        threshold=threshold
     )
 
 
-# ============================================================================
-# HOD ANALYTICS (Department-scoped)
-# ============================================================================
+
 
 @router.get(
     "/hod/department-health",
@@ -174,6 +323,38 @@ async def get_hod_batch_comparison(
     )
 
 
+@router.get(
+    "/hod/teacher-effectiveness",
+    response_model=AnalyticsResponse,
+    summary="Teacher Effectiveness",
+    description="Get teacher effectiveness metrics. RBAC: DASHBOARD_HOD.",
+    dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_HOD))]
+)
+async def get_hod_teacher_effectiveness(
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """
+    Get teacher effectiveness for HOD's department.
+    
+    Returns per teacher:
+    - Assigned subjects count
+    - Average CO attainment
+    - Total students taught
+    - Effectiveness rating (HIGH/MEDIUM/NEEDS_SUPPORT)
+    """
+    dept = db.query(Department).filter(
+        Department.hod_id == current_user.user_id
+    ).first()
+    
+    if not dept:
+        raise HTTPException(status_code=404, detail="No department assigned")
+    
+    return await HODAnalyticsService.get_teacher_effectiveness(
+        db=db,
+        department_id=dept.id
+    )
+
 # ============================================================================
 # PRINCIPAL ANALYTICS (Institution-wide)
 # ============================================================================
@@ -206,3 +387,50 @@ async def get_principal_department_comparison(
 ):
     """Compare departments for principal view."""
     return await PrincipalAnalyticsService.get_department_comparison(db=db)
+
+
+@router.get(
+    "/principal/comprehensive",
+    response_model=AnalyticsResponse,
+    summary="Comprehensive Analytics",
+    description="Get all key metrics for institution management. RBAC: DASHBOARD_PRINCIPAL.",
+    dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_PRINCIPAL))]
+)
+async def get_principal_comprehensive_analytics(
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """
+    Executive dashboard for principal.
+    
+    Returns:
+    - Institution summary (depts, programs, students, teachers)
+    - Department-wise breakdown with CO counts
+    - Exam status (locked/pending)
+    - Alerts (pending approvals, missing HODs)
+    """
+    return await PrincipalAnalyticsService.get_comprehensive_analytics(db=db)
+
+
+@router.get(
+    "/principal/accreditation-readiness",
+    response_model=AnalyticsResponse,
+    summary="Accreditation Readiness",
+    description="NBA/NAAC compliance readiness score. RBAC: DASHBOARD_PRINCIPAL.",
+    dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_PRINCIPAL))]
+)
+async def get_principal_accreditation_readiness(
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """
+    Check accreditation readiness for NBA/NAAC.
+    
+    Returns:
+    - Overall readiness score
+    - Component scores (CO, PO, marks)
+    - Recommendations
+    - Status (READY/NEEDS_ATTENTION/NOT_READY)
+    """
+    return await PrincipalAnalyticsService.get_accreditation_readiness(db=db)
+

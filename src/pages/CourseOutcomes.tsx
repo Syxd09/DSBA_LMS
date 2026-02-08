@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { subjectsApi } from '@/lib/api';
+import { cohortsApi, offeringsApi } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Target, Plus, Loader2, BookOpen, Pencil, Trash2 } from 'lucide-react';
+import { Target, Plus, Loader2, BookOpen, Pencil, Trash2, Users } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useSearchParams } from 'react-router-dom';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -20,8 +20,11 @@ const BLOOM_LEVELS = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 
 export default function CourseOutcomes() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
-  const subjectFromUrl = searchParams.get('subject');
-  const [selectedSubject, setSelectedSubject] = useState<string>(subjectFromUrl || '');
+  
+  // Phase B Refactor: Cohort + Offering Selection
+  const [selectedCohort, setSelectedCohort] = useState<string>('');
+  const [selectedOffering, setSelectedOffering] = useState<string>('');
+  
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCO, setEditingCO] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; co: any | null }>({ open: false, co: null });
@@ -31,24 +34,33 @@ export default function CourseOutcomes() {
     bloom_level: 'Remember',
   });
 
-  const { data: subjects = [] } = useQuery({
-    queryKey: ['subjects'],
-    queryFn: () => subjectsApi.list(),
+  // 1. Fetch Cohorts
+  const { data: cohorts = [] } = useQuery({
+    queryKey: ['cohorts'],
+    queryFn: () => cohortsApi.list(),
   });
 
-  const { data: outcomes = [], isLoading } = useQuery({
-    queryKey: ['course-outcomes', selectedSubject],
-    queryFn: () => subjectsApi.getOutcomes(selectedSubject),
-    enabled: !!selectedSubject,
+  // 2. Fetch Offerings (Subjects) for selected Cohort
+  const { data: offerings = [], isLoading: offeringsLoading } = useQuery({
+    queryKey: ['offerings', selectedCohort],
+    queryFn: () => offeringsApi.list({ cohort_id: selectedCohort }),
+    enabled: !!selectedCohort,
+  });
+
+  // 3. Fetch Outcomes for selected Offering
+  const { data: outcomes = [], isLoading: outcomesLoading } = useQuery({
+    queryKey: ['course-outcomes', selectedOffering],
+    queryFn: () => offeringsApi.getOutcomes(selectedOffering),
+    enabled: !!selectedOffering,
   });
 
   const createMutation = useMutation({
     mutationFn: (data: { co_number: number; description: string; bloom_level: string }) =>
-      subjectsApi.createOutcome(selectedSubject, data),
+      offeringsApi.createOutcome(selectedOffering, data),
     onSuccess: () => {
       toast({ title: 'Course outcome created' });
       closeDialog();
-      queryClient.invalidateQueries({ queryKey: ['course-outcomes', selectedSubject] });
+      queryClient.invalidateQueries({ queryKey: ['course-outcomes', selectedOffering] });
     },
     onError: (error: any) => {
       toast({
@@ -61,7 +73,7 @@ export default function CourseOutcomes() {
 
   const updateMutation = useMutation({
     mutationFn: (data: { id: string; co_number: number; description: string; bloom_level: string }) =>
-      subjectsApi.updateOutcome(selectedSubject, data.id, {
+      offeringsApi.updateOutcome(selectedOffering, data.id, {
         co_number: data.co_number,
         description: data.description,
         bloom_level: data.bloom_level,
@@ -69,7 +81,7 @@ export default function CourseOutcomes() {
     onSuccess: () => {
       toast({ title: 'Course outcome updated' });
       closeDialog();
-      queryClient.invalidateQueries({ queryKey: ['course-outcomes', selectedSubject] });
+      queryClient.invalidateQueries({ queryKey: ['course-outcomes', selectedOffering] });
     },
     onError: (error: any) => {
       toast({
@@ -81,11 +93,11 @@ export default function CourseOutcomes() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (coId: string) => subjectsApi.deleteOutcome(selectedSubject, coId),
+    mutationFn: (coId: string) => offeringsApi.deleteOutcome(selectedOffering, coId),
     onSuccess: () => {
       toast({ title: 'Course outcome deleted' });
       setDeleteConfirm({ open: false, co: null });
-      queryClient.invalidateQueries({ queryKey: ['course-outcomes', selectedSubject] });
+      queryClient.invalidateQueries({ queryKey: ['course-outcomes', selectedOffering] });
     },
     onError: (error: any) => {
       toast({
@@ -95,6 +107,14 @@ export default function CourseOutcomes() {
       });
     },
   });
+
+  // Auto-select first cohort if available and none selected
+  useEffect(() => {
+    if (cohorts.length > 0 && !selectedCohort) {
+        // Can't auto select without context, but maybe?
+        // setSelectedCohort(cohorts[0].id);
+    }
+  }, [cohorts]);
 
   const closeDialog = () => {
     setIsDialogOpen(false);
@@ -143,12 +163,13 @@ export default function CourseOutcomes() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Course Outcomes</h2>
-            <p className="text-muted-foreground">Define and manage course outcomes for subjects</p>
+            <h2 className="text-2xl font-bold text-foreground">Course Outcomes (COs)</h2>
+            <p className="text-muted-foreground">Manage outcomes for specific batches & subjects</p>
           </div>
+          
           <Dialog open={isDialogOpen} onOpenChange={(open) => open ? setIsDialogOpen(true) : closeDialog()}>
             <DialogTrigger asChild>
-              <Button disabled={!selectedSubject} onClick={() => setFormData({ co_number: outcomes.length + 1, description: '', bloom_level: 'Remember' })}>
+              <Button disabled={!selectedOffering} onClick={() => setFormData({ co_number: outcomes.length + 1, description: '', bloom_level: 'Remember' })}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add CO
               </Button>
@@ -204,26 +225,50 @@ export default function CourseOutcomes() {
           </Dialog>
         </div>
 
-        {/* Subject Selector */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <Label>Subject:</Label>
-              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                <SelectTrigger className="w-96">
-                  <SelectValue placeholder="Select a subject" />
-                </SelectTrigger>
-                <SelectContent>
-                  {subjects.map((s: any) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.code} - {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Selection Area */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Cohort Selector */}
+            <Card>
+            <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                <Label className="w-24">Select Batch:</Label>
+                <Select value={selectedCohort} onValueChange={(val) => { setSelectedCohort(val); setSelectedOffering(''); }}>
+                    <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Select a batch..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                    {cohorts.map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>
+                        {c.name} (Year {c.year})
+                        </SelectItem>
+                    ))}
+                    </SelectContent>
+                </Select>
+                </div>
+            </CardContent>
+            </Card>
+
+            {/* Offering Selector */}
+            <Card>
+            <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                <Label className="w-24">Select Subject:</Label>
+                <Select value={selectedOffering} onValueChange={setSelectedOffering} disabled={!selectedCohort}>
+                    <SelectTrigger className="flex-1">
+                    <SelectValue placeholder={offeringsLoading ? "Loading..." : "Select a subject..."} />
+                    </SelectTrigger>
+                    <SelectContent>
+                    {offerings.map((off: any) => (
+                        <SelectItem key={off.id} value={off.id}>
+                        {off.subject?.code} - {off.subject?.name} (Sem {off.semester_no})
+                        </SelectItem>
+                    ))}
+                    </SelectContent>
+                </Select>
+                </div>
+            </CardContent>
+            </Card>
+        </div>
 
         {/* Course Outcomes Table */}
         <Card>
@@ -234,19 +279,19 @@ export default function CourseOutcomes() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {!selectedSubject ? (
+            {!selectedOffering ? (
               <div className="py-12 text-center text-muted-foreground">
                 <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>Select a subject to view course outcomes</p>
+                <p>Select a Batch and Subject to view course outcomes</p>
               </div>
-            ) : isLoading ? (
+            ) : outcomesLoading ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="w-6 h-6 animate-spin" />
               </div>
             ) : outcomes.length === 0 ? (
               <div className="py-12 text-center text-muted-foreground">
                 <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No course outcomes defined for this subject</p>
+                <p>No course outcomes defined for this offering.</p>
                 <Button className="mt-4" onClick={() => { setFormData({ co_number: 1, description: '', bloom_level: 'Remember' }); setIsDialogOpen(true); }}>
                   <Plus className="w-4 h-4 mr-2" />
                   Add First CO

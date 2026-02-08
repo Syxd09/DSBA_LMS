@@ -63,6 +63,9 @@ from app.models.grading import GradingRule, GradeScale
 # Audit
 from app.models.audit import AuditLog
 
+# Semester
+from app.models.semester import Semester, SemesterType, SemesterStatus, SemesterService
+
 __all__ = [
     # Tenant
     "College",

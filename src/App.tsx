@@ -31,6 +31,8 @@ import Settings from "./pages/Settings";
 import BacklogManagement from "./pages/BacklogManagement";
 import SemesterPromotions from "./pages/SemesterPromotions";
 import ExternalResults from "./pages/ExternalResults";
+import Units from "./pages/Units";
+import AssessmentComponents from "./pages/AssessmentComponents";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -75,6 +77,16 @@ const App = () => (
             <Route path="/grade-management" element={
               <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
                 <GradeManagement />
+              </ProtectedRoute>
+            } />
+            <Route path="/units" element={
+              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
+                <Units />
+              </ProtectedRoute>
+            } />
+            <Route path="/assessment-components" element={
+              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
+                <AssessmentComponents />
               </ProtectedRoute>
             } />
             <Route path="/analytics" element={

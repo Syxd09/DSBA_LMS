@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { gradingApi } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -16,7 +16,15 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 export default function Settings() {
   const queryClient = useQueryClient();
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-  const [notifications, setNotifications] = useState(true);
+  const [notifications, setNotifications] = useState(() => {
+    const saved = localStorage.getItem('notifications_enabled');
+    return saved !== null ? JSON.parse(saved) : true;
+  });
+
+  // Persist notification preference
+  useEffect(() => {
+    localStorage.setItem('notifications_enabled', JSON.stringify(notifications));
+  }, [notifications]);
   const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
   const [deleteRuleId, setDeleteRuleId] = useState<string | null>(null);
   const [newRule, setNewRule] = useState({
@@ -239,10 +247,10 @@ export default function Settings() {
                 <Label>Current Academic Year</Label>
                 <Input value="2024-2025" className="mt-2" disabled />
               </div>
-              <Button variant="outline" className="mt-6">
-                Change Year
-              </Button>
             </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Academic year is configured at the system level.
+            </p>
           </CardContent>
         </Card>
 

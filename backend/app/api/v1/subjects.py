@@ -16,6 +16,9 @@ from app.schemas import (
     CourseOutcomeCreate, CourseOutcomeResponse
 )
 
+# NOTE: CO management has been moved to `offerings.py` to support batch-specific versioning.
+# The `Subject` model is now a Master/Template only.
+
 router = APIRouter(prefix="/subjects", tags=["Subjects"])
 
 
@@ -90,101 +93,11 @@ async def get_subject(
     )
 
 
-@router.get("/{subject_id}/outcomes", response_model=List[CourseOutcomeResponse])
-async def get_subject_outcomes(
-    subject_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: Profile = Depends(require_authenticated)
-):
-    """Get course outcomes for a subject."""
-    cos = db.query(CourseOutcome).filter(CourseOutcome.subject_id == subject_id).order_by(CourseOutcome.co_number).all()
-    return cos
-
-
-@router.post("/{subject_id}/outcomes", response_model=CourseOutcomeResponse, status_code=status.HTTP_201_CREATED)
-async def create_course_outcome(
-    subject_id: UUID,
-    outcome: CourseOutcomeCreate,
-    db: Session = Depends(get_db),
-    current_user: Profile = Depends(require_hod_or_above)
-):
-    """Create a course outcome for a subject."""
-    subject = db.query(Subject).filter(Subject.id == subject_id).first()
-    if not subject:
-        raise HTTPException(status_code=404, detail="Subject not found")
-    
-    # Check for duplicate CO number
-    existing = db.query(CourseOutcome).filter(
-        CourseOutcome.subject_id == subject_id,
-        CourseOutcome.co_number == outcome.co_number
-    ).first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"CO{outcome.co_number} already exists for this subject"
-        )
-    
-    new_co = CourseOutcome(
-        id=uuid_lib.uuid4(),
-        subject_id=subject_id,
-        co_number=outcome.co_number,
-        description=outcome.description,
-        bloom_level=outcome.bloom_level
-    )
-    db.add(new_co)
-    db.commit()
-    db.refresh(new_co)
-    
-    return new_co
-
-
-@router.put("/{subject_id}/outcomes/{co_id}", response_model=CourseOutcomeResponse)
-async def update_course_outcome(
-    subject_id: UUID,
-    co_id: UUID,
-    outcome: CourseOutcomeCreate,
-    db: Session = Depends(get_db),
-    current_user: Profile = Depends(require_hod_or_above)
-):
-    """Update a course outcome."""
-    existing = db.query(CourseOutcome).filter(
-        CourseOutcome.id == co_id,
-        CourseOutcome.subject_id == subject_id
-    ).first()
-    
-    if not existing:
-        raise HTTPException(status_code=404, detail="Course outcome not found")
-    
-    existing.co_number = outcome.co_number
-    existing.description = outcome.description
-    existing.bloom_level = outcome.bloom_level
-    
-    db.commit()
-    db.refresh(existing)
-    
-    return existing
-
-
-@router.delete("/{subject_id}/outcomes/{co_id}")
-async def delete_course_outcome(
-    subject_id: UUID,
-    co_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: Profile = Depends(require_hod_or_above)
-):
-    """Delete a course outcome."""
-    existing = db.query(CourseOutcome).filter(
-        CourseOutcome.id == co_id,
-        CourseOutcome.subject_id == subject_id
-    ).first()
-    
-    if not existing:
-        raise HTTPException(status_code=404, detail="Course outcome not found")
-    
-    db.delete(existing)
-    db.commit()
-    
-    return {"message": "Course outcome deleted successfully"}
+# ============================================================================
+# DEPRECATED: CO Management moved to `offerings.py`
+# ============================================================================
+# The following endpoints are removed to prevent data corruption.
+# COs must be attached to SubjectOffering, not Subject.
 
 
 @router.put("/{subject_id}", response_model=SubjectResponse)

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { backlogsApi, cohortsApi, subjectsApi } from '@/lib/api';
+import { backlogsApi, cohortsApi, offeringsApi, externalExamsApi } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -45,15 +45,26 @@ export default function ExternalResults() {
     result: 'pending',
     academic_year: '2025-26',
   });
+  const [selectedOffering, setSelectedOffering] = useState<string>('');
+  const [selectedExternalExam, setSelectedExternalExam] = useState<string>('');
 
   const { data: cohorts = [] } = useQuery({
     queryKey: ['cohorts'],
     queryFn: () => cohortsApi.list(),
   });
 
-  const { data: subjects = [] } = useQuery({
-    queryKey: ['subjects'],
-    queryFn: () => subjectsApi.list(),
+  // Fetch offerings based on cohort selection
+  const { data: offerings = [] } = useQuery({
+    queryKey: ['offerings', cohortFilter],
+    queryFn: () => offeringsApi.list({ cohort_id: cohortFilter !== 'all' ? cohortFilter : undefined }),
+    enabled: cohortFilter !== 'all',
+  });
+
+  // Fetch external exams for the selected offering
+  const { data: externalExams = [] } = useQuery({
+    queryKey: ['external-exams', selectedOffering],
+    queryFn: () => externalExamsApi.list(selectedOffering),
+    enabled: !!selectedOffering,
   });
 
   // For now, we'll use the backlogs data as external results are stored there
@@ -102,22 +113,34 @@ export default function ExternalResults() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      // Save each entry as a backlog record
-      for (const entry of manualEntries) {
-        // This would call a proper external results API endpoint
-        // For now, we're using backlog API as a workaround
+      if (!selectedExternalExam) {
+        throw new Error('Please select an external exam first');
       }
-      return manualEntries.length;
+      
+      // Transform entries to the format expected by the API
+      const marksPayload = manualEntries.map(entry => ({
+        usn: entry.usn,
+        marks: entry.external_marks,
+      }));
+      
+      // Call the actual backend API
+      return await externalExamsApi.importMarks(selectedExternalExam, marksPayload);
     },
-    onSuccess: (count) => {
-      toast({ title: `Saved ${count} external results` });
+    onSuccess: (result) => {
+      toast({ 
+        title: `Saved ${result.saved_count} external results`,
+        description: result.skipped_usns?.length > 0 
+          ? `Skipped ${result.skipped_usns.length} unknown USNs`
+          : undefined
+      });
       setManualEntries([]);
       queryClient.invalidateQueries({ queryKey: ['external-results'] });
+      queryClient.invalidateQueries({ queryKey: ['external-marks', selectedExternalExam] });
     },
     onError: (error: any) => {
       toast({
         title: 'Error saving results',
-        description: error.response?.data?.detail || 'Failed to save external results',
+        description: error.response?.data?.detail || error.message || 'Failed to save external results',
         variant: 'destructive',
       });
     },
@@ -455,18 +478,18 @@ export default function ExternalResults() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Subject Code *</Label>
+                    <Label>Offering (Subject) *</Label>
                     <Select
                       value={formData.subject_code}
                       onValueChange={(v) => setFormData({ ...formData, subject_code: v })}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select subject" />
+                        <SelectValue placeholder="Select offering" />
                       </SelectTrigger>
                       <SelectContent>
-                        {subjects.map((subject: any) => (
-                          <SelectItem key={subject.id} value={subject.code}>
-                            {subject.code} - {subject.name}
+                        {offerings.map((offering: any) => (
+                          <SelectItem key={offering.id} value={offering.subject?.code || offering.id}>
+                            {offering.subject?.code} - {offering.subject?.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

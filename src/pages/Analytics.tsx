@@ -4,17 +4,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Progress } from '@/components/ui/progress';
 import { Brain, Target, TrendingUp, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { analyticsApi, subjectsApi, examsApi } from '@/lib/api';
+import { analyticsApi, cohortsApi, offeringsApi, examsApi } from '@/lib/api';
 import { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 
 export default function Analytics() {
-  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedCohort, setSelectedCohort] = useState<string>('');
+  const [selectedOffering, setSelectedOffering] = useState<string>('');
   const [selectedExam, setSelectedExam] = useState<string>('');
 
-  const { data: subjects = [] } = useQuery({
-    queryKey: ['subjects'],
-    queryFn: () => subjectsApi.list(),
+  const { data: cohorts = [] } = useQuery({
+    queryKey: ['cohorts'],
+    queryFn: () => cohortsApi.list(),
+  });
+
+  const { data: offerings = [] } = useQuery({
+    queryKey: ['offerings', selectedCohort],
+    queryFn: () => offeringsApi.list({ cohort_id: selectedCohort }),
+    enabled: !!selectedCohort,
   });
 
   const { data: exams = [] } = useQuery({
@@ -23,9 +30,9 @@ export default function Analytics() {
   });
 
   const { data: coAttainment, isLoading: loadingCO } = useQuery({
-    queryKey: ['co-attainment', selectedSubject],
-    queryFn: () => analyticsApi.getCOAttainment(selectedSubject),
-    enabled: !!selectedSubject,
+    queryKey: ['co-attainment', selectedOffering],
+    queryFn: () => analyticsApi.getCOAttainment(selectedOffering),
+    enabled: !!selectedOffering,
   });
 
   const { data: bloomDistribution, isLoading: loadingBloom } = useQuery({
@@ -62,18 +69,32 @@ export default function Analytics() {
             <h2 className="text-2xl font-bold text-foreground">Analytics</h2>
             <p className="text-muted-foreground">CO attainment and performance analytics</p>
           </div>
-          <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Select subject" />
-            </SelectTrigger>
-            <SelectContent>
-              {subjects.map((s: any) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.code} - {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <Select value={selectedCohort} onValueChange={(v) => { setSelectedCohort(v); setSelectedOffering(''); }}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Select cohort" />
+              </SelectTrigger>
+              <SelectContent>
+                {cohorts.map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedOffering} onValueChange={setSelectedOffering} disabled={!selectedCohort}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder={selectedCohort ? "Select offering" : "Select cohort first"} />
+              </SelectTrigger>
+              <SelectContent>
+                {offerings.map((o: any) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.subject?.code} - {o.subject?.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* CO Attainment */}
@@ -89,7 +110,7 @@ export default function Analytics() {
               <div className="flex justify-center py-8">
                 <Loader2 className="w-6 h-6 animate-spin" />
               </div>
-            ) : selectedSubject ? (
+            ) : selectedOffering ? (
               coData.length > 0 ? (
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
@@ -108,11 +129,11 @@ export default function Analytics() {
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <p className="text-center py-8 text-muted-foreground">No CO data available for this subject</p>
-              )
-            ) : (
-              <p className="text-center py-8 text-muted-foreground">Select a subject to view CO attainment</p>
-            )}
+                <p className="text-center py-8 text-muted-foreground">No CO data available for this offering</p>
+            )
+          ) : (
+            <p className="text-center py-8 text-muted-foreground">Select a cohort and offering to view CO attainment</p>
+          )}
           </CardContent>
         </Card>
 

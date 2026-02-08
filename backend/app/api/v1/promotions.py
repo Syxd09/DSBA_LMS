@@ -32,6 +32,66 @@ router = APIRouter(prefix="/promotions", tags=["Semester Promotions"])
 
 
 # ============================================================================
+# DASHBOARD SUMMARY
+# ============================================================================
+
+@router.get("/pending/summary")
+async def get_pending_promotions_summary(
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_hod_or_above)
+):
+    """
+    Get summary of cohorts pending promotion.
+    
+    Accessible by: HOD, Principal
+    
+    Returns cohorts that are not in final semester (8) and have
+    not been promoted in the current academic year.
+    """
+    from app.models import Regulation
+    
+    # Get all cohorts not in final semester
+    cohorts = db.query(Cohort).filter(
+        Cohort.current_semester < 8,
+        Cohort.status == "active"
+    ).all()
+    
+    pending_cohorts = []
+    current_year = datetime.utcnow().year
+    academic_year = f"{current_year}-{current_year + 1 - 2000}"
+    
+    for cohort in cohorts:
+        # Check if already promoted this year
+        existing_promotion = db.query(SemesterPromotion).filter(
+            SemesterPromotion.cohort_id == cohort.id,
+            SemesterPromotion.academic_year == academic_year,
+            SemesterPromotion.status == "completed"
+        ).first()
+        
+        if not existing_promotion:
+            # Get student count
+            student_count = db.query(Student).filter(
+                Student.cohort_id == cohort.id,
+                Student.status == "active"
+            ).count()
+            
+            pending_cohorts.append({
+                "cohort_id": str(cohort.id),
+                "cohort_name": cohort.name if hasattr(cohort, 'name') else f"Cohort {cohort.id}",
+                "current_semester": cohort.current_semester,
+                "next_semester": cohort.current_semester + 1,
+                "student_count": student_count,
+                "academic_year": academic_year
+            })
+    
+    return {
+        "pending_count": len(pending_cohorts),
+        "cohorts": pending_cohorts,
+        "academic_year": academic_year
+    }
+
+
+# ============================================================================
 # PREVIEW ENDPOINT
 # ============================================================================
 

@@ -121,6 +121,25 @@ class TeacherAssignmentResponse(TeacherAssignmentBase):
         from_attributes = True
 
 
+
+# Subject Offering schemas
+class SubjectOfferingResponse(BaseModel):
+    """Subject offering response schema."""
+    id: UUID
+    subject_id: UUID
+    program_id: UUID
+    cohort_id: UUID
+    semester_no: int
+    is_elective: bool
+    regulation_year: int
+    is_active: bool
+    created_at: datetime
+    subject: Optional[SubjectResponse] = None
+    cohort: Optional[CohortResponse] = None
+    
+    class Config:
+        from_attributes = True
+
 # Forward reference update
 from app.schemas.outcomes import CourseOutcomeResponse
 SubjectWithOutcomes.model_rebuild()

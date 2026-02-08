@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { templatesApi, programsApi, subjectsApi } from '@/lib/api';
+import { templatesApi, programsApi, cohortsApi, offeringsApi } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -72,7 +72,8 @@ const reportTypes: ReportType[] = [
 
 export default function Reports() {
   const [selectedProgram, setSelectedProgram] = useState<string>('');
-  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedCohort, setSelectedCohort] = useState<string>('');
+  const [selectedOffering, setSelectedOffering] = useState<string>('');
   const [academicYear, setAcademicYear] = useState<string>('2024');
   const [downloading, setDownloading] = useState<string | null>(null);
 
@@ -81,9 +82,16 @@ export default function Reports() {
     queryFn: () => programsApi.list(),
   });
 
-  const { data: subjects = [] } = useQuery({
-    queryKey: ['subjects'],
-    queryFn: () => subjectsApi.list(),
+  const { data: cohorts = [] } = useQuery({
+    queryKey: ['cohorts', selectedProgram],
+    queryFn: () => cohortsApi.list({ program_id: selectedProgram }),
+    enabled: !!selectedProgram,
+  });
+
+  const { data: offerings = [] } = useQuery({
+    queryKey: ['offerings', selectedCohort],
+    queryFn: () => offeringsApi.list({ cohort_id: selectedCohort }),
+    enabled: !!selectedCohort,
   });
 
   const handleDownload = async (reportId: string, format: 'json' | 'pdf') => {
@@ -94,11 +102,11 @@ export default function Reports() {
 
       switch (reportId) {
         case 'co-attainment':
-          if (!selectedSubject) {
-            toast({ title: 'Select a subject first', variant: 'destructive' });
+          if (!selectedOffering) {
+            toast({ title: 'Select an offering first', variant: 'destructive' });
             return;
           }
-          data = await templatesApi.getCOAttainmentReport(selectedSubject, format);
+          data = await templatesApi.getCOAttainmentReport(selectedOffering, format);
           break;
 
         case 'po-matrix':
@@ -125,10 +133,28 @@ export default function Reports() {
           data = await templatesApi.getNAACCriterion2Report(selectedProgram, academicYear, format);
           break;
 
+        case 'naac-criterion-3':
+          if (!selectedProgram) {
+            toast({ title: 'Select a program first', variant: 'destructive' });
+            return;
+          }
+          data = await templatesApi.getNAACCriterion3Report(selectedProgram, academicYear, format);
+          break;
+
+        case 'nba-sar':
+          if (!selectedProgram) {
+            toast({ title: 'Select a program first', variant: 'destructive' });
+            return;
+          }
+          // NBA SAR combines Criterion 2 data with CO-PO matrix
+          data = await templatesApi.getNBASARReport(selectedProgram, academicYear, format);
+          break;
+
         default:
           toast({ title: 'Report not implemented yet', variant: 'destructive' });
           return;
       }
+
 
       if (format === 'pdf' && data instanceof Blob) {
         const url = window.URL.createObjectURL(data);
@@ -211,15 +237,31 @@ export default function Reports() {
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">Subject (for CO reports)</label>
-                <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                <label className="text-sm font-medium mb-2 block">Cohort (for CO reports)</label>
+                <Select value={selectedCohort} onValueChange={(v) => { setSelectedCohort(v); setSelectedOffering(''); }}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select subject" />
+                    <SelectValue placeholder="Select cohort" />
                   </SelectTrigger>
                   <SelectContent>
-                    {subjects.map((s: any) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.code} - {s.name}
+                    {cohorts.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name} ({c.year})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium mb-2 block">Offering (Subject for CO)</label>
+                <Select value={selectedOffering} onValueChange={setSelectedOffering} disabled={!selectedCohort}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={selectedCohort ? "Select offering" : "Select cohort first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {offerings.map((o: any) => (
+                      <SelectItem key={o.id} value={o.id}>
+                        {o.subject?.code} - {o.subject?.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

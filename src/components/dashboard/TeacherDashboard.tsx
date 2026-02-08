@@ -1,4 +1,5 @@
 import { StatsCard } from './StatsCard';
+import { AtRiskStudentsList } from './AtRiskStudentsList';
 import { BookOpen, Users, Clock, TrendingUp, Plus, FileText, Activity, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -165,6 +166,9 @@ export function TeacherDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* At-Risk Students */}
+      <AtRiskStudentsList subjects={subjects} />
 
       {/* Performance Chart */}
       <Card>

@@ -25,6 +25,12 @@ from app.api.v1.external_exams import router as external_exams_router
 # Phase 7: Backlog and Promotions
 from app.api.v1.backlog import router as backlog_router
 from app.api.v1.promotions import router as promotions_router
+# Phase A: Remediation - Subject Offerings (CO Versioning)
+from app.api.v1.offerings import router as offerings_router
+# Phase F-01: Unit and Topic Management
+from app.api.v1.units import router as units_router
+# Phase I: Export endpoints
+from app.api.v1.export import router as export_router
 
 router = APIRouter()
 
@@ -50,6 +56,11 @@ router.include_router(external_exams_router)
 # Phase 7: Backlog and Promotions
 router.include_router(backlog_router)
 router.include_router(promotions_router)
+router.include_router(offerings_router)
+# Phase F-01: Unit and Topic Management
+router.include_router(units_router)
+# Phase I: Export endpoints
+router.include_router(export_router)
 
 
 

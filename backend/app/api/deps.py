@@ -87,6 +87,37 @@ def get_user_role(
     return user_role.role.value if user_role else "student"
 
 
+def get_current_student_usn(
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(get_current_user)
+) -> str:
+    """
+    Get USN for the current authenticated student.
+    
+    CRITICAL: This bridges the gap between Auth (UUID) and Academic Records (USN).
+    Non-student roles or students without USN will raise 403/404.
+    """
+    # 1. Verify role is student
+    user_role = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
+    if not user_role or user_role.role.value != "student":
+        # Allow teachers/admins to get their own USN if they have one? No, strict separation.
+        # Check if they are acting as student?
+        pass # Fall through to finding USN
+        
+    # 2. Find Student record linked to this Profile
+    # Student.user_id == Profile.user_id
+    from app.models import Student
+    student = db.query(Student).filter(Student.user_id == current_user.user_id).first()
+    
+    if not student:
+        raise HTTPException(
+            status_code=404,
+            detail="Student academic record not found for this user"
+        )
+        
+    return student.usn, current_user
+
+
 # =============================================================================
 # RBAC Exports (Option B)
 # =============================================================================

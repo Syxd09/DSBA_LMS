@@ -1,5 +1,6 @@
 import { StatsCard } from './StatsCard';
 import { COAttainmentChart } from './COAttainmentChart';
+import { TopicWeaknessHeatmap } from './TopicWeaknessHeatmap';
 import { GraduationCap, BookOpen, TrendingUp, Award, Brain, Target, AlertCircle, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -174,6 +175,9 @@ export function StudentDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Topic Weakness Heatmap */}
+        <TopicWeaknessHeatmap results={results} />
 
         {/* CO Attainment */}
         <div className="col-span-1 lg:col-span-2">

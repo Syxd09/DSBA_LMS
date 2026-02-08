@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { examsApi, subjectsApi, cohortsApi } from '@/lib/api';
+import { examsApi, subjectsApi, cohortsApi, marksApi } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -9,11 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Plus, ClipboardList, Loader2, FileEdit, Eye, CheckCircle, Send, Lock, Unlock, ShieldCheck } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Search, Plus, ClipboardList, Loader2, FileEdit, Eye, CheckCircle, Send, Lock, Unlock, ShieldCheck, XCircle, AlertTriangle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import apiClient from '@/lib/api';
 
 interface Exam {
   id: string;
@@ -34,6 +37,12 @@ export default function Exams() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  // P4-08: Reject dialog state
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [rejectExamId, setRejectExamId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  
   const [newExam, setNewExam] = useState({
     subject_id: '',
     cohort_id: '',
@@ -136,6 +145,40 @@ export default function Exams() {
       });
     },
   });
+
+  // P4-08: Reject exam with mandatory reason (HOD/Principal)
+  const rejectMutation = useMutation({
+    mutationFn: ({ examId, reason }: { examId: string; reason: string }) =>
+      apiClient.post(`/marks/exam/${examId}/reject`, { reason }),
+    onSuccess: () => {
+      toast({ title: 'Exam rejected', description: 'Returned to faculty for revision' });
+      setIsRejectDialogOpen(false);
+      setRejectExamId(null);
+      setRejectReason('');
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error rejecting exam',
+        description: error.response?.data?.detail || 'Failed to reject exam',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleOpenRejectDialog = (examId: string) => {
+    setRejectExamId(examId);
+    setRejectReason('');
+    setIsRejectDialogOpen(true);
+  };
+
+  const handleConfirmReject = () => {
+    if (!rejectExamId || rejectReason.trim().length < 10) {
+      toast({ title: 'Reason required', description: 'Please provide a detailed reason (min 10 characters)', variant: 'destructive' });
+      return;
+    }
+    rejectMutation.mutate({ examId: rejectExamId, reason: rejectReason.trim() });
+  };
 
   const handleCreateExam = () => {
     if (!newExam.subject_id || !newExam.cohort_id) {
@@ -389,6 +432,20 @@ export default function Exams() {
                             </Button>
                           )}
                           
+                          {/* P4-08: Reject - submitted only, HOD/Principal */}
+                          {exam.status === 'submitted' && canApprove && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => handleOpenRejectDialog(exam.id)}
+                              disabled={rejectMutation.isPending}
+                              title="Reject exam with reason"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </Button>
+                          )}
+                          
                           {/* Lock - approved only, HOD/Principal */}
                           {exam.status === 'approved' && canApprove && (
                             <Button
@@ -411,6 +468,71 @@ export default function Exams() {
             )}
           </CardContent>
         </Card>
+        
+        {/* P4-08: Reject Dialog with Mandatory Reason */}
+        <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <XCircle className="w-5 h-5" />
+                Reject Exam
+              </DialogTitle>
+              <DialogDescription>
+                This action will return the exam to the faculty for revision.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <Alert className="border-amber-200 bg-amber-50">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                <AlertDescription className="text-sm">
+                  Your reason will be recorded in the audit log and shared with the faculty member.
+                </AlertDescription>
+              </Alert>
+              
+              <div className="space-y-2">
+                <Label htmlFor="reject-reason">Rejection Reason <span className="text-red-500">*</span></Label>
+                <Textarea
+                  id="reject-reason"
+                  placeholder="Explain why this exam is being rejected (min 10 characters)..."
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  className="min-h-[100px]"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {rejectReason.length}/10 characters minimum
+                </p>
+              </div>
+            </div>
+            
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsRejectDialogOpen(false)}
+                disabled={rejectMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleConfirmReject}
+                disabled={rejectMutation.isPending || rejectReason.trim().length < 10}
+              >
+                {rejectMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Rejecting...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Confirm Rejection
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AuthenticatedLayout>
   );
