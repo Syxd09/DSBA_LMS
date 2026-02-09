@@ -3,7 +3,7 @@ EduMetrics Backend - Exams Router
 Exam management endpoints
 """
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session, joinedload
 from uuid import UUID
 import uuid as uuid_lib
@@ -66,10 +66,18 @@ async def create_exam(
     if not cohort:
         raise HTTPException(status_code=404, detail="Cohort not found")
     
+    # Find the offering for this subject+cohort (required for CO mapping)
+    from app.models.subject_offering import SubjectOffering
+    offering = db.query(SubjectOffering).filter(
+        SubjectOffering.subject_id == exam.subject_id,
+        SubjectOffering.cohort_id == exam.cohort_id
+    ).first()
+    
     new_exam = Exam(
         id=uuid_lib.uuid4(),
         subject_id=exam.subject_id,
         cohort_id=exam.cohort_id,
+        offering_id=offering.id if offering else None,  # Link to offering for CO access
         exam_type=exam.exam_type,
         max_marks=exam.max_marks,
         teacher_id=current_user.user_id,
@@ -119,6 +127,7 @@ async def get_exam(
         id=exam.id,
         subject_id=exam.subject_id,
         cohort_id=exam.cohort_id,
+        offering_id=exam.offering_id,  # Required for CO fetching
         exam_type=exam.exam_type,
         max_marks=exam.max_marks,
         status=exam.status,
@@ -131,6 +140,8 @@ async def get_exam(
     )
 
 
+from app.core.permissions import AppRole
+
 @router.put("/{exam_id}", response_model=ExamResponse)
 async def update_exam(
     exam_id: UUID,
@@ -140,54 +151,36 @@ async def update_exam(
 ):
     """
     Update exam metadata (title, dates, weightage).
-    Only allowed in 'draft' status.
+    Only allowed in 'draft' status (or 'submitted' for HOD/Principal).
     """
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    # Only creator can update
-    if exam.teacher_id != current_user.user_id:
+    # Only creator can update (unless HOD/Principal override)
+    # Actually, enforcing creator check might block HOD if creator is different.
+    # User requirement: "HOD can make any changes".
+    # So if HOD, skip creator check?
+    # Creator check logic: if exam.teacher_id != current_user.user_id: raise 403.
+    # We should allow HOD even if not creator.
+    
+    is_hod_or_principal = False
+    if current_user.user_role and current_user.user_role.role in [AppRole.HOD, AppRole.PRINCIPAL]:
+        is_hod_or_principal = True
+        
+    if exam.teacher_id != current_user.user_id and not is_hod_or_principal:
         raise HTTPException(status_code=403, detail="Not authorized to update this exam")
         
-    if exam.status != "draft":
-        raise HTTPException(status_code=400, detail="Cannot update published/submitted exam")
+    if exam.status == "submitted":
+        if not is_hod_or_principal:
+             raise HTTPException(status_code=403, detail="Only HOD/Principal can update submitted exams")
+    elif exam.status != "draft":
+        raise HTTPException(status_code=400, detail="Cannot update published exam")
     
     # Update fields
-    # Note: ExamUpdate schema should support these fields. 
-    # Usually strictly typed. Assuming ExamUpdate has optional fields compatible with Exam model ?
-    # Let's assume standard Pydantic behavior: ignore extra, use what matches.
-    # Actually, we should map explicitly.
-    # Exam has: exam_type, max_marks.
-    # What about title? Exam model doesn't have 'title' field in my view!
-    # Wait, in the test I sent "title": "Test Exam CRUD".
-    # Inspecting Exam model (Step 1521):
-    #     exam_type = Column(String, nullable=False)
-    #     max_marks = Column(Integer, default=40, nullable=False)
-    #     status = Column(String, default="draft", nullable=False)
-    #     ...
-    # THERE IS NO TITLE FIELD IN EXAM MODEL!
-    # The 'title' in my test payload was ignored?
-    # Or maybe 'exam_type' acts as title?
-    # "exam_type" = Column(String).
-    # In test I sent "exam_type": "INTERNAL_1".
-    # Does Exam have a name?
-    # No "name" or "title" column in `Exam` class in `app/models/exam.py`.
-    # It seems functionality is driven by `exam_type` and `subject`.
-    # So "Update Title" in my test was meaningless?
-    # I should update `max_marks` or `exam_type` or `weightage` if it exists.
-    # `weightage` logic?
-    # Exam model doesn't show `weightage` column in `app/models/exam.py` snippet!
-    # Snippet shows `created_at`, `published_at`, `submitted_at`, `approved_at`, `approved_by`, `version`.
-    # It does NOT show `weightage` or `title`.
-    # So my test payload was sending extra fields that were ignored by Pydantic (or Schema allowed them but Model ignored).
-    # I should check Schema `ExamCreate`.
-    
-    # If I want to support Updating, I can update `max_marks`.
     if exam_update.max_marks is not None:
         exam.max_marks = exam_update.max_marks
     
-    # Allow updating exam_type?
     if exam_update.exam_type is not None:
         exam.exam_type = exam_update.exam_type
 
@@ -200,6 +193,7 @@ async def update_exam(
 async def update_exam_structure(
     exam_id: UUID,
     structure: ExamStructureCreate,
+    confirm_wipe_marks: bool = False,
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above)
 ):
@@ -208,11 +202,68 @@ async def update_exam_structure(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    if exam.status != "draft":
+    is_hod_or_principal = False
+    if current_user.user_role and current_user.user_role.role in [AppRole.HOD, AppRole.PRINCIPAL]:
+        is_hod_or_principal = True
+        
+    if exam.status == "submitted":
+        if not is_hod_or_principal:
+             raise HTTPException(status_code=403, detail="Only HOD/Principal can modify submitted exams")
+    elif exam.status != "draft":
         raise HTTPException(status_code=400, detail="Cannot modify published exam")
     
-    # Delete existing structure
-    db.query(ExamSection).filter(ExamSection.exam_id == exam_id).delete()
+    # [FIX] Check for existing marks and handle safeguard
+    from app.models.marks import StudentQuestionMark
+    existing_marks_count = db.query(StudentQuestionMark).filter(StudentQuestionMark.exam_id == exam_id).count()
+    
+    if existing_marks_count > 0:
+        if not confirm_wipe_marks:
+            raise HTTPException(
+                status_code=409, # Conflict
+                detail=f"This exam has {existing_marks_count} marks entries. Modification will wipe all marks. Please confirm."
+            )
+        else:
+            # Wipe marks
+            from app.models import AuditLog
+            db.query(StudentQuestionMark).filter(StudentQuestionMark.exam_id == exam_id).delete(synchronize_session=False)
+            
+            # Log the wipe
+            audit_log = AuditLog(
+                id=uuid_lib.uuid4(),
+                user_id=current_user.user_id,
+                action="EXAM_WIPE_MARKS",
+                entity_type="exam",
+                entity_id=str(exam_id),
+                old_value=str(existing_marks_count),
+                new_value="0",
+                reason="Marks wiped due to structure update"
+            )
+            db.add(audit_log)
+
+    # Delete existing structure (Manual Cascade to handle DB constraints)
+    # 1. Delete SubQuestions
+    # 2. Delete Questions
+    # 3. Delete Sections
+    
+    # Get all sections
+    sections = db.query(ExamSection).filter(ExamSection.exam_id == exam_id).all()
+    section_ids = [s.id for s in sections]
+    
+    if section_ids:
+        # Get all questions
+        questions = db.query(Question).filter(Question.section_id.in_(section_ids)).all()
+        question_ids = [q.id for q in questions]
+        
+        if question_ids:
+            # Delete SubQuestions
+            db.query(SubQuestion).filter(SubQuestion.question_id.in_(question_ids)).delete(synchronize_session=False)
+            
+            # Delete Questions
+            db.query(Question).filter(Question.id.in_(question_ids)).delete(synchronize_session=False)
+        
+        # Delete Sections
+        db.query(ExamSection).filter(ExamSection.id.in_(section_ids)).delete(synchronize_session=False)
+        
     db.commit()
     
     # Create new structure
@@ -244,16 +295,29 @@ async def update_exam_structure(
             db.add(question)
             db.flush()
             
-            for sq_data in q_data.sub_questions:
-                sub_question = SubQuestion(
+            if not q_data.sub_questions:
+                # [MANDATORY] Auto-create 'a' sub-question if none provided
+                # Marks are always stored at sub-question level.
+                default_sq = SubQuestion(
                     id=uuid_lib.uuid4(),
                     question_id=question.id,
-                    label=sq_data.label,
-                    max_marks=sq_data.max_marks,
-                    bloom_level=sq_data.bloom_level,
-                    co_id=sq_data.co_id
+                    label="a",
+                    max_marks=q_data.max_marks, # Inherit max marks from question
+                    bloom_level=q_data.bloom_level,
+                    co_id=q_data.co_id
                 )
-                db.add(sub_question)
+                db.add(default_sq)
+            else:
+                for sq_data in q_data.sub_questions:
+                    sub_question = SubQuestion(
+                        id=uuid_lib.uuid4(),
+                        question_id=question.id,
+                        label=sq_data.label,
+                        max_marks=sq_data.max_marks,
+                        bloom_level=sq_data.bloom_level,
+                        co_id=sq_data.co_id
+                    )
+                    db.add(sub_question)
     
     db.commit()
     
@@ -264,6 +328,7 @@ async def update_exam_structure(
 @router.post("/{exam_id}/publish", response_model=ExamResponse)
 async def publish_exam(
     exam_id: UUID,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above)
 ):
@@ -279,8 +344,60 @@ async def publish_exam(
     exam.published_at = datetime.utcnow()
     db.commit()
     db.refresh(exam)
+
+    # Invalidate Analytics Cache
+    if exam.offering_id:
+        from app.services.analytics.caching import invalidate_analytics_cache_bg
+        background_tasks.add_task(invalidate_analytics_cache_bg, exam.offering_id, None)
     
     return exam
+
+
+@router.delete("/{exam_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_exam(
+    exam_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_teacher_or_above)
+):
+    """
+    Delete an exam.
+    
+    IMMUTABILITY RULE: Only exams in 'draft' or 'submitted' status can be deleted.
+    Once approved/locked, exams are immutable for audit compliance.
+    """
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    # Only allow deletion before approval
+    if exam.status not in ["draft", "submitted"]:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot delete exam in '{exam.status}' status. Only draft or submitted exams can be deleted."
+        )
+    
+    # Delete associated exam sections (questions cascade via relationship)
+    from app.models.exam import ExamSection, Question, SubQuestion
+    
+    # 1. Delete SubQuestions
+    # Get all section IDs first to avoid deep nesting issues
+    section_ids = db.query(ExamSection.id).filter(ExamSection.exam_id == exam_id).subquery()
+    
+    # Get question IDs
+    question_ids = db.query(Question.id).filter(Question.section_id.in_(section_ids)).subquery()
+    
+    db.query(SubQuestion).filter(SubQuestion.question_id.in_(question_ids)).delete(synchronize_session=False)
+    
+    # 2. Delete Questions
+    db.query(Question).filter(Question.section_id.in_(section_ids)).delete(synchronize_session=False)
+    
+    # 3. Delete ExamSections
+    db.query(ExamSection).filter(ExamSection.exam_id == exam_id).delete(synchronize_session=False)
+    
+    db.delete(exam)
+    db.commit()
+    
+    return None
 
 
 # ============================================================================
@@ -351,10 +468,21 @@ async def submit_exam(
     db.add(audit_log)
 
     # NOTIFICATION: Notify HOD
-    # Find HOD via Subject -> Department
-    if exam.subject and exam.subject.department_id:
+    # Find HOD via Cohort -> Program -> Department (Subject doesn't track Dept directly anymore)
+    department_id = None
+    subject_code = "Subject"
+    
+    if exam.cohort and exam.cohort.program:
+        department_id = exam.cohort.program.department_id
+    
+    if exam.subject:
+        subject_code = exam.subject.code
+    elif exam.offering and exam.offering.subject:
+        subject_code = exam.offering.subject.code
+
+    if department_id:
         from app.models.organization import Department
-        dept = db.query(Department).filter(Department.id == exam.subject.department_id).first()
+        dept = db.query(Department).filter(Department.id == department_id).first()
         if dept and dept.hod_id:
             from app.models.notification import Notification
             # Notify HOD
@@ -363,7 +491,7 @@ async def submit_exam(
                 user_id=dept.hod_id,
                 type="info",
                 title="Exam Submitted for Approval",
-                message=f"Exam '{exam.subject.code} - {exam.exam_type}' submitted by {current_user.full_name}.",
+                message=f"Exam '{subject_code} - {exam.exam_type}' submitted by {current_user.full_name}.",
                 link=f"/exams"
             )
             db.add(notif)
@@ -433,6 +561,48 @@ async def approve_exam(
     db.commit()
     db.refresh(exam)
     
+    return exam
+
+
+@router.post("/{exam_id}/revert", response_model=ExamResponse)
+async def revert_exam(
+    exam_id: UUID,
+    reason: str,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_hod_or_above)
+):
+    """
+    Revert an APPROVED exam to SUBMITTED status (HOD/Principal only).
+    """
+    from app.models import AuditLog
+    
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+        
+    if exam.status != "approved":
+        raise HTTPException(status_code=400, detail=f"Cannot revert exam with status '{exam.status}'. Must be 'approved'.")
+        
+    old_status = exam.status
+    exam.status = "submitted"
+    exam.approved_at = None
+    exam.approved_by = None
+    
+    # Audit log
+    audit_log = AuditLog(
+        id=uuid_lib.uuid4(),
+        user_id=current_user.user_id,
+        action="EXAM_REVERT",
+        entity_type="exam",
+        entity_id=str(exam_id),
+        old_value=old_status,
+        new_value="submitted",
+        reason=reason
+    )
+    db.add(audit_log)
+    
+    db.commit()
+    db.refresh(exam)
     return exam
 
 

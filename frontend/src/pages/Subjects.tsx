@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { subjectsApi } from '@/lib/api';
+import { subjectsApi, assignmentsApi } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { BookOpen, Plus, Loader2, Edit, Trash2, Target } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Subject {
   id: string;
@@ -23,6 +24,7 @@ interface Subject {
 }
 
 export default function Subjects() {
+  const { role, user } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -31,10 +33,29 @@ export default function Subjects() {
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [formData, setFormData] = useState({ name: '', code: '', credits: 3, semester: 1 });
 
-  const { data: subjects = [], isLoading } = useQuery({
+  // Fetch all subjects
+  const { data: allSubjects = [], isLoading: subjectsLoading } = useQuery({
     queryKey: ['subjects'],
     queryFn: () => subjectsApi.list(),
   });
+
+  // For teachers, fetch their assignments to filter subjects
+  const { data: teacherAssignments = [], isLoading: assignmentsLoading } = useQuery({
+    queryKey: ['my-assignments', user?.user_id],
+    queryFn: () => assignmentsApi.list({ teacher_id: user?.user_id }),
+    enabled: role === 'teacher' && !!user?.user_id,
+  });
+
+  // Filter subjects for teachers - only show their assigned subjects
+  const subjects = useMemo(() => {
+    if (role === 'teacher' && teacherAssignments.length > 0) {
+      const assignedSubjectIds = new Set(teacherAssignments.map((a: any) => a.subject_id));
+      return allSubjects.filter((s: Subject) => assignedSubjectIds.has(s.id));
+    }
+    return allSubjects;
+  }, [role, allSubjects, teacherAssignments]);
+
+  const isLoading = subjectsLoading || (role === 'teacher' && assignmentsLoading);
 
   const createMutation = useMutation({
     mutationFn: (data: { name: string; code: string; credits: number; semester: number }) =>
@@ -133,19 +154,20 @@ export default function Subjects() {
             <h2 className="text-2xl font-bold text-foreground">Subjects</h2>
             <p className="text-muted-foreground">Manage academic subjects and their courses</p>
           </div>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Subject
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create New Subject</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
+          {['hod', 'principal'].includes(role) && (
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Subject
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create New Subject</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
                   <Label>Subject Name *</Label>
                   <Input
                     value={formData.name}
@@ -190,6 +212,7 @@ export default function Subjects() {
               </div>
             </DialogContent>
           </Dialog>
+        )}
         </div>
 
         {isLoading ? (
@@ -202,10 +225,12 @@ export default function Subjects() {
               <BookOpen className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">No subjects yet</h3>
               <p className="text-muted-foreground mb-4">Create your first subject to get started.</p>
-              <Button onClick={() => setIsCreateDialogOpen(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Subject
-              </Button>
+              {['hod', 'principal'].includes(role) && (
+                <Button onClick={() => setIsCreateDialogOpen(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Subject
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -223,19 +248,21 @@ export default function Subjects() {
                         <p className="text-sm text-muted-foreground">{subject.code}</p>
                       </div>
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(subject)}>
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => setDeleteId(subject.id)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
+                    {['hod', 'principal'].includes(role) && (
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(subject)}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => setDeleteId(subject.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent>

@@ -268,7 +268,7 @@ async def promote_cohort(
         
         status_record = StudentSemesterStatus(
             promotion_id=promotion.id,
-            student_id=student_status.student_usn,  # This should be UUID lookup
+            student_usn=student_status.student_usn,
             status=final_status,
             reason=student_status.reason,
             backlog_count=student_status.backlog_count
@@ -288,7 +288,7 @@ async def promote_cohort(
     # Audit log
     audit = AuditLog(
         user_id=current_user.id,
-        user_role=current_user.role,
+        user_role=current_user.user_role.role.value if current_user.user_role else "unknown",
         action="PROMOTE",
         entity_type="cohort",
         entity_id=str(cohort_id),

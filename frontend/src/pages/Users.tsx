@@ -7,8 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Users as UsersIcon, Search, Loader2, Edit } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Users as UsersIcon, Search, Loader2, Edit, Trash2, Key, Eye } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -29,6 +29,10 @@ export default function Users() {
   const [roleFilter, setRoleFilter] = useState('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [newRole, setNewRole] = useState('');
+  const [deleteConfirmation, setDeleteConfirmation] = useState<User | null>(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [viewDetailsUser, setViewDetailsUser] = useState<User | null>(null);
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users', roleFilter],
@@ -47,6 +51,39 @@ export default function Users() {
       toast({
         title: 'Error updating role',
         description: error.response?.data?.detail || 'Failed to update role',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (userId: string) => usersApi.delete(userId),
+    onSuccess: () => {
+      toast({ title: 'User deleted successfully' });
+      setDeleteConfirmation(null);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error deleting user',
+        description: error.response?.data?.detail || 'Failed to delete user',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: ({ userId, password }: { userId: string; password: string }) =>
+      usersApi.resetPassword(userId, { new_password: password }),
+    onSuccess: () => {
+      toast({ title: 'Password reset successfully' });
+      setResetPasswordUser(null);
+      setNewPassword('');
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error resetting password',
+        description: error.response?.data?.detail || 'Failed to reset password',
         variant: 'destructive',
       });
     },
@@ -168,16 +205,47 @@ export default function Users() {
                       <TableCell>{getRoleBadge(user.role)}</TableCell>
                       <TableCell>{user.department || '-'}</TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setNewRole(user.role);
-                          }}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setViewDetailsUser(user)}
+                            title="View Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setNewRole(user.role);
+                            }}
+                            title="Edit Role"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setResetPasswordUser(user);
+                              setNewPassword('');
+                            }}
+                            title="Reset Password"
+                          >
+                            <Key className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteConfirmation(user)}
+                            title="Delete User"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -227,6 +295,97 @@ export default function Users() {
                   'Update Role'
                 )}
               </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete User</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete <strong>{deleteConfirmation?.full_name}</strong>? 
+                This action cannot be undone and will permanently remove their login access.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleteConfirmation(null)}>Cancel</Button>
+              <Button 
+                variant="destructive" 
+                onClick={() => deleteConfirmation && deleteUserMutation.mutate(deleteConfirmation.user_id)}
+                disabled={deleteUserMutation.isPending}
+              >
+                {deleteUserMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Reset Password Dialog */}
+        <Dialog open={!!resetPasswordUser} onOpenChange={() => setResetPasswordUser(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reset Password</DialogTitle>
+              <DialogDescription>
+                Set a new password for <strong>{resetPasswordUser?.full_name}</strong>.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">New Password</label>
+                <Input 
+                  type="password" 
+                  value={newPassword} 
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password (min 6 chars)"
+                />
+              </div>
+              <Button 
+                className="w-full" 
+                onClick={() => resetPasswordUser && resetPasswordMutation.mutate({ userId: resetPasswordUser.user_id, password: newPassword })}
+                disabled={!newPassword || newPassword.length < 6 || resetPasswordMutation.isPending}
+              >
+                {resetPasswordMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Reset Password'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* View Details Dialog */}
+        <Dialog open={!!viewDetailsUser} onOpenChange={() => setViewDetailsUser(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>User Details</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Full Name</p>
+                  <p className="font-medium">{viewDetailsUser?.full_name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Email</p>
+                  <p className="font-medium">{viewDetailsUser?.email}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Role</p>
+                  <p className="font-medium capitalize">{viewDetailsUser?.role}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Department</p>
+                  <p className="font-medium">{viewDetailsUser?.department || 'N/A'}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-muted-foreground">User ID</p>
+                  <p className="font-mono text-xs bg-muted p-2 rounded break-all">{viewDetailsUser?.user_id}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-sm text-muted-foreground">Created At</p>
+                  <p className="font-medium">{viewDetailsUser?.created_at ? new Date(viewDetailsUser.created_at).toLocaleDateString() : 'N/A'}</p>
+                </div>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

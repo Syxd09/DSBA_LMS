@@ -15,12 +15,14 @@ from app.schemas.academic import (
     CurriculumVersionCreate, CurriculumVersionResponse,
     StudentEnrollmentCreate, StudentEnrollmentResponse,
     TeacherAssignmentCreate, TeacherAssignmentResponse,
-    SubjectOfferingResponse
+    SubjectOfferingCreate, SubjectOfferingResponse
 )
 from app.schemas.outcomes import (
     CourseOutcomeCreate, CourseOutcomeUpdate, CourseOutcomeResponse,
-    ProgramOutcomeCreate, ProgramOutcomeResponse,
-    COPOMappingCreate, COPOMappingBulkCreate, COPOMappingResponse
+    ProgramOutcomeCreate, ProgramOutcomeUpdate, ProgramOutcomeResponse,
+    COPOMappingCreate, COPOMappingBulkCreate, COPOMappingResponse,
+    ProgramSpecificOutcomeCreate, ProgramSpecificOutcomeUpdate, ProgramSpecificOutcomeResponse,
+    COPSOMappingCreate, COPSOMappingBulkCreate, COPSOMappingResponse
 )
 from app.schemas.exam import (
     ExamCreate, ExamUpdate, ExamResponse, ExamWithStructure,
@@ -69,7 +71,7 @@ __all__ = [
     "CurriculumVersionCreate", "CurriculumVersionResponse",
     "StudentEnrollmentCreate", "StudentEnrollmentResponse",
     "TeacherAssignmentCreate", "TeacherAssignmentResponse",
-    "SubjectOfferingResponse",
+    "SubjectOfferingCreate", "SubjectOfferingResponse",
     # Outcomes
     "CourseOutcomeCreate", "CourseOutcomeUpdate", "CourseOutcomeResponse",
     "ProgramOutcomeCreate", "ProgramOutcomeResponse",

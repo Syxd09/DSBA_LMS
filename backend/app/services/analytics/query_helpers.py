@@ -121,15 +121,23 @@ def get_offering_enrolled_students(
     """
     Fetch all enrolled student USNs for an offering.
     
-    Returns raw list of USNs. No filtering applied.
+    Logic: Link SubjectOffering -> Cohort -> Student
+    Returns raw list of USNs.
     """
-    # Get students via subject_offerings.enrollments or similar relation
+    # 1. Get cohort_id from offering
+    offering = db.query(SubjectOffering).filter(SubjectOffering.id == offering_id).first()
+    if not offering:
+        return []
+        
+    # 2. Get students in that cohort
+    # TODO: In future, handle student_enrollments for electives if separated
     result = db.execute(
         select(Student.usn)
-        .join(FinalMarks, FinalMarks.usn == Student.usn)
-        .where(FinalMarks.offering_id == offering_id)
-        .distinct()
-        .order_by(Student.usn)  # Deterministic ordering
+        .where(and_(
+            Student.cohort_id == offering.cohort_id,
+            Student.status == "active"  # Only active students
+        ))
+        .order_by(Student.usn)
     )
     return [row[0] for row in result.fetchall()]
 

@@ -47,8 +47,8 @@ async def get_year_on_year_trend(
         
         # Build cohort query
         cohort_query = db.query(Cohort).filter(
-            Cohort.admission_year <= year,
-            Cohort.admission_year + 4 >= year
+            Cohort.year <= year,
+            Cohort.year + 4 >= year
         )
         
         # Filter by department if specified

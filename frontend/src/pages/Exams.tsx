@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { examsApi, subjectsApi, cohortsApi, marksApi } from '@/lib/api';
+import { examsApi, subjectsApi, cohortsApi, marksApi, assignmentsApi } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Search, Plus, ClipboardList, Loader2, FileEdit, Eye, CheckCircle, Send, Lock, Unlock, ShieldCheck, XCircle, AlertTriangle } from 'lucide-react';
+import { Search, Plus, ClipboardList, Loader2, FileEdit, Eye, CheckCircle, Send, Lock, Unlock, ShieldCheck, XCircle, AlertTriangle, Trash2, Undo } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '@/lib/api';
@@ -42,6 +42,11 @@ export default function Exams() {
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectExamId, setRejectExamId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+
+  // Revert dialog state (HOD/Principal)
+  const [isRevertDialogOpen, setIsRevertDialogOpen] = useState(false);
+  const [revertExamId, setRevertExamId] = useState<string | null>(null);
+  const [revertReason, setRevertReason] = useState('');
   
   const [newExam, setNewExam] = useState({
     subject_id: '',
@@ -50,15 +55,31 @@ export default function Exams() {
     max_marks: 30,
   });
 
+  const isTeacher = role === 'teacher';
+
   const { data: exams = [], isLoading: examsLoading } = useQuery({
     queryKey: ['exams'],
     queryFn: () => examsApi.list(),
   });
 
-  const { data: subjects = [] } = useQuery({
+  // Fetch all subjects (for HOD/Principal)
+  const { data: allSubjects = [] } = useQuery({
     queryKey: ['subjects'],
     queryFn: () => subjectsApi.list(),
+    enabled: !isTeacher, // Only fetch for non-teachers
   });
+
+  // Fetch teacher's assigned subjects (for Teacher role)
+  const { data: teacherAssignments = [] } = useQuery({
+    queryKey: ['my-assignments', profile?.id],
+    queryFn: () => assignmentsApi.list({ teacher_id: profile?.id }),
+    enabled: isTeacher && !!profile?.id,
+  });
+
+  // Get subjects available for exam creation
+  const availableSubjects = isTeacher
+    ? teacherAssignments.map((a: any) => a.subject).filter(Boolean)
+    : allSubjects;
 
   const { data: cohorts = [] } = useQuery({
     queryKey: ['cohorts'],
@@ -166,6 +187,24 @@ export default function Exams() {
     },
   });
 
+  // Delete exam (only draft/submitted)
+  const [deleteExamId, setDeleteExamId] = useState<string | null>(null);
+  const deleteMutation = useMutation({
+    mutationFn: (examId: string) => examsApi.delete(examId),
+    onSuccess: () => {
+      toast({ title: 'Exam deleted successfully' });
+      setDeleteExamId(null);
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error deleting exam',
+        description: error.response?.data?.detail || 'Failed to delete exam',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const handleOpenRejectDialog = (examId: string) => {
     setRejectExamId(examId);
     setRejectReason('');
@@ -178,6 +217,40 @@ export default function Exams() {
       return;
     }
     rejectMutation.mutate({ examId: rejectExamId, reason: rejectReason.trim() });
+  };
+
+  // Revert exam (HOD/Principal)
+  const revertMutation = useMutation({
+    mutationFn: ({ examId, reason }: { examId: string; reason: string }) =>
+      examsApi.revert(examId, reason),
+    onSuccess: () => {
+      toast({ title: 'Exam approval reverted', description: 'Exam status set to submitted' });
+      setIsRevertDialogOpen(false);
+      setRevertExamId(null);
+      setRevertReason('');
+      queryClient.invalidateQueries({ queryKey: ['exams'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error reverting exam',
+        description: error.response?.data?.detail || 'Failed to revert exam',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleOpenRevertDialog = (examId: string) => {
+    setRevertExamId(examId);
+    setRevertReason('');
+    setIsRevertDialogOpen(true);
+  };
+
+  const handleConfirmRevert = () => {
+    if (!revertExamId || revertReason.trim().length < 5) {
+      toast({ title: 'Reason required', description: 'Please provide a reason (min 5 characters)', variant: 'destructive' });
+      return;
+    }
+    revertMutation.mutate({ examId: revertExamId, reason: revertReason.trim() });
   };
 
   const handleCreateExam = () => {
@@ -261,7 +334,7 @@ export default function Exams() {
                       <SelectValue placeholder="Select subject" />
                     </SelectTrigger>
                     <SelectContent>
-                      {subjects.map((subject: any) => (
+                      {availableSubjects.map((subject: any) => (
                         <SelectItem key={subject.id} value={subject.id}>
                           {subject.code} - {subject.name}
                         </SelectItem>
@@ -343,6 +416,34 @@ export default function Exams() {
           </CardContent>
         </Card>
 
+        {/* Pending Approvals Alert for HOD/Principal */}
+        {canApprove && exams.filter((e: Exam) => e.status === 'submitted').length > 0 && (
+          <Card className="border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-yellow-500/20 rounded-full">
+                    <Send className="w-5 h-5 text-yellow-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Pending Approvals</p>
+                    <p className="text-sm text-muted-foreground">
+                      {exams.filter((e: Exam) => e.status === 'submitted').length} exam(s) waiting for your review
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setSearchQuery('Pending')}
+                >
+                  View Pending
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Exams Table */}
         <Card>
           <CardContent className="p-0">
@@ -393,13 +494,13 @@ export default function Exams() {
                             <FileEdit className="w-4 h-4" />
                           </Button>
 
-                          {/* Design Structure - draft/submitted only */}
-                          {(exam.status === 'draft' || exam.status === 'submitted') && (
+                          {/* Design Structure - draft or (submitted + HOD) */}
+                          {(exam.status === 'draft' || (exam.status === 'submitted' && canApprove)) && (
                             <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => navigate(`/marks-entry?exam=${exam.id}&tab=structure`)}
-                                title="Design Question Paper"
+                                title={exam.status === 'submitted' ? "Edit Submitted Exam" : "Design Question Paper"}
                             >
                                 <ClipboardList className="w-4 h-4 text-blue-600" />
                             </Button>
@@ -457,6 +558,33 @@ export default function Exams() {
                               title="Lock exam (finalize marks)"
                             >
                               <Lock className="w-4 h-4" />
+                            </Button>
+                          )}
+
+                          {/* Revert - approved only, HOD/Principal */}
+                          {exam.status === 'approved' && canApprove && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-amber-600 hover:text-amber-700"
+                              onClick={() => handleOpenRevertDialog(exam.id)}
+                              disabled={revertMutation.isPending}
+                              title="Revert Approval (Unlock for Edit)"
+                            >
+                              <Undo className="w-4 h-4" />
+                            </Button>
+                          )}
+                          
+                          {/* Delete - draft/submitted only */}
+                          {(exam.status === 'draft' || exam.status === 'submitted') && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => setDeleteExamId(exam.id)}
+                              title="Delete exam"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           )}
                         </div>
@@ -527,6 +655,106 @@ export default function Exams() {
                   <>
                     <XCircle className="w-4 h-4 mr-2" />
                     Confirm Rejection
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Revert Dialog */}
+        <Dialog open={isRevertDialogOpen} onOpenChange={setIsRevertDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-amber-600">
+                <Undo className="w-5 h-5" />
+                Revert Approval
+              </DialogTitle>
+              <DialogDescription>
+                This action will revert the exam status to 'Submitted'.
+                You can then edit or reject it.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="revert-reason">Reason <span className="text-red-500">*</span></Label>
+                <Textarea
+                  id="revert-reason"
+                  placeholder="Explain why approval is being reverted..."
+                  value={revertReason}
+                  onChange={(e) => setRevertReason(e.target.value)}
+                  className="min-h-[100px]"
+                />
+              </div>
+            </div>
+            
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsRevertDialogOpen(false)}
+                disabled={revertMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="default" 
+                className="bg-amber-600 hover:bg-amber-700"
+                onClick={handleConfirmRevert}
+                disabled={revertMutation.isPending || revertReason.trim().length < 5}
+              >
+                {revertMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Reverting...
+                  </>
+                ) : (
+                  <>
+                    <Undo className="w-4 h-4 mr-2" />
+                    Confirm Revert
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={!!deleteExamId} onOpenChange={(open) => !open && setDeleteExamId(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-red-600">
+                <Trash2 className="w-5 h-5" />
+                Delete Exam
+              </DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete this exam? This action cannot be undone.
+                All associated question paper structure will also be deleted.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteExamId(null)}
+                disabled={deleteMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => deleteExamId && deleteMutation.mutate(deleteExamId)}
+                disabled={deleteMutation.isPending}
+              >
+                {deleteMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Exam
                   </>
                 )}
               </Button>

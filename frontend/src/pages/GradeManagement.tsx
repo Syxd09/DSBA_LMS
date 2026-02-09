@@ -10,19 +10,27 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Award, Calculator, Loader2, Plus } from 'lucide-react';
+import { Award, Calculator, Loader2, Plus, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export default function GradeManagement() {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedCohort, setSelectedCohort] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedScale, setSelectedScale] = useState<string>('');
   const [newRule, setNewRule] = useState({
     grade: '',
     min_percentage: 0,
     max_percentage: 100,
     grade_point: 0,
+  });
+
+  // Fetch grade scales
+  const { data: scales = [] } = useQuery({
+    queryKey: ['grade-scales'],
+    queryFn: () => gradingApi.getScales(),
   });
 
   const { data: rules = [], isLoading: rulesLoading } = useQuery({
@@ -50,7 +58,7 @@ export default function GradeManagement() {
   });
 
   const createRuleMutation = useMutation({
-    mutationFn: (data: { grade: string; min_percentage: number; max_percentage: number; grade_point: number }) =>
+    mutationFn: (data: { grade_scale_id: string; grade: string; min_percentage: number; max_percentage: number; grade_point: number }) =>
       gradingApi.createRule(data),
     onSuccess: () => {
       toast({ title: 'Grading rule created' });
@@ -83,12 +91,49 @@ export default function GradeManagement() {
   });
 
   const handleCreateRule = () => {
+    if (!selectedScale) {
+      toast({ title: 'Please select a grade scale', variant: 'destructive' });
+      return;
+    }
     if (!newRule.grade) {
       toast({ title: 'Please enter a grade name', variant: 'destructive' });
       return;
     }
-    createRuleMutation.mutate(newRule);
+    createRuleMutation.mutate({ ...newRule, grade_scale_id: selectedScale });
   };
+  // Create Scale mutation
+  const createScaleMutation = useMutation({
+    mutationFn: (data: { name: string; description?: string }) => gradingApi.createScale(data),
+    onSuccess: () => {
+      toast({ title: 'Grade scale created' });
+      queryClient.invalidateQueries({ queryKey: ['grade-scales'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error creating scale',
+        description: error.response?.data?.detail || 'Failed to create scale',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Delete Rule mutation
+  const [deleteRuleId, setDeleteRuleId] = useState<string | null>(null);
+  const deleteRuleMutation = useMutation({
+    mutationFn: (id: string) => gradingApi.deleteRule(id),
+    onSuccess: () => {
+      toast({ title: 'Grading rule deleted' });
+      setDeleteRuleId(null);
+      queryClient.invalidateQueries({ queryKey: ['grading-rules'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error deleting rule',
+        description: error.response?.data?.detail || 'Failed to delete rule',
+        variant: 'destructive',
+      });
+    },
+  });
 
   return (
     <AuthenticatedLayout allowedRoles={['principal', 'hod']}>
@@ -110,6 +155,34 @@ export default function GradeManagement() {
                 <DialogTitle>Add Grading Rule</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Grade Scale</Label>
+                  {scales.length === 0 ? (
+                    <div className="flex gap-2 items-center">
+                      <p className="text-sm text-muted-foreground">No scales exist.</p>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => createScaleMutation.mutate({ name: 'R-2021 Absolute', description: 'Default grading scale' })}
+                        disabled={createScaleMutation.isPending}
+                      >
+                        {createScaleMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                        Create Default Scale
+                      </Button>
+                    </div>
+                  ) : (
+                    <Select value={selectedScale} onValueChange={setSelectedScale}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a grade scale" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {scales.map((s: any) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
                 <div className="space-y-2">
                   <Label>Grade</Label>
                   <Input
@@ -172,7 +245,15 @@ export default function GradeManagement() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {rules.map((rule: any) => (
-                  <div key={rule.id} className="p-4 border rounded-lg text-center bg-secondary/20">
+                  <div key={rule.id} className="p-4 border rounded-lg text-center bg-secondary/20 relative group">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
+                      onClick={() => setDeleteRuleId(rule.id)}
+                    >
+                      <Trash2 className="w-3 h-3 text-destructive" />
+                    </Button>
                     <p className="text-2xl font-bold text-primary">{rule.grade}</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {rule.min_percentage}% - {rule.max_percentage}%
@@ -186,6 +267,16 @@ export default function GradeManagement() {
             )}
           </CardContent>
         </Card>
+
+        {/* Delete Confirmation Dialog */}
+        <ConfirmDialog
+          open={!!deleteRuleId}
+          onOpenChange={(open) => !open && setDeleteRuleId(null)}
+          onConfirm={() => deleteRuleId && deleteRuleMutation.mutate(deleteRuleId)}
+          title="Delete Grading Rule"
+          description="Are you sure you want to delete this grading rule? This action cannot be undone."
+          variant="destructive"
+        />
 
         {/* Grade Calculation */}
         <Card>

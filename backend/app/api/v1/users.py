@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.database import get_db
-from app.api.deps import get_current_user, require_principal
+from app.api.deps import get_current_user, require_principal, require_hod_or_above
 from app.models import Profile, UserRole
 from app.core.permissions import AppRole
 from app.schemas import UserResponse, UserRoleUpdate, ProfileResponse
@@ -19,12 +19,12 @@ router = APIRouter(prefix="/users", tags=["Users"])
 @router.get("", response_model=List[UserResponse])
 async def list_users(
     db: Session = Depends(get_db),
-    current_user: Profile = Depends(require_principal),
+    current_user: Profile = Depends(require_hod_or_above),
     skip: int = 0,
     limit: int = 100,
     role: str = None
 ):
-    """List all users (Principal only)."""
+    """List all users (HOD and above)."""
     query = db.query(Profile)
     
     if role:
@@ -35,17 +35,34 @@ async def list_users(
     users = query.offset(skip).limit(limit).all()
     
     # Get roles for all users
+    # Get roles and departments for all users
     result = []
+    
+    # Pre-fetch departments where user is HOD to avoid N+1 if possible, 
+    # but for 100 limit simple query is fine or we can do a join.
+    # Let's do a quick lookup for HODs.
+    
+    from app.models import Department
+    
     for user in users:
         user_role = db.query(UserRole).filter(UserRole.user_id == user.user_id).first()
         role_value = user_role.role.value if user_role else "student"
+        
+        # FIX: Should HODs show their assigned Department?
+        department_name = user.department
+        if role_value == "hod":
+            # Check if they are HOD of a specific department
+            hod_dept = db.query(Department).filter(Department.hod_id == user.user_id).first()
+            if hod_dept:
+                department_name = hod_dept.name
+        
         result.append(UserResponse(
             id=user.id,
             user_id=user.user_id,
             email=user.email,
             full_name=user.full_name,
             avatar_url=user.avatar_url,
-            department=user.department,
+            department=department_name,
             role=role_value,
             created_at=user.created_at
         ))
@@ -80,13 +97,21 @@ async def get_user(
     user_role = db.query(UserRole).filter(UserRole.user_id == user.user_id).first()
     role_value = user_role.role.value if user_role else "student"
     
+    # FIX: Check for HOD Department
+    department_name = user.department
+    if role_value == "hod":
+        from app.models import Department
+        hod_dept = db.query(Department).filter(Department.hod_id == user.user_id).first()
+        if hod_dept:
+            department_name = hod_dept.name
+
     return UserResponse(
         id=user.id,
         user_id=user.user_id,
         email=user.email,
         full_name=user.full_name,
         avatar_url=user.avatar_url,
-        department=user.department,
+        department=department_name,
         role=role_value,
         created_at=user.created_at
     )
@@ -214,4 +239,75 @@ async def change_my_password(
     db.commit()
     
     return {"message": "Password changed successfully"}
+
+@router.post("/{user_id}/reset-password")
+async def reset_user_password(
+    user_id: UUID,
+    password_data: dict,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_principal)
+):
+    """
+    Reset ANY user's password (Principal only).
+    """
+    from app.core.security import hash_password
+    
+    new_password = password_data.get("new_password")
+    
+    if not new_password or len(new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be at least 6 characters"
+        )
+    
+    user = db.query(Profile).filter(Profile.user_id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+        
+    user.password_hash = hash_password(new_password)
+    db.commit()
+    
+    return {"message": f"Password reset successfully for {user.full_name}"}
+
+@router.delete("/{user_id}")
+async def delete_user(
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_principal)
+):
+    """
+    Delete a user (Principal only).
+    Removes login access (Profile & UserRole) AND linked Student record.
+    This ensures full data consistency across the application.
+    """
+    from app.models import Student
+    
+    # Prevent deleting self
+    if user_id == current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account"
+        )
+        
+    user = db.query(Profile).filter(Profile.user_id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # FIX: Delete linked Student record (if exists) to avoid orphan data
+    db.query(Student).filter(Student.user_id == user_id).delete()
+        
+    # Delete UserRole
+    db.query(UserRole).filter(UserRole.user_id == user_id).delete()
+    
+    # Delete Profile
+    db.delete(user)
+    db.commit()
+    
+    return {"message": "User deleted successfully"}
 

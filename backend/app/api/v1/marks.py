@@ -51,43 +51,19 @@ def get_exam_marks(
     current_user: Profile = Depends(require_teacher_or_above)
 ):
     """Get all marks for an exam."""
-    # USN-based fetch
+    # simple USN-based fetch
     marks = db.query(StudentQuestionMark).filter(StudentQuestionMark.exam_id == exam_id).all()
-    
-    # Map back to response schema (which expects student_id, but we have USN)
-    # Ideally schema should change, but for now we map USN -> student_id if possible
-    # Or better: update pydantic schema to accept USN.
-    # checking schema... assumed to have student_id.
-    # For now, we fetch students map to bridge gap
-    
-    student_usn_map = {
-        s.usn: s.id for s in db.query(Student).filter(Student.cohort_id == marks[0].exam.cohort_id).all()
-        if marks
-    } if marks else {}
-
-    response = []
-    for m in marks:
-         # Find student_id from USN
-         # This is a temporary bridge until frontend uses USN
-         sid = None # How to map?
-         # The StudentQuestionMark has USN. The schema likely expects student_id (UUID).
-         # We need to join with Student table.
-         pass 
-
-    # Better approach: Joined query
-    results = db.query(StudentQuestionMark, Student.user_id.label("student_uuid")).join(
-        Student, Student.usn == StudentQuestionMark.usn
-    ).filter(StudentQuestionMark.exam_id == exam_id).all()
     
     return [
         {
-            "id": m.StudentQuestionMark.id,
-            "exam_id": m.StudentQuestionMark.exam_id,
-            "student_id": m.student_uuid, # UUID
-            "sub_question_id": m.StudentQuestionMark.sub_question_id,
-            "marks": m.StudentQuestionMark.marks
+            "id": m.id,
+            "exam_id": m.exam_id,
+            "student_id": m.usn, # Return USN directly
+            "sub_question_id": m.sub_question_id,
+            "marks": m.marks,
+            "entered_at": m.entered_at
         }
-        for m in results
+        for m in marks
     ]
 
 
@@ -147,17 +123,21 @@ def save_marks(
     saved_count = 0
     audit_entries = []
     
-    # Pre-fetch students map for UUID->USN conversion (since frontend sends UUIDs)
-    # Front-end sends student_id (UUID). We need to resolve to USN.
-    student_uuids = [entry.student_id for entry in marks_data.marks]
-    students = db.query(Student).filter(Student.user_id.in_(student_uuids)).all()
-    uuid_to_usn = {s.user_id: s.usn for s in students}
+    # Pre-fetch valid students (USNs)
+    # Front-end sends student_id as USN (string).
+    usns = [entry.student_id for entry in marks_data.marks]
+    valid_students = db.query(Student.usn).filter(
+        Student.usn.in_(usns),
+        # Ensure student belongs to the exam's cohort (Security check)
+        Student.cohort_id == exam.cohort_id 
+    ).all()
+    valid_usns = {s.usn for s in valid_students}
     
     for entry in marks_data.marks:
-        if entry.student_id not in uuid_to_usn:
-            continue # Skip invalid students
+        if entry.student_id not in valid_usns:
+            continue # Skip invalid students (or from wrong cohort)
             
-        usn = uuid_to_usn[entry.student_id]
+        usn = entry.student_id
         
         # [Validation] Check Max Marks
         sub_q = db.query(SubQuestion).filter(SubQuestion.id == entry.sub_question_id).first()
@@ -293,6 +273,8 @@ def compute_marks(
         for section in sections:
             section_questions = db.query(Question).filter(Question.section_id == section.id).all()
             
+            section_total = Decimal(0)
+            
             if section.selection_mode == "BEST_N":
                 # Calculate total for each question
                 question_totals = []
@@ -311,7 +293,7 @@ def compute_marks(
                 best_questions = question_totals[:section.required_questions]
                 
                 for q_id, q_total in best_questions:
-                    total += q_total
+                    section_total += q_total
                     selected_questions.append(str(q_id))
             else:
                 # FIRST_N - sum all marks
@@ -323,8 +305,15 @@ def compute_marks(
                         m.marks for m in marks 
                         if m.sub_question_id in sq_ids
                     )
-                    total += q_marks
+                    section_total += q_marks
                     selected_questions.append(str(question.id))
+            
+            # [FIX] Enforce Section Max Marks Cap
+            # If student scores 12 in a 10-mark section (via extras), cap it at 10.
+            if section_total > section.max_marks:
+                section_total = Decimal(section.max_marks)
+                
+            total += section_total
         
         results.append({
             "student_id": usn_to_uuid.get(usn, "UNKNOWN"), # Return UUID if possible
@@ -371,9 +360,10 @@ def get_student_marks(
         {
             "id": m.id,
             "exam_id": m.exam_id,
-            "student_id": student_id,
+            "student_id": student.usn, # Return USN (schema expects str)
             "sub_question_id": m.sub_question_id,
-            "marks": m.marks
+            "marks": m.marks,
+            "entered_at": m.entered_at
         }
         for m in marks
     ]

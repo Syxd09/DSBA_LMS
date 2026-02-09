@@ -14,9 +14,9 @@ from decimal import Decimal
 from datetime import datetime
 
 from app.database import get_db
-from app.api.deps import require_teacher_or_above, require_hod_or_above
+from app.api.deps import require_teacher_or_above, require_hod_or_above, require_principal
 from app.models import (
-    Profile, GradingRule, FinalMarks, Exam, StudentMarks,
+    Profile, GradingRule, GradeScale, FinalMarks, Exam, StudentMarks,
     Subject, SemesterResult, StudentEnrollment, SubQuestion, Question, ExamSection
 )
 from app.schemas import (
@@ -26,6 +26,51 @@ from app.schemas import (
 from app.core.audit import create_audit_log
 
 router = APIRouter(prefix="/grading", tags=["Grading"])
+
+
+# ============================================================================
+# GRADE SCALES ENDPOINTS
+# ============================================================================
+
+@router.get("/scales")
+async def get_grade_scales(
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_teacher_or_above)
+):
+    """Get all grade scales."""
+    scales = db.query(GradeScale).order_by(GradeScale.name).all()
+    return [{"id": str(s.id), "name": s.name, "description": s.description} for s in scales]
+
+
+@router.post("/scales")
+async def create_grade_scale(
+    scale_data: dict,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_principal)
+):
+    """Create a new grade scale."""
+    if "name" not in scale_data:
+        raise HTTPException(status_code=400, detail="Missing required field: name")
+    
+    existing = db.query(GradeScale).filter(GradeScale.name == scale_data["name"]).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Grade scale with this name already exists")
+    
+    scale = GradeScale(
+        id=uuid_lib.uuid4(),
+        name=scale_data["name"],
+        description=scale_data.get("description")
+    )
+    db.add(scale)
+    db.commit()
+    db.refresh(scale)
+    
+    return {"id": str(scale.id), "name": scale.name, "description": scale.description}
+
+
+# ============================================================================
+# GRADING RULES ENDPOINTS
+# ============================================================================
 
 
 def _compute_exam_total_for_student(
@@ -102,17 +147,23 @@ async def get_grading_rules(
 async def create_grading_rule(
     rule_data: dict,
     db: Session = Depends(get_db),
-    current_user: Profile = Depends(require_hod_or_above)
+    current_user: Profile = Depends(require_principal)
 ):
     """Create a new grading rule."""
-    # Validate required fields
-    required_fields = ["grade", "min_percentage", "max_percentage", "grade_point"]
+    # Validate required fields - FIX: Added grade_scale_id to required fields
+    required_fields = ["grade_scale_id", "grade", "min_percentage", "max_percentage", "grade_point"]
     for field in required_fields:
         if field not in rule_data:
             raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
     
-    # Check for overlapping ranges
+    # Verify grade scale exists
+    grade_scale = db.query(GradeScale).filter(GradeScale.id == rule_data["grade_scale_id"]).first()
+    if not grade_scale:
+        raise HTTPException(status_code=404, detail="Grade scale not found")
+    
+    # Check for overlapping ranges within the same scale
     existing = db.query(GradingRule).filter(
+        GradingRule.grade_scale_id == rule_data["grade_scale_id"],
         GradingRule.min_percentage <= rule_data["max_percentage"],
         GradingRule.max_percentage >= rule_data["min_percentage"]
     ).first()
@@ -125,10 +176,12 @@ async def create_grading_rule(
     
     rule = GradingRule(
         id=uuid_lib.uuid4(),
+        grade_scale_id=rule_data["grade_scale_id"],  # FIX: Set required FK
         grade=rule_data["grade"],
         min_percentage=Decimal(str(rule_data["min_percentage"])),
         max_percentage=Decimal(str(rule_data["max_percentage"])),
-        grade_point=Decimal(str(rule_data["grade_point"]))
+        grade_point=Decimal(str(rule_data["grade_point"])),
+        description=rule_data.get("description")
     )
     db.add(rule)
     

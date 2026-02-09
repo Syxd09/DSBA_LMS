@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { cohortsApi, offeringsApi } from '@/lib/api';
+import { cohortsApi, offeringsApi, subjectsApi } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,14 +10,16 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Target, Plus, Loader2, BookOpen, Pencil, Trash2, Users } from 'lucide-react';
+import { Target, Plus, Loader2, BookOpen, Pencil, Trash2, Users, Link } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useSearchParams } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 const BLOOM_LEVELS = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'];
 
 export default function CourseOutcomes() {
+  const { role } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   
@@ -26,6 +28,7 @@ export default function CourseOutcomes() {
   const [selectedOffering, setSelectedOffering] = useState<string>('');
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddSubjectDialogOpen, setIsAddSubjectDialogOpen] = useState(false);
   const [editingCO, setEditingCO] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; co: any | null }>({ open: false, co: null });
   const [formData, setFormData] = useState({
@@ -33,11 +36,21 @@ export default function CourseOutcomes() {
     description: '',
     bloom_level: 'Remember',
   });
+  const [addSubjectForm, setAddSubjectForm] = useState({
+    subject_id: '',
+    semester_no: 1,
+  });
 
   // 1. Fetch Cohorts
   const { data: cohorts = [] } = useQuery({
     queryKey: ['cohorts'],
     queryFn: () => cohortsApi.list(),
+  });
+
+  // Fetch all subjects for adding to batch
+  const { data: allSubjects = [] } = useQuery({
+    queryKey: ['subjects'],
+    queryFn: () => subjectsApi.list(),
   });
 
   // 2. Fetch Offerings (Subjects) for selected Cohort
@@ -108,6 +121,25 @@ export default function CourseOutcomes() {
     },
   });
 
+  // Add Subject to Cohort (create offering)
+  const addOfferingMutation = useMutation({
+    mutationFn: (data: { subject_id: string; cohort_id: string; semester_no: number }) =>
+      offeringsApi.create(data),
+    onSuccess: () => {
+      toast({ title: 'Subject added to batch' });
+      setIsAddSubjectDialogOpen(false);
+      setAddSubjectForm({ subject_id: '', semester_no: 1 });
+      queryClient.invalidateQueries({ queryKey: ['offerings', selectedCohort] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error adding subject',
+        description: error.response?.data?.detail || 'Failed to add subject to batch',
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Auto-select first cohort if available and none selected
   useEffect(() => {
     if (cohorts.length > 0 && !selectedCohort) {
@@ -167,62 +199,64 @@ export default function CourseOutcomes() {
             <p className="text-muted-foreground">Manage outcomes for specific batches & subjects</p>
           </div>
           
-          <Dialog open={isDialogOpen} onOpenChange={(open) => open ? setIsDialogOpen(true) : closeDialog()}>
-            <DialogTrigger asChild>
-              <Button disabled={!selectedOffering} onClick={() => setFormData({ co_number: outcomes.length + 1, description: '', bloom_level: 'Remember' })}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add CO
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{editingCO ? 'Edit Course Outcome' : 'Add Course Outcome'}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+          {['hod', 'principal'].includes(role) && (
+            <Dialog open={isDialogOpen} onOpenChange={(open) => open ? setIsDialogOpen(true) : closeDialog()}>
+              <DialogTrigger asChild>
+                <Button disabled={!selectedOffering} onClick={() => setFormData({ co_number: outcomes.length + 1, description: '', bloom_level: 'Remember' })}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add CO
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{editingCO ? 'Edit Course Outcome' : 'Add Course Outcome'}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>CO Number</Label>
+                      <Input
+                        type="number"
+                        value={formData.co_number}
+                        onChange={(e) => setFormData({ ...formData, co_number: parseInt(e.target.value) || 1 })}
+                        min={1}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Bloom Level</Label>
+                      <Select
+                        value={formData.bloom_level}
+                        onValueChange={(v) => setFormData({ ...formData, bloom_level: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BLOOM_LEVELS.map((level) => (
+                            <SelectItem key={level} value={level}>
+                              {level}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                   <div className="space-y-2">
-                    <Label>CO Number</Label>
+                    <Label>Description</Label>
                     <Input
-                      type="number"
-                      value={formData.co_number}
-                      onChange={(e) => setFormData({ ...formData, co_number: parseInt(e.target.value) || 1 })}
-                      min={1}
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      placeholder="Students will be able to..."
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Bloom Level</Label>
-                    <Select
-                      value={formData.bloom_level}
-                      onValueChange={(v) => setFormData({ ...formData, bloom_level: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BLOOM_LEVELS.map((level) => (
-                          <SelectItem key={level} value={level}>
-                            {level}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <Button className="w-full" onClick={handleSubmit} disabled={isPending}>
+                    {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                    {editingCO ? 'Update Course Outcome' : 'Add Course Outcome'}
+                  </Button>
                 </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Input
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Students will be able to..."
-                  />
-                </div>
-                <Button className="w-full" onClick={handleSubmit} disabled={isPending}>
-                  {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                  {editingCO ? 'Update Course Outcome' : 'Add Course Outcome'}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         {/* Selection Area */}
@@ -255,7 +289,7 @@ export default function CourseOutcomes() {
                 <Label className="w-24">Select Subject:</Label>
                 <Select value={selectedOffering} onValueChange={setSelectedOffering} disabled={!selectedCohort}>
                     <SelectTrigger className="flex-1">
-                    <SelectValue placeholder={offeringsLoading ? "Loading..." : "Select a subject..."} />
+                    <SelectValue placeholder={offeringsLoading ? "Loading..." : offerings.length === 0 ? "No subjects linked" : "Select a subject..."} />
                     </SelectTrigger>
                     <SelectContent>
                     {offerings.map((off: any) => (
@@ -265,6 +299,62 @@ export default function CourseOutcomes() {
                     ))}
                     </SelectContent>
                 </Select>
+                {selectedCohort && !offeringsLoading && ['hod', 'principal'].includes(role) && (
+                  <Dialog open={isAddSubjectDialogOpen} onOpenChange={setIsAddSubjectDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Link className="w-4 h-4 mr-2" />
+                        Add Subject
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Link Subject to Batch</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label>Subject</Label>
+                          <Select value={addSubjectForm.subject_id} onValueChange={(v) => setAddSubjectForm({ ...addSubjectForm, subject_id: v })}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a subject..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {allSubjects
+                                .filter((s: any) => !offerings.some((o: any) => o.subject_id === s.id))
+                                .map((s: any) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.code} - {s.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Semester Number</Label>
+                          <Input
+                            type="number"
+                            value={addSubjectForm.semester_no}
+                            onChange={(e) => setAddSubjectForm({ ...addSubjectForm, semester_no: parseInt(e.target.value) || 1 })}
+                            min={1}
+                            max={8}
+                          />
+                        </div>
+                        <Button 
+                          className="w-full" 
+                          onClick={() => addOfferingMutation.mutate({
+                            subject_id: addSubjectForm.subject_id,
+                            cohort_id: selectedCohort,
+                            semester_no: addSubjectForm.semester_no
+                          })}
+                          disabled={!addSubjectForm.subject_id || addOfferingMutation.isPending}
+                        >
+                          {addOfferingMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                          Link Subject to Batch
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
                 </div>
             </CardContent>
             </Card>
@@ -292,10 +382,12 @@ export default function CourseOutcomes() {
               <div className="py-12 text-center text-muted-foreground">
                 <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>No course outcomes defined for this offering.</p>
-                <Button className="mt-4" onClick={() => { setFormData({ co_number: 1, description: '', bloom_level: 'Remember' }); setIsDialogOpen(true); }}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add First CO
-                </Button>
+                {['hod', 'principal'].includes(role) && (
+                  <Button className="mt-4" onClick={() => { setFormData({ co_number: 1, description: '', bloom_level: 'Remember' }); setIsDialogOpen(true); }}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add First CO
+                  </Button>
+                )}
               </div>
             ) : (
               <Table>
@@ -314,6 +406,7 @@ export default function CourseOutcomes() {
                       <TableCell>{co.description}</TableCell>
                       <TableCell>{getBloomBadge(co.bloom_level)}</TableCell>
                       <TableCell>
+                        {['hod', 'principal'].includes(role) && (
                         <div className="flex items-center gap-2">
                           <Button variant="ghost" size="sm" onClick={() => openEditDialog(co)}>
                             <Pencil className="w-4 h-4" />
@@ -326,9 +419,59 @@ export default function CourseOutcomes() {
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
                         </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
+                  {/* Quick-add row for HOD/Principal */}
+                  {['hod', 'principal'].includes(role) && (
+                    <TableRow className="bg-muted/30">
+                      <TableCell className="font-medium">
+                        <Input
+                          type="number"
+                          value={formData.co_number}
+                          onChange={(e) => setFormData({ ...formData, co_number: parseInt(e.target.value) || 1 })}
+                          min={1}
+                          className="w-16 h-8"
+                          placeholder="#"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          value={formData.description}
+                          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                          placeholder="Students will be able to..."
+                          className="h-8"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={formData.bloom_level}
+                          onValueChange={(v) => setFormData({ ...formData, bloom_level: v })}
+                        >
+                          <SelectTrigger className="w-28 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BLOOM_LEVELS.map((level) => (
+                              <SelectItem key={level} value={level}>
+                                {level}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Button 
+                          size="sm" 
+                          onClick={handleSubmit} 
+                          disabled={!formData.description || isPending}
+                        >
+                          {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             )}

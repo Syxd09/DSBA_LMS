@@ -17,6 +17,8 @@ import {
   Target,
   Settings,
   History,
+  Grid3X3,
+  PenTool,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -31,55 +33,161 @@ interface SidebarProps {
   onSignOut: () => void;
 }
 
-const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon: typeof LayoutDashboard }>> = {
+interface NavItem {
+  name: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+}
+
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+// Grouped navigation configuration for each role
+const navigationConfig: Record<AppRole, NavSection[]> = {
   principal: [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Departments', href: '/departments', icon: Building2 },
-    { name: 'Programs', href: '/programs', icon: GraduationCap },
-    { name: 'Cohorts', href: '/cohorts', icon: Users },
-    { name: 'Subjects', href: '/subjects', icon: BookOpen },
-    { name: 'Student Enrollments', href: '/student-enrollments', icon: UserCheck },
-    { name: 'Teacher Assignments', href: '/teacher-assignments', icon: ClipboardList },
-    { name: 'Users', href: '/users', icon: Users },
-    { name: 'Grades & SGPA', href: '/grade-management', icon: Award },
-    { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
-    { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-    { name: 'Audit Logs', href: '/audit-logs', icon: History },
-    { name: 'Settings', href: '/settings', icon: Settings },
+    {
+      title: 'Overview',
+      items: [
+        { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'Academic Structure',
+      items: [
+        { name: 'Departments', href: '/departments', icon: Building2 },
+        { name: 'Programs', href: '/programs', icon: GraduationCap },
+        { name: 'Cohorts', href: '/cohorts', icon: Users },
+        { name: 'Subjects', href: '/subjects', icon: BookOpen },
+      ],
+    },
+    {
+      title: 'People',
+      items: [
+        { name: 'Users', href: '/users', icon: Users },
+        { name: 'Student Enrollments', href: '/student-enrollments', icon: UserCheck },
+        { name: 'Teacher Assignments', href: '/teacher-assignments', icon: ClipboardList },
+      ],
+    },
+    {
+      title: 'Outcomes & Mapping',
+      items: [
+        { name: 'Program Outcomes', href: '/program-outcomes', icon: Target },
+        { name: 'CO-PO Mapping', href: '/co-po-mapping', icon: Grid3X3 },
+      ],
+    },
+    {
+      title: 'Grades & Analytics',
+      items: [
+        { name: 'Grades & SGPA', href: '/grade-management', icon: Award },
+        { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
+        { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+      ],
+    },
+    {
+      title: 'System',
+      items: [
+        { name: 'Audit Logs', href: '/audit-logs', icon: History },
+        { name: 'Settings', href: '/settings', icon: Settings },
+      ],
+    },
   ],
   hod: [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Programs', href: '/programs', icon: GraduationCap },
-    { name: 'Cohorts', href: '/cohorts', icon: Users },
-    { name: 'Subjects', href: '/subjects', icon: BookOpen },
-    { name: 'Student Enrollments', href: '/student-enrollments', icon: UserCheck },
-    { name: 'Teacher Assignments', href: '/teacher-assignments', icon: ClipboardList },
-    { name: 'Course Outcomes', href: '/course-outcomes', icon: FileText },
-    { name: 'Exams', href: '/exams', icon: ClipboardList },
-    { name: 'Grades & SGPA', href: '/grade-management', icon: Award },
-    { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
-    { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+    {
+      title: 'Overview',
+      items: [
+        { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'Academic Structure',
+      items: [
+        { name: 'Programs', href: '/programs', icon: GraduationCap },
+        { name: 'Cohorts', href: '/cohorts', icon: Users },
+        { name: 'Subjects', href: '/subjects', icon: BookOpen },
+      ],
+    },
+    {
+      title: 'People',
+      items: [
+        { name: 'Student Enrollments', href: '/student-enrollments', icon: UserCheck },
+        { name: 'Teacher Assignments', href: '/teacher-assignments', icon: ClipboardList },
+      ],
+    },
+    {
+      title: 'Assessments',
+      items: [
+        { name: 'Exams', href: '/exams', icon: ClipboardList },
+        { name: 'Course Outcomes', href: '/course-outcomes', icon: FileText },
+      ],
+    },
+    {
+      title: 'Outcomes & Mapping',
+      items: [
+        { name: 'Program Outcomes', href: '/program-outcomes', icon: Target },
+        { name: 'CO-PO Mapping', href: '/co-po-mapping', icon: Grid3X3 },
+      ],
+    },
+    {
+      title: 'Grades & Analytics',
+      items: [
+        { name: 'Grades & SGPA', href: '/grade-management', icon: Award },
+        { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
+        { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+      ],
+    },
   ],
   teacher: [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'My Subjects', href: '/subjects', icon: BookOpen },
-    { name: 'Course Outcomes', href: '/course-outcomes', icon: FileText },
-    { name: 'Exams', href: '/exams', icon: ClipboardList },
-    { name: 'Marks Entry', href: '/marks-entry', icon: ClipboardList },
-    { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
-    { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+    {
+      title: 'Overview',
+      items: [
+        { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'Teaching',
+      items: [
+        { name: 'My Subjects', href: '/subjects', icon: BookOpen },
+        { name: 'Course Outcomes', href: '/course-outcomes', icon: FileText },
+      ],
+    },
+    {
+      title: 'Assessments',
+      items: [
+        { name: 'Exams', href: '/exams', icon: ClipboardList },
+        { name: 'Marks Entry', href: '/marks-entry', icon: PenTool },
+      ],
+    },
+    {
+      title: 'Analytics',
+      items: [
+        { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
+        { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+      ],
+    },
   ],
   student: [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'My Results', href: '/results', icon: Award },
-    { name: 'Performance', href: '/performance', icon: TrendingUp },
+    {
+      title: 'Overview',
+      items: [
+        { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'Academics',
+      items: [
+        { name: 'My Results', href: '/results', icon: Award },
+        { name: 'Performance', href: '/performance', icon: TrendingUp },
+      ],
+    },
   ],
 };
 
 export function Sidebar({ role, profile, onSignOut }: SidebarProps) {
   if (!role) return null;
 
-  const navigation = navigationConfig[role] || navigationConfig.student;
+  const sections = navigationConfig[role] || navigationConfig.student;
 
   return (
     <aside className="w-64 bg-card border-r border-border flex flex-col">
@@ -95,29 +203,38 @@ export function Sidebar({ role, profile, onSignOut }: SidebarProps) {
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
-        {navigation.map((item) => (
-          <NavLink
-            key={item.name}
-            to={item.href}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-              )
-            }
-          >
-            <item.icon className="w-5 h-5" />
-            {item.name}
-          </NavLink>
+      <nav className="flex-1 p-4 space-y-4 overflow-y-auto">
+        {sections.map((section) => (
+          <div key={section.title}>
+            <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              {section.title}
+            </p>
+            <div className="space-y-1">
+              {section.items.map((item) => (
+                <NavLink
+                  key={item.name}
+                  to={item.href}
+                  className={({ isActive }) =>
+                    cn(
+                      'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors',
+                      isActive
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    )
+                  }
+                >
+                  <item.icon className="w-4 h-4" />
+                  {item.name}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 
       <div className="p-4 border-t border-border space-y-3">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-secondary flex items-center justify-center">
+          <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center">
             <span className="text-sm font-medium text-secondary-foreground">
               {profile?.full_name?.charAt(0) || 'U'}
             </span>

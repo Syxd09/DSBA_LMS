@@ -11,10 +11,11 @@ from uuid import UUID
 # Course Outcome schemas
 class CourseOutcomeBase(BaseModel):
     """Base course outcome schema."""
-    subject_id: UUID
+    subject_id: Optional[UUID] = None
+    offering_id: Optional[UUID] = None  # Added to support new anchor
     co_number: int
     description: str
-    bloom_level: str  # Remember, Understand, Apply, Analyze, Evaluate, Create
+    bloom_level: Optional[str] = None  # Remember, Understand, Apply, Analyze, Evaluate, Create
 
 
 class CourseOutcomeCreate(CourseOutcomeBase):
@@ -53,10 +54,18 @@ class ProgramOutcomeCreate(ProgramOutcomeBase):
 class ProgramOutcomeResponse(ProgramOutcomeBase):
     """Program outcome response schema."""
     id: UUID
+    po_code: str
+    threshold: float
     created_at: datetime
     
     class Config:
         from_attributes = True
+
+
+class ProgramOutcomeUpdate(BaseModel):
+    """Update program outcome schema."""
+    description: Optional[str] = None
+    threshold: Optional[float] = None
 
 
 # CO-PO Mapping schemas

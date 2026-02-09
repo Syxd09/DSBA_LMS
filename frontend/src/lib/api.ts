@@ -82,7 +82,13 @@ export const authApi = {
 
     getCurrentUser: () => {
         const user = localStorage.getItem('user');
-        return user ? JSON.parse(user) : null;
+        try {
+            return user ? JSON.parse(user) : null;
+        } catch (e) {
+            console.error('Failed to parse user from localStorage', e);
+            localStorage.removeItem('user'); // Clear invalid data
+            return null;
+        }
     },
 
     isAuthenticated: () => {
@@ -106,6 +112,12 @@ export const usersApi = {
 
     changePassword: (data: { current_password: string; new_password: string }) =>
         apiClient.post('/users/me/password', data).then(r => r.data),
+
+    // Principal Actions
+    delete: (userId: string) => apiClient.delete(`/users/${userId}`),
+
+    resetPassword: (userId: string, data: { new_password: string }) =>
+        apiClient.post(`/users/${userId}/reset-password`, data).then(r => r.data),
 };
 
 // Departments API
@@ -137,6 +149,40 @@ export const programsApi = {
         apiClient.put(`/programs/${id}`, data).then(r => r.data),
 
     delete: (id: string) => apiClient.delete(`/programs/${id}`),
+
+    // Program Outcomes (PO) CRUD
+    listOutcomes: (programId: string) =>
+        apiClient.get(`/programs/${programId}/outcomes`).then(r => r.data),
+
+    createOutcome: (programId: string, data: { po_number: number; description: string }) =>
+        apiClient.post(`/programs/${programId}/outcomes`, { ...data, program_id: programId }).then(r => r.data),
+
+    updateOutcome: (programId: string, poId: string, data: { description?: string; threshold?: number }) =>
+        apiClient.put(`/programs/${programId}/outcomes/${poId}`, data).then(r => r.data),
+
+    deleteOutcome: (programId: string, poId: string) =>
+        apiClient.delete(`/programs/${programId}/outcomes/${poId}`),
+};
+
+// CO-PO Mapping API
+export const coPoMappingApi = {
+    list: (params?: { offering_id?: string; program_id?: string }) =>
+        apiClient.get('/mappings/co-po', { params }).then(r => r.data),
+
+    getMatrix: (offeringId: string) =>
+        apiClient.get(`/mappings/co-po/matrix/${offeringId}`).then(r => r.data),
+
+    saveMapping: (data: { co_id: string; po_id: string; correlation_level: number }) =>
+        apiClient.post('/mappings/co-po', data).then(r => r.data),
+
+    bulkSave: (mappings: Array<{ co_id: string; po_id: string; correlation_level: number }>) =>
+        apiClient.post('/mappings/co-po/bulk', { mappings }).then(r => r.data),
+
+    deleteMapping: (mappingId: string) =>
+        apiClient.delete(`/mappings/co-po/${mappingId}`),
+
+    getTraceability: (programId: string) =>
+        apiClient.get(`/mappings/traceability/${programId}`).then(r => r.data),
 };
 
 // Cohorts API
@@ -153,6 +199,13 @@ export const cohortsApi = {
         apiClient.put(`/cohorts/${id}`, data).then(r => r.data),
 
     delete: (id: string) => apiClient.delete(`/cohorts/${id}`),
+};
+
+// Sections API
+export const sectionsApi = {
+    list: (cohortId: string) => apiClient.get(`/sections/by-cohort/${cohortId}`).then(r => r.data),
+    create: (cohortId: string, data: { name: string }) => apiClient.post(`/sections/by-cohort/${cohortId}`, { ...data, cohort_id: cohortId }).then(r => r.data),
+    delete: (sectionId: string) => apiClient.delete(`/sections/${sectionId}`),
 };
 
 // Enrollments API
@@ -247,8 +300,10 @@ export const examsApi = {
 
     get: (id: string) => apiClient.get(`/exams/${id}`).then(r => r.data),
 
-    updateStructure: (id: string, sections: any[]) =>
-        apiClient.put(`/exams/${id}/structure`, { sections }).then(r => r.data),
+    updateStructure: (id: string, sections: any[], confirmWipeMarks: boolean = false) =>
+        apiClient.put(`/exams/${id}/structure`, { sections }, {
+            params: { confirm_wipe_marks: confirmWipeMarks }
+        }).then(r => r.data),
 
     publish: (id: string) => apiClient.post(`/exams/${id}/publish`).then(r => r.data),
 
@@ -264,6 +319,9 @@ export const examsApi = {
 
     reject: (id: string, reason: string) =>
         apiClient.post(`/exams/${id}/reject`, { reason }).then(r => r.data),
+
+    revert: (id: string, reason: string) =>
+        apiClient.post(`/exams/${id}/revert`, null, { params: { reason } }).then(r => r.data),
 
     delete: (id: string) => apiClient.delete(`/exams/${id}`),
 };
@@ -285,11 +343,15 @@ export const marksApi = {
 
 // Grading API
 export const gradingApi = {
+    // Grade Scales
+    getScales: () => apiClient.get('/grading/scales').then(r => r.data),
+    createScale: (data: { name: string; description?: string }) =>
+        apiClient.post('/grading/scales', data).then(r => r.data),
+
+    // Grading Rules
     getRules: () => apiClient.get('/grading/rules').then(r => r.data),
-
-    createRule: (data: { grade: string; min_percentage: number; max_percentage: number; grade_point: number }) =>
+    createRule: (data: { grade_scale_id: string; grade: string; min_percentage: number; max_percentage: number; grade_point: number; description?: string }) =>
         apiClient.post('/grading/rules', data).then(r => r.data),
-
     deleteRule: (id: string) => apiClient.delete(`/grading/rules/${id}`),
 
     calculateGrades: (cohortId: string, subjectId: string) =>
@@ -317,7 +379,7 @@ export const notificationsApi = {
 // Analytics API
 export const analyticsApi = {
     getCOAttainment: (subjectId: string) =>
-        apiClient.get(`/analytics/co-attainment/${subjectId}`).then(r => r.data),
+        apiClient.get(`/analytics/co/offering/${subjectId}`).then(r => r.data),
 
     getBloomDistribution: (examId: string) =>
         apiClient.get(`/analytics/bloom/${examId}`).then(r => r.data),
@@ -552,17 +614,17 @@ export const promotionsApi = {
     }) =>
         apiClient.get('/promotions', { params }).then(r => r.data),
 
-    // Get cohort eligibility for promotion
-    getEligibility: (cohortId: string) =>
-        apiClient.get(`/promotions/cohort/${cohortId}/eligibility`).then(r => r.data),
+    // Preview promotion (Eligible/Detained)
+    preview: (cohortId: string) =>
+        apiClient.get(`/promotions/preview/${cohortId}`).then(r => r.data),
 
     // Execute semester promotion
-    execute: (data: {
-        cohort_id: string;
-        academic_year: string;
+    execute: (cohortId: string, data: {
+        confirm: boolean;
         approval_notes?: string;
+        override_detained?: string[];
     }) =>
-        apiClient.post('/promotions/execute', data).then(r => r.data),
+        apiClient.post(`/promotions/promote/${cohortId}`, data).then(r => r.data),
 
     // Get promotion details
     get: (id: string) =>
@@ -570,7 +632,7 @@ export const promotionsApi = {
 
     // Rollback a promotion (Principal only)
     rollback: (id: string, reason: string) =>
-        apiClient.post(`/promotions/${id}/rollback`, { reason }).then(r => r.data),
+        apiClient.post(`/promotions/${id}/rollback`, null, { params: { reason } }).then(r => r.data),
 };
 
 
@@ -580,6 +642,9 @@ export const offeringsApi = {
         apiClient.get('/offerings', { params }).then(r => r.data),
 
     get: (id: string) => apiClient.get(`/offerings/${id}`).then(r => r.data),
+
+    create: (data: { subject_id: string; cohort_id: string; semester_no: number; is_elective?: boolean }) =>
+        apiClient.post('/offerings', data).then(r => r.data),
 
     getOutcomes: (offeringId: string) =>
         apiClient.get(`/offerings/${offeringId}/outcomes`).then(r => r.data),

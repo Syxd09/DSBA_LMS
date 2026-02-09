@@ -8,6 +8,7 @@ import { analyticsApi, cohortsApi, offeringsApi, examsApi } from '@/lib/api';
 import { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 
+// Analytics Page - Viewing CO Attainment & Stats
 export default function Analytics() {
   const [selectedCohort, setSelectedCohort] = useState<string>('');
   const [selectedOffering, setSelectedOffering] = useState<string>('');

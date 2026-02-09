@@ -86,17 +86,19 @@ def _compute_offering_co_attainments_sync(
     enrolled_usns = get_offering_enrolled_students(db, offering_id)
     student_statuses = get_student_statuses(db, enrolled_usns)
     
-    # Get internal and external exams
-    int1_exam = get_exam_by_type(db, offering_id, "INT1")
-    int2_exam = get_exam_by_type(db, offering_id, "INT2")
-    ext_exam = get_exam_by_type(db, offering_id, "EXT")
+    # Get all exams for offering
+    all_exams = get_offering_exams(db, offering_id)
     
-    # Combine internal exams for CO computation
     internal_exam_ids = []
-    if int1_exam:
-        internal_exam_ids.append(int1_exam.id)
-    if int2_exam:
-        internal_exam_ids.append(int2_exam.id)
+    ext_exam = None
+    
+    # Categorize exams
+    for exam in all_exams:
+        if exam.exam_type == "EXT":
+            ext_exam = exam
+        else:
+            # All non-external exams contribute to internal assessment
+            internal_exam_ids.append(exam.id)
     
     # Get all marks
     int_marks: Dict = {}
@@ -133,7 +135,6 @@ def _compute_offering_co_attainments_sync(
         co_id = co["co_id"]
         threshold = co["threshold"]
         
-        # Get SQs from memory map
         co_sqs_all = all_sqs_map.get(co_id, [])
         
         # Filter for internal
@@ -193,6 +194,27 @@ def _compute_offering_co_attainments_sync(
                     total += mark
             ext_student_co_marks[usn] = total
         
+        # Compute dynamic max marks for this CO
+        # Internal Max = Calculated with section adjustment
+        int_sq_dicts = [
+            {
+                "id": sq.id,
+                "max_marks": sq.max_marks,
+                "section_id": sq.section_id,
+                "question_id": sq.question_id
+            }
+            for sq in co_sqs_all
+            if sq.exam_id in internal_exam_ids
+        ]
+        int_max_marks = compute_co_max_marks(int_sq_dicts, int_section_configs)
+        
+        # External Max = Sum of all mapped external questions
+        ext_max_marks = Decimal("0")
+        if ext_exam:
+            for sq in co_sqs_all:
+                if sq.exam_id == ext_exam.id:
+                    ext_max_marks += sq.max_marks
+
         # Compute CO attainment (Phase-2A)
         int_result = compute_co_attainment(
             co_id=co_id,
@@ -200,7 +222,7 @@ def _compute_offering_co_attainments_sync(
             exam_category="INTERNAL",
             valid_usns=int_valid_usns,
             student_marks=int_student_co_marks,
-            max_marks=Decimal("40")  # Placeholder
+            max_marks=int_max_marks
         )
         
         ext_result = compute_co_attainment(
@@ -209,7 +231,7 @@ def _compute_offering_co_attainments_sync(
             exam_category="EXTERNAL",
             valid_usns=ext_valid_usns,
             student_marks=ext_student_co_marks,
-            max_marks=Decimal("60")  # Placeholder
+            max_marks=ext_max_marks
         )
         
         # Compute final (Phase-2A)

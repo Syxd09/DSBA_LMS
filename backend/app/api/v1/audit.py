@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 
 from app.database import get_db
-from app.api.deps import require_hod_or_above
+from app.api.deps import require_hod_or_above, require_principal
 from app.models import Profile, AuditLog
 
 router = APIRouter(prefix="/audit", tags=["Audit"])
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/audit", tags=["Audit"])
 @router.get("")
 async def list_audit_logs(
     db: Session = Depends(get_db),
-    current_user: Profile = Depends(require_hod_or_above),
+    current_user: Profile = Depends(require_principal),
     table_name: Optional[str] = None,
     action: Optional[str] = None,
     limit: int = 100

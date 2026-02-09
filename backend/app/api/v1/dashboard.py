@@ -105,11 +105,12 @@ def calculate_at_risk_students(db: Session, cohort_ids: List = None) -> int:
     query = db.query(FinalMarks)
     if cohort_ids:
         # Filter by cohort through student enrollment
-        student_ids = db.query(StudentEnrollment.student_id).filter(
-            StudentEnrollment.cohort_id.in_(cohort_ids),
-            StudentEnrollment.status == "active"
+        # Filter by cohort through Student table
+        student_usns = db.query(Student.usn).filter(
+            Student.cohort_id.in_(cohort_ids),
+            Student.status == "active"
         ).subquery()
-        query = query.filter(FinalMarks.student_id.in_(student_ids))
+        query = query.filter(FinalMarks.usn.in_(student_usns))
     
     all_marks = query.all()
     at_risk = 0
@@ -130,11 +131,11 @@ def calculate_pass_rate(db: Session, cohort_ids: List = None) -> float:
     """Calculate pass rate (percentage of students with avg >= 40%)."""
     query = db.query(FinalMarks)
     if cohort_ids:
-        student_ids = db.query(StudentEnrollment.student_id).filter(
-            StudentEnrollment.cohort_id.in_(cohort_ids),
-            StudentEnrollment.status == "active"
+        student_usns = db.query(Student.usn).filter(
+            Student.cohort_id.in_(cohort_ids),
+            Student.status == "active"
         ).subquery()
-        query = query.filter(FinalMarks.student_id.in_(student_ids))
+        query = query.filter(FinalMarks.usn.in_(student_usns))
     
     all_marks = query.all()
     if not all_marks:
@@ -163,7 +164,7 @@ async def get_principal_dashboard(
 ):
     """Get principal dashboard data. RBAC: DASHBOARD_PRINCIPAL."""
     # Total counts
-    total_students = db.query(StudentEnrollment).filter(StudentEnrollment.status == "active").count()
+    total_students = db.query(Student).filter(Student.status == "active").count()
     total_teachers = db.query(UserRole).filter(UserRole.role == AppRole.TEACHER).count()
     total_subjects = db.query(Subject).count()
     total_departments = db.query(Department).count()
@@ -187,9 +188,9 @@ async def get_principal_dashboard(
         cohort_ids = [c.id for c in cohorts]
         
         # Count students
-        dept_students = db.query(StudentEnrollment).filter(
-            StudentEnrollment.cohort_id.in_(cohort_ids),
-            StudentEnrollment.status == "active"
+        dept_students = db.query(Student).filter(
+            Student.cohort_id.in_(cohort_ids),
+            Student.status == "active"
         ).count() if cohort_ids else 0
         
         # Count teachers
@@ -302,9 +303,9 @@ async def get_hod_dashboard(
         cohort_ids = [c.id for c in cohorts]
     
     # Department students and teachers
-    dept_students = db.query(StudentEnrollment).filter(
-        StudentEnrollment.cohort_id.in_(cohort_ids),
-        StudentEnrollment.status == "active"
+    dept_students = db.query(Student).filter(
+        Student.cohort_id.in_(cohort_ids),
+        Student.status == "active"
     ).count() if cohort_ids else 0
     
     dept_teachers = db.query(TeacherAssignment).filter(
@@ -435,9 +436,9 @@ async def get_teacher_dashboard(
     
     # Get total students
     cohort_ids = [a.cohort_id for a in assignments]
-    total_students = db.query(StudentEnrollment).filter(
-        StudentEnrollment.cohort_id.in_(cohort_ids),
-        StudentEnrollment.status == "active"
+    total_students = db.query(Student).filter(
+        Student.cohort_id.in_(cohort_ids),
+        Student.status == "active"
     ).count() if cohort_ids else 0
     
     # Pending evaluations (draft exams)

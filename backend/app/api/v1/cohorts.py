@@ -104,10 +104,28 @@ async def delete_cohort(
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_hod_or_above)
 ):
-    """Delete cohort."""
+    """
+    Delete cohort and all associated students with their login accounts.
+    
+    This performs a full cascade:
+    1. Delete all student Profile/UserRole accounts in the cohort
+    2. Delete Student records (ORM cascade handles marks)
+    3. Delete Cohort
+    """
+    from app.models import UserRole
+    
     cohort = db.query(Cohort).filter(Cohort.id == cohort_id).first()
     if not cohort:
         raise HTTPException(status_code=404, detail="Cohort not found")
+    
+    # FIX: Delete linked login accounts (Profile + UserRole) for all students
+    students_in_cohort = db.query(Student).filter(Student.cohort_id == cohort_id).all()
+    for student in students_in_cohort:
+        if student.user_id:
+            db.query(UserRole).filter(UserRole.user_id == student.user_id).delete()
+            db.query(Profile).filter(Profile.user_id == student.user_id).delete()
+    
+    # Delete Cohort (Student cascade handles marks, exams via ORM)
     db.delete(cohort)
     db.commit()
 

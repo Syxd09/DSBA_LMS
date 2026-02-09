@@ -123,6 +123,15 @@ class TeacherAssignmentResponse(TeacherAssignmentBase):
 
 
 # Subject Offering schemas
+class SubjectOfferingCreate(BaseModel):
+    """Create subject offering schema."""
+    subject_id: UUID
+    cohort_id: UUID
+    semester_no: int
+    is_elective: bool = False
+    regulation_year: Optional[int] = None
+
+
 class SubjectOfferingResponse(BaseModel):
     """Subject offering response schema."""
     id: UUID

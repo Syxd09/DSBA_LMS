@@ -34,6 +34,8 @@ from app.api.v1.export import router as export_router
 # Phase J: Notifications
 from app.api.v1.notifications import router as notifications_router
 
+from app.api.v1.sections import router as sections_router
+
 router = APIRouter()
 
 # Include all routers
@@ -42,6 +44,7 @@ router.include_router(users_router)
 router.include_router(departments_router)
 router.include_router(programs_router)
 router.include_router(cohorts_router)
+router.include_router(sections_router)
 router.include_router(subjects_router)
 router.include_router(enrollments_router)
 router.include_router(assignments_router)
@@ -64,5 +67,8 @@ router.include_router(units_router)
 # Phase I: Export endpoints
 router.include_router(export_router, prefix="/export", tags=["Export"])
 router.include_router(notifications_router, prefix="/notifications", tags=["Notifications"])
-# Phase J: Notifications
-router.include_router(export_router)
+
+# CO-PO Mapping (NBA Compliance)
+from app.api.v1.co_po_mapping import router as co_po_mapping_router
+router.include_router(co_po_mapping_router)
+

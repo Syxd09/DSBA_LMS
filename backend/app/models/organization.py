@@ -72,7 +72,7 @@ class Cohort(Base):
     program = relationship("Program", back_populates="cohorts")
     regulation = relationship("Regulation", back_populates="cohorts")  # NEW
     sections = relationship("Section", back_populates="cohort")
-    students = relationship("Student", back_populates="cohort")
+    students = relationship("Student", back_populates="cohort", cascade="all, delete-orphan")
     subject_offerings = relationship("SubjectOffering", back_populates="cohort")
     student_enrollments = relationship("StudentEnrollment", back_populates="cohort")  # Legacy
     exams = relationship("Exam", back_populates="cohort")

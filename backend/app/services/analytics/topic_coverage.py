@@ -157,7 +157,7 @@ class TopicCoverageService:
                 )
                 topic_coverages.append(topic_cov)
                 
-                if perf:
+                if perf and perf.get('avg_pct') is not None:
                     unit_perf_sum += perf['avg_pct']
                     unit_perf_count += 1
             

@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Plus, Loader2, Trash2, Upload, FileSpreadsheet, Edit, Search } from 'lucide-react';
+import { Users, Plus, Loader2, Trash2, Upload, FileSpreadsheet, Edit, Search, Download } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 export default function StudentEnrollments() {
@@ -106,6 +106,22 @@ export default function StudentEnrollments() {
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
     link.setAttribute("download", "bulk_upload_errors.csv");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  // Helper to download CSV template
+  const downloadTemplate = () => {
+    const csvContent = "data:text/csv;charset=utf-8," 
+        + "usn,name,email,cohort_name,section_name,admission_semester,status\n"
+        + "1MS23CS001,John Doe,john@example.com,2023-2027,A,1,active\n"
+        + "1MS23CS002,Jane Smith,jane@example.com,2023-2027,B,1,active";
+        
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "student_upload_template.csv");
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -230,6 +246,10 @@ export default function StudentEnrollments() {
                         <br />
                         <code className="bg-muted p-1 rounded">usn, name, email, cohort_name, section_name, admission_semester</code>
                     </p>
+                    <Button variant="outline" size="sm" onClick={downloadTemplate} className="w-full">
+                        <Download className="w-4 h-4 mr-2" />
+                        Download CSV Template
+                    </Button>
                     <div className="grid w-full max-w-sm items-center gap-1.5">
                         <Label htmlFor="csv_file">CSV File</Label>
                         <Input id="csv_file" type="file" accept=".csv" onChange={handleBulkUpload} disabled={bulkUploadMutation.isPending} />
@@ -324,7 +344,7 @@ export default function StudentEnrollments() {
                         disabled={!formData.cohort_id || availableSections.length === 0}
                         >
                         <SelectTrigger>
-                            <SelectValue placeholder={availableSections.length === 0 ? "No sections" : "Select section"} />
+                            <SelectValue placeholder={availableSections.length === 0 ? "No sections found" : "Select section"} />
                         </SelectTrigger>
                         <SelectContent>
                             {availableSections.map((s: any) => (
@@ -334,6 +354,11 @@ export default function StudentEnrollments() {
                             ))}
                         </SelectContent>
                         </Select>
+                        {formData.cohort_id && availableSections.length === 0 && (
+                            <p className="text-[10px] text-destructive">
+                                No sections found for this cohort. Please create sections in Cohort Management first.
+                            </p>
+                        )}
                     </div>
                   </div>
                   

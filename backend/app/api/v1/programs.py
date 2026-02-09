@@ -9,9 +9,12 @@ from uuid import UUID
 import uuid as uuid_lib
 
 from app.database import get_db
-from app.api.deps import require_authenticated, require_principal
-from app.models import Profile, Program, Department
-from app.schemas import ProgramCreate, ProgramUpdate, ProgramResponse
+from app.api.deps import require_authenticated, require_principal, require_hod_or_above
+from app.models import Profile, Program, Department, ProgramOutcome
+from app.schemas import (
+    ProgramCreate, ProgramUpdate, ProgramResponse,
+    ProgramOutcomeCreate, ProgramOutcomeUpdate, ProgramOutcomeResponse
+)
 
 router = APIRouter(prefix="/programs", tags=["Programs"])
 
@@ -105,3 +108,109 @@ async def delete_program(
         raise HTTPException(status_code=404, detail="Program not found")
     db.delete(program)
     db.commit()
+
+
+# ============ PROGRAM OUTCOMES (PO) ============
+
+@router.get("/{program_id}/outcomes", response_model=List[ProgramOutcomeResponse])
+async def list_program_outcomes(
+    program_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """List all POs for a program. All authenticated users can view."""
+    program = db.query(Program).filter(Program.id == program_id).first()
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+    
+    pos = db.query(ProgramOutcome).filter(
+        ProgramOutcome.program_id == program_id
+    ).order_by(ProgramOutcome.po_number).all()
+    return pos
+
+
+@router.post("/{program_id}/outcomes", response_model=ProgramOutcomeResponse, status_code=status.HTTP_201_CREATED)
+async def create_program_outcome(
+    program_id: UUID,
+    po_data: ProgramOutcomeCreate,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_hod_or_above)
+):
+    """Create a PO for a program. HOD and above only."""
+    program = db.query(Program).filter(Program.id == program_id).first()
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+    
+    # Check for duplicate PO number
+    existing = db.query(ProgramOutcome).filter(
+        ProgramOutcome.program_id == program_id,
+        ProgramOutcome.po_number == po_data.po_number
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"PO{po_data.po_number} already exists for this program")
+    
+    new_po = ProgramOutcome(
+        id=uuid_lib.uuid4(),
+        program_id=program_id,
+        po_code=f"PO{po_data.po_number}",
+        po_number=po_data.po_number,
+        description=po_data.description,
+        threshold=60.0  # Default NBA threshold
+    )
+    db.add(new_po)
+    db.commit()
+    db.refresh(new_po)
+    return new_po
+
+
+@router.put("/{program_id}/outcomes/{po_id}", response_model=ProgramOutcomeResponse)
+async def update_program_outcome(
+    program_id: UUID,
+    po_id: UUID,
+    po_data: ProgramOutcomeUpdate,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_hod_or_above)
+):
+    """Update a PO. HOD and above only."""
+    po = db.query(ProgramOutcome).filter(
+        ProgramOutcome.id == po_id,
+        ProgramOutcome.program_id == program_id
+    ).first()
+    if not po:
+        raise HTTPException(status_code=404, detail="Program Outcome not found")
+    
+    if po_data.description is not None:
+        po.description = po_data.description
+    if po_data.threshold is not None:
+        po.threshold = po_data.threshold
+    
+    db.commit()
+    db.refresh(po)
+    return po
+
+
+@router.delete("/{program_id}/outcomes/{po_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_program_outcome(
+    program_id: UUID,
+    po_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_hod_or_above)
+):
+    """Delete a PO. HOD and above only. Will fail if CO-PO mappings exist."""
+    po = db.query(ProgramOutcome).filter(
+        ProgramOutcome.id == po_id,
+        ProgramOutcome.program_id == program_id
+    ).first()
+    if not po:
+        raise HTTPException(status_code=404, detail="Program Outcome not found")
+    
+    # Check for existing CO-PO mappings
+    if po.co_po_mappings:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot delete PO with existing CO-PO mappings. Remove mappings first."
+        )
+    
+    db.delete(po)
+    db.commit()
+

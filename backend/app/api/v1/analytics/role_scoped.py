@@ -228,12 +228,17 @@ async def get_faculty_topic_coverage(
     """
     from app.services.analytics.topic_coverage import get_topic_coverage
     
-    coverage = await get_topic_coverage(db, offering_id)
-    
-    return {
-        "success": True,
-        "data": coverage
-    }
+    try:
+        coverage = await get_topic_coverage(db, offering_id)
+        
+        return {
+            "success": True,
+            "data": coverage
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Topic Coverage Error: {str(e)}")
 
 
 @router.get(

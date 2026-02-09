@@ -36,16 +36,21 @@ import AssessmentComponents from "./pages/AssessmentComponents";
 import Colleges from "./pages/Colleges";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
+import ProgramOutcomes from "./pages/ProgramOutcomes";
+import COPOMapping from "./pages/COPOMapping";
 
 const queryClient = new QueryClient();
+
+import { ThemeProvider } from "@/components/theme-provider";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <RoleProvider>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <RoleProvider>
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Index />} />
@@ -104,6 +109,16 @@ const App = () => (
                 <COPOAnalytics />
               </ProtectedRoute>
             } />
+            <Route path="/program-outcomes" element={
+              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
+                <ProgramOutcomes />
+              </ProtectedRoute>
+            } />
+            <Route path="/co-po-mapping" element={
+              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
+                <COPOMapping />
+              </ProtectedRoute>
+            } />
             <Route path="/performance" element={
               <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal', 'student']}>
                 <Performance />
@@ -132,12 +147,12 @@ const App = () => (
               </ProtectedRoute>
             } />
             <Route path="/subjects" element={
-              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+              <ProtectedRoute allowedRoles={['hod', 'principal', 'teacher']}>
                 <Subjects />
               </ProtectedRoute>
             } />
             <Route path="/course-outcomes" element={
-              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+              <ProtectedRoute allowedRoles={['hod', 'principal', 'teacher']}>
                 <CourseOutcomes />
               </ProtectedRoute>
             } />
@@ -152,7 +167,7 @@ const App = () => (
               </ProtectedRoute>
             } />
             <Route path="/audit-logs" element={
-              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+              <ProtectedRoute allowedRoles={['principal']}>
                 <AuditLogs />
               </ProtectedRoute>
             } />
@@ -193,7 +208,8 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </RoleProvider>
-      </BrowserRouter>
+        </BrowserRouter>
+      </ThemeProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

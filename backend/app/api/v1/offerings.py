@@ -12,7 +12,7 @@ from app.database import get_db
 from app.api.deps import require_authenticated, require_hod_or_above, require_teacher_or_above
 from app.models import Profile, SubjectOffering, CourseOutcome, Subject, Cohort
 from app.schemas import (
-    SubjectOfferingResponse, CourseOutcomeResponse, CourseOutcomeCreate
+    SubjectOfferingCreate, SubjectOfferingResponse, CourseOutcomeResponse, CourseOutcomeCreate
 )
 
 router = APIRouter(prefix="/offerings", tags=["Subject Offerings"])
@@ -38,6 +38,53 @@ async def list_offerings(
         query = query.filter(SubjectOffering.subject_id == subject_id)
         
     return query.all()
+
+
+@router.post("/", response_model=SubjectOfferingResponse, status_code=status.HTTP_201_CREATED)
+async def create_offering(
+    offering: SubjectOfferingCreate,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_hod_or_above)
+):
+    """
+    Create a subject offering (link subject to cohort).
+    This enables COs to be created for specific batch+subject combinations.
+    HOD and above only.
+    """
+    # Validate cohort exists and get program_id
+    cohort = db.query(Cohort).filter(Cohort.id == offering.cohort_id).first()
+    if not cohort:
+        raise HTTPException(status_code=404, detail="Cohort not found")
+    
+    # Validate subject exists
+    subject = db.query(Subject).filter(Subject.id == offering.subject_id).first()
+    if not subject:
+        raise HTTPException(status_code=404, detail="Subject not found")
+    
+    # Check for duplicate
+    existing = db.query(SubjectOffering).filter(
+        SubjectOffering.subject_id == offering.subject_id,
+        SubjectOffering.cohort_id == offering.cohort_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="This subject is already offered to this cohort")
+    
+    # Create offering
+    new_offering = SubjectOffering(
+        id=uuid_lib.uuid4(),
+        subject_id=offering.subject_id,
+        cohort_id=offering.cohort_id,
+        program_id=cohort.program_id,
+        semester_no=offering.semester_no,
+        is_elective=offering.is_elective,
+        regulation_year=offering.regulation_year or cohort.year,
+        is_active=True
+    )
+    db.add(new_offering)
+    db.commit()
+    db.refresh(new_offering)
+    
+    return new_offering
 
 @router.get("/{offering_id}", response_model=SubjectOfferingResponse)
 async def get_offering(
@@ -110,6 +157,7 @@ async def create_offering_outcome(
         id=uuid_lib.uuid4(),
         offering_id=offering_id,
         subject_id=None, # CRITICAL: NULL subject_id to respect check constraint
+        co_code=f"CO{outcome.co_number}",  # Generate co_code from co_number
         co_number=outcome.co_number,
         description=outcome.description,
         bloom_level=outcome.bloom_level

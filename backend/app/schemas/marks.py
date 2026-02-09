@@ -13,7 +13,7 @@ from app.schemas.user import ProfileResponse
 # Student marks schemas
 class StudentMarkEntry(BaseModel):
     """Single mark entry."""
-    student_id: UUID
+    student_id: str  # Changed to str to support USN
     sub_question_id: UUID
     marks: float
 
@@ -28,7 +28,7 @@ class StudentMarksResponse(BaseModel):
     """Student marks response schema."""
     id: UUID
     exam_id: UUID
-    student_id: UUID
+    student_id: str  # Changed from UUID to str (returns USN)
     sub_question_id: UUID
     marks: float
     entered_at: datetime

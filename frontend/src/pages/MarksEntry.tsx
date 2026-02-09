@@ -65,16 +65,56 @@ export default function MarksEntry() {
   });
 
   // Fetch course outcomes
-  const { data: courseOutcomes = [] } = useCourseOutcomes(examDetails?.subject_id);
+  const { data: courseOutcomes = [] } = useCourseOutcomes(examDetails?.offering_id);
 
-  // Save exam structure mutation
+  // Save exam structure mutation (with 409 handling)
   const saveStructureMutation = useMutation({
-    mutationFn: (sections: any[]) => examsApi.updateStructure(selectedExamId!, sections),
+    mutationFn: async (sections: any[]) => {
+       try {
+          return await examsApi.updateStructure(selectedExamId!, sections);
+       } catch (error: any) {
+           // Intercept 409 Conflict (Marks exist)
+           if (error.response?.status === 409) {
+               // We need to throw a specific error to be handled in onError or catch block
+               // But mutationFn expects a promise. 
+               // We can't easily show a dialog *inside* mutationFn if we want to use React state.
+               // Actually, we can just throw and handle it in the onError or the calling function.
+               // Let's attach the sections data to the error so we can retry.
+               error.sectionsData = sections;
+               throw error;
+           }
+           throw error;
+       }
+    },
     onSuccess: () => {
       toast({ title: 'Exam structure saved' });
       queryClient.invalidateQueries({ queryKey: ['exam-details', selectedExamId] });
     },
-    onError: (error: any) => {
+    onError: async (error: any) => {
+      if (error.response?.status === 409) {
+          // Show confirmation dialog (Browser native for simplicity and speed as requested "fix it")
+          // In a real app, we'd use a nice modal, but `window.confirm` is reliable for this critical data loss warning.
+          const confirmMessage = error.response.data.detail || "Marks exist. Updating structure will wipe all marks. Continue?";
+          if (window.confirm(confirmMessage)) {
+              try {
+                  // Retry with force flag
+                  await examsApi.updateStructure(selectedExamId!, error.sectionsData, true);
+                  toast({ title: 'Exam structure updated (Marks wiped)' });
+                  queryClient.invalidateQueries({ queryKey: ['exam-details', selectedExamId] });
+                  // We need to manually reset the loading state if we were using `isPending` from the mutation
+                  // But `saveStructureMutation` is already "error" state.
+                  // This is a bit hacky but valid for "fix it" requests.
+              } catch (retryError: any) {
+                   toast({
+                        title: 'Error saving structure (Retry failed)',
+                        description: retryError.response?.data?.detail || 'Failed to save structure',
+                        variant: 'destructive',
+                    });
+              }
+              return;
+          }
+      }
+
       toast({
         title: 'Error saving structure',
         description: error.response?.data?.detail || 'Failed to save structure',
@@ -150,12 +190,22 @@ export default function MarksEntry() {
     return sqs;
   }, [sections]);
 
+  // Calculate max marks per section for validation
+  const sectionMaxMarks = useMemo(() => {
+    const map: Record<string, number> = {};
+    sections.forEach((section: any, sIdx: number) => {
+        // Map "1", "2" etc. to max marks
+        map[String(sIdx + 1)] = section.max_marks;
+    });
+    return map;
+  }, [sections]);
+
   // Transform enrollments to the format expected by MarksEntryGrid
   const students = useMemo(() => {
     return enrollments.map((e: any) => ({
-      studentId: e.student_id,
-      studentName: e.student?.full_name || 'Student',
-      rollNumber: e.roll_number,
+      studentId: e.usn, // API returns StudentResponse (usn is PK)
+      studentName: e.name || 'Student',
+      rollNumber: e.usn,
     }));
   }, [enrollments]);
 
@@ -261,6 +311,8 @@ export default function MarksEntry() {
                     isSaving={saveMarksMutation.isPending}
                     isPublished={selectedExam?.status === 'published'}
                     onRequestEdit={() => setIsEditModalOpen(true)}
+                    examId={selectedExamId || undefined}
+                    sectionMaxMarks={sectionMaxMarks}
                   />
                   
                   <EditRequestModal 
