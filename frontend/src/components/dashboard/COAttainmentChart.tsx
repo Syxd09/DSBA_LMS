@@ -30,7 +30,7 @@ export function COAttainmentChart({ offeringId, subjectName }: COAttainmentChart
         );
     }
 
-    if (isError || !data?.outcomes || data.outcomes.length === 0) {
+    if (isError || !data?.data?.outcomes || data.data.outcomes.length === 0) {
         return (
             <Card className="h-full">
                 <CardHeader>
@@ -44,7 +44,7 @@ export function COAttainmentChart({ offeringId, subjectName }: COAttainmentChart
         );
     }
 
-    const chartData = data.outcomes.map((co: any) => ({
+    const chartData = data.data.outcomes.map((co: any) => ({
         name: `CO${co.co_number}`,
         attainment: co.attainment,
         target: co.target,

@@ -85,6 +85,19 @@ def _compute_exam_total_for_student(
 
 def _get_exam_computed_totals(db: Session, exam_id: UUID, exam_max_marks: Decimal) -> List[float]:
     """Get computed percentages for all students in an exam."""
+    # Optimization: Use MarksComputed if available
+    try:
+        from app.models import MarksComputed
+        computed = db.query(MarksComputed).filter(MarksComputed.exam_id == exam_id).all()
+        if computed:
+            return [
+                float(c.percentage) if c.percentage is not None 
+                else (float(c.total_marks) / float(exam_max_marks) * 100 if exam_max_marks > 0 else 0)
+                for c in computed
+            ]
+    except ImportError:
+        pass
+
     # Get unique student IDs for this exam
     student_ids = db.query(StudentMarks.student_id).filter(
         StudentMarks.exam_id == exam_id
@@ -398,8 +411,83 @@ async def get_hod_dashboard(
             percentage=round(pct, 1)
         ))
 
-    # CO attainment for department (Placeholder/Aggregated)
+    # CO attainment for department (Aggregated)
     co_attainment = []
+    if cohort_ids:
+        # Get all sub-questions for exams in this department
+        # We need to link marks -> sub_question -> co -> co_number
+        exam_ids = [e.id for e in exams] # already filtered by status
+        
+        # 1. Get all COs used in these exams
+        # Join: CourseOutcome -> SubQuestion -> Question -> Exam
+        # Easier: Get all SubQuestions for these exams, then group by CO
+        
+        # Get all sections for these exams
+        sections = db.query(ExamSection).filter(ExamSection.exam_id.in_(exam_ids)).all()
+        section_ids = [s.id for s in sections]
+        
+        # Get all questions
+        questions = db.query(Question).filter(Question.section_id.in_(section_ids)).all()
+        q_ids = [q.id for q in questions]
+        
+        # Get all sub-questions
+        sub_questions = db.query(SubQuestion).filter(
+            (SubQuestion.question_id.in_(q_ids))
+        ).all()
+        sq_ids = [sq.id for sq in sub_questions]
+        
+        # Get marks for these sub-questions
+        all_marks = db.query(StudentMarks).filter(StudentMarks.sub_question_id.in_(sq_ids)).all()
+        
+        # Group marks by CO
+        co_stats = {} # co_number -> {scored: 0, max: 0, target: 60}
+        
+        # Helper to get CO details
+        co_map = {co.id: co for co in db.query(CourseOutcome).all()}
+        sq_co_map = {sq.id: sq.co_id for sq in sub_questions if sq.co_id}
+        
+        marks_by_sq = {}
+        for m in all_marks:
+            if m.sub_question_id not in marks_by_sq:
+                marks_by_sq[m.sub_question_id] = []
+            marks_by_sq[m.sub_question_id].append(float(m.marks))
+            
+        for sq in sub_questions:
+            if sq.co_id and sq.co_id in co_map:
+                co = co_map[sq.co_id]
+                co_num = co.co_number
+                
+                if co_num not in co_stats:
+                    co_stats[co_num] = {"scored": 0.0, "max": 0.0, "target": float(co.threshold) if co.threshold else 60.0}
+                
+                # Obtained marks for this SQ
+                sq_marks = marks_by_sq.get(sq.id, [])
+                total_scored = sum(sq_marks)
+                attempt_count = len(sq_marks)
+                
+                # Max marks = SQ Max * Attempts
+                total_max = float(sq.max_marks) * attempt_count
+                
+                co_stats[co_num]["scored"] += total_scored
+                co_stats[co_num]["max"] += total_max
+        
+        # Format results
+        for co_num, stats in co_stats.items():
+            attainment = 0.0
+            if stats["max"] > 0:
+                attainment = (stats["scored"] / stats["max"]) * 100
+                
+            co_attainment.append(COAttainmentData(
+                co=f"CO{co_num}",
+                co_number=co_num,
+                description=f"Course Outcome {co_num}", # Generic description for aggregated
+                attainment=round(attainment, 1),
+                target=stats["target"],
+                achieved=attainment >= stats["target"]
+            ))
+            
+        # Sort by CO number
+        co_attainment.sort(key=lambda x: x.co_number)
     
     return HODDashboardData(
         department_students=dept_students,

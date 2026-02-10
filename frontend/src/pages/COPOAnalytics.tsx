@@ -21,7 +21,10 @@ function TopicHeatmap({ offeringId }: { offeringId: string }) {
 
   if (isLoading) return <div className="h-48 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>;
 
-  if (!coverage || !coverage.units) return null;
+  // Handle response wrapper (success/data pattern or AnalyticsResponse)
+  const coverageData = coverage?.data || coverage;
+
+  if (!coverageData || !coverageData.units) return null;
 
   return (
     <Card className="md:col-span-2">
@@ -33,7 +36,7 @@ function TopicHeatmap({ offeringId }: { offeringId: string }) {
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
-          {coverage.units.map((unit: any) => (
+          {coverageData.units.map((unit: any) => (
             <div key={unit.unit_no} className="space-y-2">
               <h4 className="text-sm font-medium">Unit {unit.unit_no}: {unit.unit_name}</h4>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
@@ -62,7 +65,7 @@ function TopicHeatmap({ offeringId }: { offeringId: string }) {
               </div>
             </div>
           ))}
-          {coverage.units.length === 0 && (
+          {coverageData.units.length === 0 && (
               <p className="text-center py-8 text-muted-foreground">No topic data available.</p>
           )}
         </div>
@@ -81,14 +84,24 @@ export default function COPOAnalytics() {
     queryFn: () => subjectsApi.list(),
   });
 
-  const { data: coAttainment, isLoading } = useQuery({
+  const { data: coAttainmentResponse, isLoading } = useQuery({
     queryKey: ['co-attainment', selectedSubject],
     queryFn: () => analyticsApi.getCOAttainment(selectedSubject),
     enabled: !!selectedSubject,
   });
 
-  const outcomes = coAttainment?.outcomes || [];
-  const poContribution = coAttainment?.po_contribution || [];
+  // Map backend response to UI structure
+  // Backend: AnalyticsResponse -> data -> cos: COAttainmentDTO[]
+  // DTO: co_code, co_statement, final_attainment: { percentage, threshold }
+  const outcomes = coAttainmentResponse?.data?.cos?.map((co: any) => ({
+    co_number: co.co_code.replace('CO', ''), // Extract number for display
+    co_code: co.co_code,
+    description: co.co_statement,
+    attainment: co.final_attainment?.percentage || 0,
+    target: co.final_attainment?.threshold || 60
+  })) || [];
+
+  const poContribution = coAttainmentResponse?.data?.po_contribution || [];
 
   // Prepare radar data from real PO contribution data
   const radarData = poContribution.length > 0
@@ -203,10 +216,9 @@ export default function COPOAnalytics() {
                       <BarChart data={outcomes}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis
-                          dataKey="co_number"
+                          dataKey="co_code"
                           stroke="hsl(var(--muted-foreground))"
                           fontSize={12}
-                          tickFormatter={(v) => `CO${v}`}
                         />
                         <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} domain={[0, 100]} />
                         <Tooltip
@@ -236,10 +248,10 @@ export default function COPOAnalytics() {
                 {outcomes.length > 0 ? (
                   <div className="space-y-4">
                     {outcomes.map((co: any) => (
-                      <div key={co.co_number} className="p-4 border rounded-lg">
+                      <div key={co.co_code} className="p-4 border rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline">CO{co.co_number}</Badge>
+                            <Badge variant="outline">{co.co_code}</Badge>
                             <span className="text-sm">{co.description}</span>
                           </div>
                           <Badge variant={co.attainment >= (co.target || 70) ? 'default' : 'destructive'}>
