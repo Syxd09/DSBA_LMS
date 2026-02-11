@@ -13,11 +13,11 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.api.deps import require_authenticated, PermissionChecker, Permission
-from app.models import Profile, StudentEnrollment, Department
+from app.models import Profile, Student, Department
 from app.services.export import export_analytics, ExportFormat
 
 
-router = APIRouter(prefix="/export", tags=["Export"])
+router = APIRouter(tags=["Export"])
 
 
 # ============================================================================
@@ -67,14 +67,14 @@ async def export_student_topic_heatmap(
     """Export topic heatmap in requested format."""
     from app.services.analytics.topic_coverage import get_student_topic_heatmap
     
-    enrollment = db.query(StudentEnrollment).filter(
-        StudentEnrollment.user_id == current_user.user_id
+    student = db.query(Student).filter(
+        Student.user_id == current_user.user_id
     ).first()
     
-    if not enrollment:
-        raise HTTPException(status_code=404, detail="Enrollment not found")
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
     
-    heatmap = await get_student_topic_heatmap(db, enrollment.usn, offering_id)
+    heatmap = await get_student_topic_heatmap(db, student.usn, offering_id)
     
     return export_analytics(
         data=heatmap,

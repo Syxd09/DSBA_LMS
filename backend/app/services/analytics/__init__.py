@@ -79,7 +79,15 @@ from app.services.analytics.schemas import (
     # Result
     ResultResponse,
     BacklogSubjectDTO,
+    BacklogSubjectDTO,
     BacklogSummaryResponse,
+)
+
+from app.services.analytics.role_scoped import (
+    StudentAnalyticsService,
+    FacultyAnalyticsService,
+    HODAnalyticsService,
+    PrincipalAnalyticsService,
 )
 
 __all__ = [
@@ -135,4 +143,9 @@ __all__ = [
     "ResultResponse",
     "BacklogSubjectDTO",
     "BacklogSummaryResponse",
+    # Role Scoped Services
+    "StudentAnalyticsService",
+    "FacultyAnalyticsService",
+    "HODAnalyticsService",
+    "PrincipalAnalyticsService",
 ]

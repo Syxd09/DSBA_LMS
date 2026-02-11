@@ -134,7 +134,7 @@ export function QuestionDifficultyChart({ offeringId }: QuestionDifficultyChartP
                               Difficulty: {d.difficulty}% ({getDifficultyLabel(d.difficulty)})
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              Avg: {d.avgMarks.toFixed(1)}/{d.maxMarks}
+                              Avg: {(Number(d.avgMarks) || 0).toFixed(1)}/{d.maxMarks}
                             </p>
                             <p className="text-sm text-muted-foreground">
                               Bloom: {d.bloom} • {d.co}

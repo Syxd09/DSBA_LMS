@@ -23,13 +23,15 @@ async def list_assignments(
     role: str = Depends(get_user_role),
     teacher_id: UUID = None,
     subject_id: UUID = None,
-    cohort_id: UUID = None
+    cohort_id: UUID = None,
+    offering_id: UUID = None
 ):
     """List teacher assignments."""
     query = db.query(TeacherAssignment).options(
         joinedload(TeacherAssignment.teacher),
         joinedload(TeacherAssignment.subject),
-        joinedload(TeacherAssignment.cohort)
+        joinedload(TeacherAssignment.cohort),
+        joinedload(TeacherAssignment.offering)
     )
     
     # Teachers can only see their own assignments
@@ -43,6 +45,8 @@ async def list_assignments(
         query = query.filter(TeacherAssignment.subject_id == subject_id)
     if cohort_id:
         query = query.filter(TeacherAssignment.cohort_id == cohort_id)
+    if offering_id:
+        query = query.filter(TeacherAssignment.offering_id == offering_id)
     
     assignments = query.all()
     return assignments

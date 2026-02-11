@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.permissions import AppRole
 from app.models import (
     Profile, Department, Program, Cohort,
-    TeacherAssignment, StudentEnrollment, Student, College
+    TeacherAssignment, Student, College
 )
 
 
@@ -232,23 +232,23 @@ class ScopeResolver:
         """
         # Try to find student record
         student = db.query(Student).filter(
-            Student.user_id == user.user_id
+            Student.user_id == user.user_id,
+            Student.status == "active"
         ).first()
         
-        usn = student.usn if student else None
-        
-        # Get enrollment
-        enrollment = db.query(StudentEnrollment).filter(
-            StudentEnrollment.student_id == user.user_id,
-            StudentEnrollment.status == "active"
-        ).first()
-        
-        cohort_ids = [enrollment.cohort_id] if enrollment else []
+        if not student:
+            return AccessScope(
+                scope_type=ScopeType.OWN,
+                department_ids=[],
+                cohort_ids=[],
+                offering_ids=[],
+                student_usns=[]
+            )
         
         return AccessScope(
             scope_type=ScopeType.OWN,
-            cohort_ids=cohort_ids,
-            student_usns=[usn] if usn else []
+            cohort_ids=[student.cohort_id],
+            student_usns=[student.usn]
         )
 
 

@@ -49,7 +49,7 @@ export default function Results() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold text-primary">{sgpa.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-primary">{(Number(sgpa) || 0).toFixed(2)}</p>
               <p className="text-xs text-muted-foreground mt-1">This semester</p>
             </CardContent>
           </Card>
@@ -62,7 +62,7 @@ export default function Results() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold text-green-600">{cgpa.toFixed(2)}</p>
+              <p className="text-3xl font-bold text-green-600">{(Number(cgpa) || 0).toFixed(2)}</p>
               <p className="text-xs text-muted-foreground mt-1">Cumulative</p>
             </CardContent>
           </Card>
@@ -75,7 +75,7 @@ export default function Results() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold text-blue-600">{overallAverage.toFixed(1)}%</p>
+              <p className="text-3xl font-bold text-blue-600">{(Number(overallAverage) || 0).toFixed(1)}%</p>
               <p className="text-xs text-muted-foreground mt-1">All subjects</p>
             </CardContent>
           </Card>
@@ -118,7 +118,7 @@ export default function Results() {
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Percentage</p>
-                        <p className="font-medium">{result.percentage?.toFixed(1) || '-'}%</p>
+                        <p className="font-medium">{(Number(result.percentage) || 0).toFixed(1)}%</p>
                       </div>
                     </div>
                     {result.percentage && (

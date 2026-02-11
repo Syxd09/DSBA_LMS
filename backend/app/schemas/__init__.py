@@ -33,7 +33,7 @@ from app.schemas.exam import (
 )
 from app.schemas.marks import (
     StudentMarkEntry, BulkMarksCreate, StudentMarksResponse,
-    MarksComputedResponse, FinalMarksCreate, FinalMarksResponse,
+    FinalMarksCreate, FinalMarksResponse,
     SemesterResultResponse
 )
 from app.schemas.grading import (
@@ -84,7 +84,7 @@ __all__ = [
     "ExamStructureCreate",
     # Marks
     "StudentMarkEntry", "BulkMarksCreate", "StudentMarksResponse",
-    "MarksComputedResponse", "FinalMarksCreate", "FinalMarksResponse",
+    "FinalMarksCreate", "FinalMarksResponse",
     "SemesterResultResponse",
     # Grading
     "GradingRuleCreate", "GradingRuleResponse",

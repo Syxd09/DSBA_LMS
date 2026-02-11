@@ -158,7 +158,7 @@ export function AtRiskStudentsList({ subjects }: AtRiskStudentsListProps) {
                     </div>
                     <div className="text-right">
                       <p className="font-mono text-sm font-medium">
-                        {student.percentage.toFixed(1)}%
+                        {(Number(student.percentage) || 0).toFixed(1)}%
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {student.marks_obtained}/{student.max_marks}

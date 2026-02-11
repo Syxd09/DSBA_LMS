@@ -20,7 +20,7 @@ from decimal import Decimal
 from dataclasses import dataclass
 from enum import Enum
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, or_, func
 
 # Import models
 from app.models import (
@@ -496,6 +496,15 @@ class InsightRuleEngine:
         offering_id: UUID
     ) -> List[BloomLevel]:
         """Fetch Bloom-level performance for a student in an offering."""
+        offering = self.db.query(SubjectOffering).filter(SubjectOffering.id == offering_id).first()
+        if not offering:
+            return []
+        
+        exam_filter = or_(
+            Exam.offering_id == offering_id,
+            and_(Exam.subject_id == offering.subject_id, Exam.cohort_id == offering.cohort_id)
+        )
+        
         result = self.db.execute(
             select(
                 SubQuestion.bloom_level,
@@ -509,7 +518,7 @@ class InsightRuleEngine:
             .join(Exam, Exam.id == ExamSection.exam_id)
             .where(and_(
                 StudentQuestionMark.usn == usn,
-                Exam.offering_id == offering_id,
+                exam_filter,
                 SubQuestion.bloom_level.isnot(None)
             ))
             .group_by(SubQuestion.bloom_level)
@@ -547,6 +556,15 @@ class InsightRuleEngine:
         offering_id: UUID
     ) -> Optional[float]:
         """Get average internal exam percentage."""
+        offering = self.db.query(SubjectOffering).filter(SubjectOffering.id == offering_id).first()
+        if not offering:
+            return None
+        
+        exam_filter = or_(
+            Exam.offering_id == offering_id,
+            and_(Exam.subject_id == offering.subject_id, Exam.cohort_id == offering.cohort_id)
+        )
+        
         result = self.db.execute(
             select(
                 func.sum(StudentQuestionMark.marks).label('scored'),
@@ -558,7 +576,7 @@ class InsightRuleEngine:
             .join(Exam, Exam.id == ExamSection.exam_id)
             .where(and_(
                 StudentQuestionMark.usn == usn,
-                Exam.offering_id == offering_id,
+                exam_filter,
                 Exam.exam_type.in_(['INT1', 'INT2'])
             ))
         )

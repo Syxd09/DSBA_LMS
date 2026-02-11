@@ -189,6 +189,10 @@ class POAttainmentDTO(BaseModel):
     attainment_percentage: Decimal
     attainment_level: int = Field(ge=0, le=3)
     contributing_cos: List[COContributionDTO] = Field(default_factory=list)
+    
+    # NBA Breakdown
+    direct_attainment: Optional[Decimal] = Field(default=None, description="Direct attainment from COs (80%)")
+    indirect_attainment: Optional[Decimal] = Field(default=None, description="Indirect attainment from Surveys (20%)")
 
 
 class POSummaryDTO(BaseModel):
@@ -290,3 +294,29 @@ class BacklogSummaryResponse(BaseModel):
     cleared_backlogs: int
     pending_backlogs: int
     subjects: List[BacklogSubjectDTO]
+
+
+# =============================================================================
+# Bloom Analysis Schemas
+# =============================================================================
+
+class BloomLevelDTO(BaseModel):
+    """Bloom level details."""
+    level_name: str
+    level_order: int
+    version: str
+
+class BloomStatsDTO(BaseModel):
+    """Stats for a specific Bloom level."""
+    level: BloomLevelDTO
+    max_marks: Decimal = Field(description="Total marks allocated to this level")
+    obtained_marks: Decimal = Field(description="Total marks obtained by students")
+    percentage: Decimal = Field(description="Obtained / Max * 100")
+    average_score: Decimal = Field(description="Average score per question")
+
+class BloomAnalysisDTO(BaseModel):
+    """Bloom analysis for an offering."""
+    offering_id: UUID
+    total_marks: Decimal
+    bloom_distribution: List[BloomStatsDTO]
+    weakest_levels: List[str]

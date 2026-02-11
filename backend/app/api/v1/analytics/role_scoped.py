@@ -16,7 +16,7 @@ from app.database import get_db
 from app.api.deps import (
     require_authenticated, PermissionChecker, Permission
 )
-from app.models import Profile, StudentEnrollment, Department
+from app.models import Profile, Student, Department, UserRole
 from app.services.analytics.schemas import AnalyticsResponse
 from app.services.analytics.role_scoped import (
     StudentAnalyticsService,
@@ -97,14 +97,15 @@ async def get_student_insights(
     from app.services.insights import get_student_insights as get_insights
     
     # Get student USN from enrollment
-    enrollment = db.query(StudentEnrollment).filter(
-        StudentEnrollment.user_id == current_user.user_id
-    ).first()
+    # Get student USN from student record
+    student = db.query(Profile).filter(Profile.user_id == current_user.user_id).first()
+    # Use Student model to get USN
+    student_record = db.query(Student).filter(Student.user_id == current_user.user_id).first()
     
-    if not enrollment:
-        raise HTTPException(status_code=404, detail="Student enrollment not found")
+    if not student_record:
+        raise HTTPException(status_code=404, detail="Student record not found")
     
-    insights = await get_insights(db, enrollment.usn, offering_id)
+    insights = await get_insights(db, student_record.usn, offering_id)
     
     return {
         "success": True,
@@ -135,19 +136,132 @@ async def get_student_topic_heatmap_endpoint(
     from app.services.analytics.topic_coverage import get_student_topic_heatmap
     
     # Get student USN
-    enrollment = db.query(StudentEnrollment).filter(
-        StudentEnrollment.user_id == current_user.user_id
+    student = db.query(Student).filter(
+        Student.user_id == current_user.user_id
     ).first()
     
-    if not enrollment:
-        raise HTTPException(status_code=404, detail="Student enrollment not found")
+    if not student:
+        raise HTTPException(status_code=404, detail="Student record not found")
     
-    heatmap = await get_student_topic_heatmap(db, enrollment.usn, offering_id)
+    heatmap = await get_student_topic_heatmap(db, student.usn, offering_id)
     
     return {
         "success": True,
         "data": heatmap
     }
+
+
+# ============================================================================
+# NEW: STAFF VIEW OF STUDENT (Teacher/HOD/Principal)
+# ============================================================================
+
+@router.get(
+    "/staff/student/{student_id}/performance",
+    response_model=AnalyticsResponse,
+    summary="Student Performance (Staff View)",
+    description="View specific student's performance. RBAC: DASHBOARD_TEACHER/HOD/PRINCIPAL.",
+    dependencies=[Depends(require_authenticated)]
+)
+async def get_student_performance_staff_view(
+    student_id: UUID,
+    regulation_year: int = Query(default=2021),
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated),
+    # Implicitly checked by ScopeResolver inside
+):
+    """
+    Get academic performance for a specific student.
+    Restricted by user scope (Teacher -> Assigned, HOD -> Dept, Principal -> All).
+    """
+    from app.core.scope import ScopeResolver, check_scope_access, AppRole
+    from app.models import UserRole
+    
+    # Resolve user role
+    user_role_entry = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
+    role_enum = AppRole(user_role_entry.role) if user_role_entry else AppRole.STUDENT
+    
+    # Resolve scope
+    scope = ScopeResolver.resolve(db, current_user, role_enum)
+    
+    # Get target student to check access (need USN and/or cohort)
+    target_student = db.query(Student).filter(Student.user_id == student_id).first()
+    if not target_student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    # Check access using USN (ScopeResolver logic needed)
+    # ScopeResolver supports student_usns list or unrestricted
+    # We check if this student's USN is in allowed list OR if user has broader access
+    
+    # Simplified Check:
+    # 1. Principal -> Allow
+    # 2. HOD -> Check if student's program dept matches HOD dept
+    # 3. Teacher -> Check if student is in any cohort assigned to teacher?
+    # ScopeResolver.check_scope_access can handle this if we pass cohort_id
+    
+    allowed, reason = check_scope_access(
+        scope=scope,
+        cohort_id=target_student.cohort_id,
+        student_usn=target_student.usn
+    )
+    
+    if not allowed:
+        raise HTTPException(status_code=403, detail=f"Access denied: {reason}")
+
+    return await StudentAnalyticsService.get_academic_performance(
+        db=db,
+        student_id=student_id,
+        regulation_year=regulation_year
+    )
+
+
+@router.get(
+    "/staff/student/{student_id}/co-profile/{offering_id}",
+    response_model=AnalyticsResponse,
+    summary="Student CO Profile (Staff View)",
+    description="View specific student's CO profile. RBAC: DASHBOARD_TEACHER/HOD/PRINCIPAL.",
+    dependencies=[Depends(require_authenticated)]
+)
+async def get_student_co_profile_staff_view(
+    student_id: UUID,
+    offering_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """
+    Get CO attainment profile for a specific student in a subject.
+    Restricted by user scope.
+    """
+    from app.core.scope import ScopeResolver, check_scope_access, AppRole
+    from app.models import UserRole
+    
+    # Resolve user role
+    user_role_entry = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
+    role_enum = AppRole(user_role_entry.role) if user_role_entry else AppRole.STUDENT
+    
+    # Resolve scope
+    scope = ScopeResolver.resolve(db, current_user, role_enum)
+    
+    # Get target student
+    target_student = db.query(Student).filter(Student.user_id == student_id).first()
+    if not target_student:
+        raise HTTPException(status_code=404, detail="Student not found")
+        
+    # Check access
+    allowed, reason = check_scope_access(
+        scope=scope,
+        cohort_id=target_student.cohort_id,
+        offering_id=offering_id, # Also check usage of this offering
+        student_usn=target_student.usn
+    )
+    
+    if not allowed:
+        raise HTTPException(status_code=403, detail=f"Access denied: {reason}")
+        
+    return await StudentAnalyticsService.get_co_attainment_profile(
+        db=db,
+        student_id=student_id,
+        offering_id=offering_id
+    )
 
 
 # ============================================================================

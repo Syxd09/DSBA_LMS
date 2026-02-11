@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { analyticsApi, subjectsApi, templatesApi, topicCoverageApi } from '@/lib/api';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { analyticsApi, cohortsApi, offeringsApi, templatesApi, topicCoverageApi } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -76,18 +76,28 @@ function TopicHeatmap({ offeringId }: { offeringId: string }) {
 
 export default function COPOAnalytics() {
 
-  const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const [selectedCohort, setSelectedCohort] = useState<string>('');
+  const [selectedOffering, setSelectedOffering] = useState<string>('');
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const { data: subjects = [] } = useQuery({
-    queryKey: ['subjects'],
-    queryFn: () => subjectsApi.list(),
+  // 1. Fetch Cohorts
+  const { data: cohorts = [] } = useQuery({
+    queryKey: ['cohorts'],
+    queryFn: () => cohortsApi.list(),
   });
 
+  // 2. Fetch Offerings (Subjects) for the selected cohort
+  const { data: offerings = [], isLoading: isLoadingOfferings } = useQuery({
+    queryKey: ['offerings', selectedCohort],
+    queryFn: () => offeringsApi.list({ cohort_id: selectedCohort }),
+    enabled: !!selectedCohort,
+  });
+
+  // 3. Fetch Analytics for the selected OFFERING (not generic subject)
   const { data: coAttainmentResponse, isLoading } = useQuery({
-    queryKey: ['co-attainment', selectedSubject],
-    queryFn: () => analyticsApi.getCOAttainment(selectedSubject),
-    enabled: !!selectedSubject,
+    queryKey: ['co-attainment', selectedOffering],
+    queryFn: () => analyticsApi.getCOAttainment(selectedOffering),
+    enabled: !!selectedOffering,
   });
 
   // Map backend response to UI structure
@@ -97,8 +107,8 @@ export default function COPOAnalytics() {
     co_number: co.co_code.replace('CO', ''), // Extract number for display
     co_code: co.co_code,
     description: co.co_statement,
-    attainment: co.final_attainment?.percentage || 0,
-    target: co.final_attainment?.threshold || 60
+    attainment: Number(co.final_attainment?.percentage || 0),
+    target: Number(co.final_attainment?.threshold || 60)
   })) || [];
 
   const poContribution = coAttainmentResponse?.data?.po_contribution || [];
@@ -114,11 +124,11 @@ export default function COPOAnalytics() {
 
   // PDF Download handler
   const handleDownload = async (format: 'pdf' | 'xlsx') => {
-    if (!selectedSubject) return;
+    if (!selectedOffering) return;
     
     setIsDownloading(true);
     try {
-      const blob = await templatesApi.getCOAttainmentReport(selectedSubject, format);
+      const blob = await templatesApi.getCOAttainmentReport(selectedOffering, format);
       
       // Create download link
       const url = window.URL.createObjectURL(new Blob([blob]));
@@ -151,19 +161,35 @@ export default function COPOAnalytics() {
             <p className="text-muted-foreground">Course Outcome and Program Outcome analysis</p>
           </div>
           <div className="flex items-center gap-3">
-            <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Select subject" />
+             {/* Cohort Selector */}
+             <Select value={selectedCohort} onValueChange={(v) => { setSelectedCohort(v); setSelectedOffering(''); }}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Select cohort" />
               </SelectTrigger>
               <SelectContent>
-                {subjects.map((s: any) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.code} - {s.name}
+                {cohorts.map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {selectedSubject && (
+
+            {/* Offering Selector */}
+            <Select value={selectedOffering} onValueChange={setSelectedOffering} disabled={!selectedCohort}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder={isLoadingOfferings ? "Loading..." : "Select subject"} />
+              </SelectTrigger>
+              <SelectContent>
+                {offerings.map((o: any) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.subject?.code} - {o.subject?.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {selectedOffering && (
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -188,11 +214,11 @@ export default function COPOAnalytics() {
           </div>
         </div>
 
-        {!selectedSubject ? (
+        {!selectedOffering ? (
           <Card>
             <CardContent className="py-12 text-center text-muted-foreground">
               <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Select a subject to view CO-PO analytics</p>
+              <p>Select a cohort and subject to view CO-PO analytics</p>
             </CardContent>
           </Card>
         ) : isLoading ? (
@@ -303,7 +329,7 @@ export default function COPOAnalytics() {
 
             
             {/* Topic Weakness Heatmap (P3-03) */}
-            <TopicHeatmap offeringId={selectedSubject} />
+            <TopicHeatmap offeringId={selectedOffering} />
           </>
         )}
       </div>

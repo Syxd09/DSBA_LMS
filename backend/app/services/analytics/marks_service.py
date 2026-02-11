@@ -400,3 +400,53 @@ def get_offering_marks_paginated(
             has_prev=page > 0
         )
     )
+
+
+def compute_exam_marks(
+    db: Session,
+    exam_id: UUID,
+    usn: str
+) -> Tuple[Decimal, List[WarningDTO]]:
+    """
+    Compute total marks for a specific exam for a student.
+    Handles Section Selection Mode (Best N).
+    """
+    all_warnings = []
+    total_marks = Decimal("0")
+    
+    # Get sections
+    sections = get_exam_sections(db, exam_id)
+    if not sections:
+        return Decimal("0"), []
+    
+    # Get all sub-questions
+    sub_questions = get_exam_sub_questions(db, exam_id)
+    
+    # Get student marks
+    student_marks = get_student_question_marks(db, usn, exam_id)
+    
+    # Group sub-questions by section
+    sq_by_section: Dict[UUID, List] = {}
+    for sq in sub_questions:
+        if sq.section_id not in sq_by_section:
+            sq_by_section[sq.section_id] = []
+        sq_by_section[sq.section_id].append(sq)
+    
+    # Compute per section
+    for section in sections:
+        section_sqs = sq_by_section.get(section.id, [])
+        
+        # Get marks and max_marks lists
+        marks_list = [student_marks.get(sq.id) for sq in section_sqs]
+        max_list = [sq.max_marks for sq in section_sqs]
+        
+        section_result = get_section_marks_with_selection(
+            question_marks=marks_list,
+            question_max_marks=max_list,
+            selection_mode=section.selection_mode,
+            required_questions=section.required_questions
+        )
+        
+        total_marks += section_result.section_marks
+            
+    return total_marks, all_warnings

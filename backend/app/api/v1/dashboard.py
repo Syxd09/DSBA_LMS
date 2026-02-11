@@ -24,8 +24,8 @@ from app.api.deps import (
 )
 from app.models import (
     Profile, UserRole, Department, Program, Cohort, Subject, Student,
-    StudentEnrollment, TeacherAssignment, Exam,
-    FinalMarks, SemesterResult, CourseOutcome, StudentMarks, SubQuestion, Question, ExamSection,
+    TeacherAssignment, Exam,
+    FinalMarks, SemesterResult, CourseOutcome, StudentQuestionMark, SubQuestion, Question, ExamSection,
     SubjectOffering
 )
 from app.core.permissions import AppRole
@@ -39,73 +39,28 @@ from app.schemas import (
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 
-def _compute_exam_total_for_student(
-    db: Session,
-    exam_id: UUID,
-    student_id: UUID
-) -> Decimal:
-    """
-    Compute exam total for a student on-demand.
-    This replaces the stored MarksComputed table.
-    """
-    sections = db.query(ExamSection).filter(ExamSection.exam_id == exam_id).all()
-    student_marks = db.query(StudentMarks).filter(
-        StudentMarks.exam_id == exam_id,
-        StudentMarks.student_id == student_id
-    ).all()
-    
-    if not student_marks:
-        return None
-    
-    total = Decimal(0)
-    
-    for section in sections:
-        section_questions = db.query(Question).filter(Question.section_id == section.id).all()
-        
-        if section.selection_mode == "BEST_N":
-            question_totals = []
-            for question in section_questions:
-                sub_questions = db.query(SubQuestion).filter(SubQuestion.question_id == question.id).all()
-                sq_ids = [sq.id for sq in sub_questions]
-                q_marks = sum(m.marks for m in student_marks if m.sub_question_id in sq_ids)
-                question_totals.append(q_marks)
-            
-            question_totals.sort(reverse=True)
-            best = question_totals[:section.required_questions]
-            total += sum(best)
-        else:
-            for question in section_questions[:section.required_questions]:
-                sub_questions = db.query(SubQuestion).filter(SubQuestion.question_id == question.id).all()
-                sq_ids = [sq.id for sq in sub_questions]
-                q_marks = sum(m.marks for m in student_marks if m.sub_question_id in sq_ids)
-                total += q_marks
-    
-    return total
+from app.services.analytics import marks_service
+
+# _compute_exam_total_for_student REPLACED by marks_service.compute_exam_marks
+# Wrappers below use the service function directly.
 
 
 def _get_exam_computed_totals(db: Session, exam_id: UUID, exam_max_marks: Decimal) -> List[float]:
-    """Get computed percentages for all students in an exam."""
-    # Optimization: Use MarksComputed if available
-    try:
-        from app.models import MarksComputed
-        computed = db.query(MarksComputed).filter(MarksComputed.exam_id == exam_id).all()
-        if computed:
-            return [
-                float(c.percentage) if c.percentage is not None 
-                else (float(c.total_marks) / float(exam_max_marks) * 100 if exam_max_marks > 0 else 0)
-                for c in computed
-            ]
-    except ImportError:
-        pass
-
-    # Get unique student IDs for this exam
-    student_ids = db.query(StudentMarks.student_id).filter(
-        StudentMarks.exam_id == exam_id
+    """Get computed percentages for all students in an exam using on-demand computation."""
+    # Get unique student USNs for this exam via StudentQuestionMark
+    results = db.query(Student.user_id, Student.usn).join(
+        StudentQuestionMark, Student.usn == StudentQuestionMark.usn
+    ).filter(
+        StudentQuestionMark.exam_id == exam_id
     ).distinct().all()
     
     percentages = []
-    for (student_id,) in student_ids:
-        total = _compute_exam_total_for_student(db, exam_id, student_id)
+    for student_id, usn in results:
+        if not usn:
+            continue
+            
+        total, _ = marks_service.compute_exam_marks(db, exam_id, usn)
+        
         if total is not None and exam_max_marks > 0:
             pct = float(total) / float(exam_max_marks) * 100
             percentages.append(pct)
@@ -113,57 +68,83 @@ def _get_exam_computed_totals(db: Session, exam_id: UUID, exam_max_marks: Decima
     return percentages
 
 
-def calculate_at_risk_students(db: Session, cohort_ids: List = None) -> int:
-    """Calculate at-risk students (those with avg < 40%)."""
-    query = db.query(FinalMarks)
-    if cohort_ids:
-        # Filter by cohort through student enrollment
-        # Filter by cohort through Student table
-        student_usns = db.query(Student.usn).filter(
-            Student.cohort_id.in_(cohort_ids),
-            Student.status == "active"
-        ).subquery()
-        query = query.filter(FinalMarks.usn.in_(student_usns))
+def _get_student_exam_averages(db: Session, cohort_ids: List = None) -> dict:
+    """
+    Compute per-student average percentage across all published/locked exams.
+    Returns dict: {student_id: average_percentage}
     
-    all_marks = query.all()
-    at_risk = 0
-    for fm in all_marks:
-        # Compute total
-        total = float(fm.internal_1 or 0) + float(fm.internal_2 or 0) + \
-                float(fm.assignment_1 or 0) + float(fm.assignment_2 or 0) + \
-                float(fm.attendance or 0) + float(fm.activity or 0) + \
-                float(fm.external_marks or 0)
-        # Assuming max marks 100
-        if total < 40:
-            at_risk += 1
+    This replaces the broken FinalMarks-based approach by computing directly
+    from StudentMarks (the table that actually gets populated during marks entry).
+    """
+    # Find all published/locked exams, optionally filtered by cohort
+    exam_query = db.query(Exam).filter(
+        Exam.status.in_(["published", "locked"])
+    )
+    if cohort_ids:
+        exam_query = exam_query.filter(Exam.cohort_id.in_(cohort_ids))
+    
+    exams = exam_query.all()
+    if not exams:
+        return {}
+    
+    # Collect per-student percentages across all exams
+    student_percentages = {}  # student_id -> [pct1, pct2, ...]
+    
+    for exam in exams:
+        if not exam.max_marks or exam.max_marks <= 0:
+            continue
+        
+        # Get unique student USNs with marks in this exam
+        results = db.query(Student.user_id, Student.usn).join(
+            StudentQuestionMark, Student.usn == StudentQuestionMark.usn
+        ).filter(
+            StudentQuestionMark.exam_id == exam.id
+        ).distinct().all()
+        
+        for student_id, usn in results:
+            if not usn:
+                continue
+                
+            total, _ = marks_service.compute_exam_marks(db, exam.id, usn)
             
-    return at_risk
+            # Total defaults to 0 if no marks, but we know student has marks
+            # due to the query above.
+            
+            pct = float(total) / float(exam.max_marks) * 100
+            if student_id not in student_percentages:
+                student_percentages[student_id] = []
+            student_percentages[student_id].append(pct)
+    
+    # Average across all exams per student
+    return {
+        sid: sum(pcts) / len(pcts) 
+        for sid, pcts in student_percentages.items() 
+        if pcts
+    }
+
+
+def calculate_at_risk_students(db: Session, cohort_ids: List = None) -> int:
+    """Calculate at-risk students (those with avg < 40%).
+    
+    Now computes from actual StudentMarks via exam totals instead of
+    the empty FinalMarks table.
+    """
+    averages = _get_student_exam_averages(db, cohort_ids)
+    return sum(1 for avg in averages.values() if avg < 40)
 
 
 def calculate_pass_rate(db: Session, cohort_ids: List = None) -> float:
-    """Calculate pass rate (percentage of students with avg >= 40%)."""
-    query = db.query(FinalMarks)
-    if cohort_ids:
-        student_usns = db.query(Student.usn).filter(
-            Student.cohort_id.in_(cohort_ids),
-            Student.status == "active"
-        ).subquery()
-        query = query.filter(FinalMarks.usn.in_(student_usns))
+    """Calculate pass rate (percentage of students with avg >= 40%).
     
-    all_marks = query.all()
-    if not all_marks:
+    Now computes from actual StudentMarks via exam totals instead of
+    the empty FinalMarks table.
+    """
+    averages = _get_student_exam_averages(db, cohort_ids)
+    if not averages:
         return 0.0
     
-    passed = 0
-    for fm in all_marks:
-        total = float(fm.internal_1 or 0) + float(fm.internal_2 or 0) + \
-                float(fm.assignment_1 or 0) + float(fm.assignment_2 or 0) + \
-                float(fm.attendance or 0) + float(fm.activity or 0) + \
-                float(fm.external_marks or 0)
-        if total >= 40:
-            passed += 1
-
-    return round(passed / len(all_marks) * 100, 1)
+    passed = sum(1 for avg in averages.values() if avg >= 40)
+    return round(passed / len(averages) * 100, 1)
 
 
 @router.get(
@@ -250,7 +231,7 @@ async def get_principal_dashboard(
         sq_ids = [sq.id for sq in sub_questions]
         
         if sq_ids:
-            marks = db.query(StudentMarks).filter(StudentMarks.sub_question_id.in_(sq_ids)).all()
+            marks = db.query(StudentQuestionMark).filter(StudentQuestionMark.sub_question_id.in_(sq_ids)).all()
             total_marks = sum(float(m.marks) for m in marks) if marks else 0
             # Calculate max marks based on number of students who attempted
             # Simplification: assuming all marks entries correspond to valid attempts
@@ -259,7 +240,7 @@ async def get_principal_dashboard(
             # Correct calculation: max_marks_per_sq * number_of_students_who_attempted
             current_max = 0
             for sq in sub_questions:
-                attempt_count = db.query(StudentMarks).filter(StudentMarks.sub_question_id == sq.id).count()
+                attempt_count = db.query(StudentQuestionMark).filter(StudentQuestionMark.sub_question_id == sq.id).count()
                 current_max += float(sq.max_marks) * attempt_count
             
             attainment = (total_marks / current_max * 100) if current_max > 0 else 0
@@ -355,7 +336,7 @@ async def get_hod_dashboard(
             
             # 2. Bloom Stats (Aggregated)
             # Fetch all marks for this exam
-            exam_marks = db.query(StudentMarks).filter(StudentMarks.exam_id == exam.id).all()
+            exam_marks = db.query(StudentQuestionMark).filter(StudentQuestionMark.exam_id == exam.id).all()
             if exam_marks:
                 sq_ids = list(set(m.sub_question_id for m in exam_marks))
                 sub_questions = db.query(SubQuestion).filter(SubQuestion.id.in_(sq_ids)).all()
@@ -422,72 +403,72 @@ async def get_hod_dashboard(
         # Join: CourseOutcome -> SubQuestion -> Question -> Exam
         # Easier: Get all SubQuestions for these exams, then group by CO
         
-        # Get all sections for these exams
-        sections = db.query(ExamSection).filter(ExamSection.exam_id.in_(exam_ids)).all()
-        section_ids = [s.id for s in sections]
-        
-        # Get all questions
-        questions = db.query(Question).filter(Question.section_id.in_(section_ids)).all()
-        q_ids = [q.id for q in questions]
-        
-        # Get all sub-questions
-        sub_questions = db.query(SubQuestion).filter(
-            (SubQuestion.question_id.in_(q_ids))
-        ).all()
-        sq_ids = [sq.id for sq in sub_questions]
-        
-        # Get marks for these sub-questions
-        all_marks = db.query(StudentMarks).filter(StudentMarks.sub_question_id.in_(sq_ids)).all()
-        
-        # Group marks by CO
-        co_stats = {} # co_number -> {scored: 0, max: 0, target: 60}
-        
-        # Helper to get CO details
-        co_map = {co.id: co for co in db.query(CourseOutcome).all()}
-        sq_co_map = {sq.id: sq.co_id for sq in sub_questions if sq.co_id}
-        
-        marks_by_sq = {}
-        for m in all_marks:
-            if m.sub_question_id not in marks_by_sq:
-                marks_by_sq[m.sub_question_id] = []
-            marks_by_sq[m.sub_question_id].append(float(m.marks))
+        if exam_ids:
+            # 2. Bulk fetch structure
+            # SubQuestions -> Questions -> Sections -> Exams
+            # We need SubQuestions because they hold the CO mapping and marks
             
-        for sq in sub_questions:
-            if sq.co_id and sq.co_id in co_map:
-                co = co_map[sq.co_id]
-                co_num = co.co_number
-                
-                if co_num not in co_stats:
-                    co_stats[co_num] = {"scored": 0.0, "max": 0.0, "target": float(co.threshold) if co.threshold else 60.0}
-                
-                # Obtained marks for this SQ
-                sq_marks = marks_by_sq.get(sq.id, [])
-                total_scored = sum(sq_marks)
-                attempt_count = len(sq_marks)
-                
-                # Max marks = SQ Max * Attempts
-                total_max = float(sq.max_marks) * attempt_count
-                
-                co_stats[co_num]["scored"] += total_scored
-                co_stats[co_num]["max"] += total_max
-        
-        # Format results
-        for co_num, stats in co_stats.items():
-            attainment = 0.0
-            if stats["max"] > 0:
-                attainment = (stats["scored"] / stats["max"]) * 100
-                
-            co_attainment.append(COAttainmentData(
-                co=f"CO{co_num}",
-                co_number=co_num,
-                description=f"Course Outcome {co_num}", # Generic description for aggregated
-                attainment=round(attainment, 1),
-                target=stats["target"],
-                achieved=attainment >= stats["target"]
-            ))
+            # SubQuestions with COs
+            sub_questions = db.query(SubQuestion).join(Question).join(ExamSection).filter(
+                ExamSection.exam_id.in_(exam_ids),
+                SubQuestion.co_id.isnot(None)
+            ).all()
             
-        # Sort by CO number
-        co_attainment.sort(key=lambda x: x.co_number)
+            sq_ids = [sq.id for sq in sub_questions]
+            sq_co_map = {sq.id: sq.co_id for sq in sub_questions}
+            sq_max_map = {sq.id: float(sq.max_marks) for sq in sub_questions}
+            
+            # 3. Bulk fetch marks for these sub-questions
+            if sq_ids:
+                all_marks = db.query(StudentQuestionMark).filter(
+                    StudentQuestionMark.sub_question_id.in_(sq_ids)
+                ).all()
+                
+                # 4. Aggregate by CO
+                co_stats = {} # co_id -> {scored, max, target}
+                
+                # Pre-fetch COs for details
+                co_ids = set(sq.co_id for sq in sub_questions)
+                cos = db.query(CourseOutcome).filter(CourseOutcome.id.in_(co_ids)).all()
+                co_map = {c.id: c for c in cos}
+                
+                for mark in all_marks:
+                    sq_id = mark.sub_question_id
+                    co_id = sq_co_map.get(sq_id)
+                    
+                    if co_id and co_id in co_map:
+                        if co_id not in co_stats:
+                            co_obj = co_map[co_id]
+                            co_stats[co_id] = {
+                                "co_obj": co_obj,
+                                "scored": 0.0,
+                                "max": 0.0
+                            }
+                        
+                        co_stats[co_id]["scored"] += float(mark.marks)
+                        # Max marks for this specific attempt
+                        co_stats[co_id]["max"] += sq_max_map.get(sq_id, 0.0)
+                
+                # 5. Calculate attainment
+                for co_id, stats in co_stats.items():
+                    co = stats["co_obj"]
+                    pct = 0.0
+                    if stats["max"] > 0:
+                        pct = (stats["scored"] / stats["max"]) * 100
+                    
+                    target = float(co.threshold) if co.threshold else 60.0
+                    
+                    co_attainment.append(COAttainmentData(
+                        co=f"CO{co.co_number}",
+                        co_number=co.co_number,
+                        description=co.description or f"Course Outcome {co.co_number}",
+                        attainment=round(pct, 1),
+                        target=target,
+                        achieved=pct >= target
+                    ))
+                
+                # Sort by CO Number
+                co_attainment.sort(key=lambda x: x.co_number)
     
     return HODDashboardData(
         department_students=dept_students,
@@ -600,47 +581,100 @@ async def get_student_dashboard(
     current_user: Profile = Depends(require_authenticated)
 ):
     """Get student dashboard data. RBAC: DASHBOARD_STUDENT."""
-    # Get student details (USN)
+    # Get student details (USN and cohort)
     student = db.query(Student).filter(Student.user_id == current_user.user_id).first()
     usn = student.usn if student else ""
+    cohort_id = student.cohort_id if student else None
 
-    # Get student enrollment
-    enrollment = db.query(StudentEnrollment).filter(
-        StudentEnrollment.student_id == current_user.user_id,
-        StudentEnrollment.status == "active"
-    ).first()
+    effective_cohort_id = cohort_id
     
+    # Count subjects enrolled via SubjectOffering for this cohort
     subjects_enrolled = 0
-    if enrollment:
-        # Get subjects for the cohort
-        cohort = db.query(Cohort).filter(Cohort.id == enrollment.cohort_id).first()
-        if cohort:
-            subjects_enrolled = db.query(Subject).filter(
-                Subject.semester <= cohort.current_semester
-            ).count()
+    if effective_cohort_id:
+        subjects_enrolled = db.query(SubjectOffering).filter(
+            SubjectOffering.cohort_id == effective_cohort_id
+        ).count()
     
-    # Get final marks
-    final_marks = db.query(FinalMarks).filter(
-        FinalMarks.student_id == current_user.user_id
-    ).all()
+    # ---- COMPUTE RESULTS FROM StudentQuestionMark (the table that IS populated) ----
+    # Get all marks for this student using USN
+    student_marks = []
+    if usn:
+        student_marks = db.query(StudentQuestionMark).filter(
+            StudentQuestionMark.usn == usn
+        ).all()
     
-    # Calculate averages
-    # Calculate averages
-    percentages = []
-    if final_marks:
-        for fm in final_marks:
-            total = float(fm.internal_1 or 0) + float(fm.internal_2 or 0) + \
-                    float(fm.assignment_1 or 0) + float(fm.assignment_2 or 0) + \
-                    float(fm.attendance or 0) + float(fm.activity or 0) + \
-                    float(fm.external_marks or 0)
-            # Assuming max marks is 100 for now
-            percentages.append(total)
+    # Group marks by exam_id to compute per-exam totals
+    exam_ids = list(set(m.exam_id for m in student_marks))
+    
+    # Get exam details
+    exams = db.query(Exam).filter(
+        Exam.id.in_(exam_ids),
+        Exam.status.in_(["published", "locked"])
+    ).all() if exam_ids else []
+    
+    # Compute per-subject results
+    subject_results = {}  # subject_id -> {totals, max, exams}
+    exam_map = {e.id: e for e in exams}
+    
+    for exam in exams:
+        if not exam.subject_id:
+            continue
             
-        overall_avg = sum(percentages) / len(percentages) if percentages else 0
-    else:
-        overall_avg = 0
+        total, _ = marks_service.compute_exam_marks(db, exam.id, usn)
+        
+        # We assume intent to display if exam is in the list derived from student_marks
+        # marks_service returns 0 if no marks found.
+
+        
+        if exam.subject_id not in subject_results:
+            subject_results[exam.subject_id] = {
+                "exam_totals": [],
+                "exam_max": [],
+                "exam_types": []
+            }
+        subject_results[exam.subject_id]["exam_totals"].append(float(total))
+        subject_results[exam.subject_id]["exam_max"].append(float(exam.max_marks))
+        subject_results[exam.subject_id]["exam_types"].append(exam.exam_type)
     
-    # Get semester result
+    # Build results list
+    results = []
+    percentages = []
+    
+    for subject_id, data in subject_results.items():
+        subject = db.query(Subject).filter(Subject.id == subject_id).first()
+        if not subject:
+            continue
+        
+        total_marks = sum(data["exam_totals"])
+        max_marks = sum(data["exam_max"])
+        pct = (total_marks / max_marks * 100) if max_marks > 0 else 0
+        percentages.append(pct)
+        
+        # Find offering for CO attainment chart
+        offering_id = None
+        if effective_cohort_id:
+            offering = db.query(SubjectOffering).filter(
+                SubjectOffering.subject_id == subject_id,
+                SubjectOffering.cohort_id == effective_cohort_id
+            ).first()
+            if offering:
+                offering_id = str(offering.id)
+        
+        results.append({
+            "subject_id": str(subject_id),
+            "subject_name": subject.name,
+            "subject_code": subject.code,
+            "offering_id": offering_id,
+            "total_marks": round(total_marks, 1),
+            "max_marks": round(max_marks, 1),
+            "grade": "N/A",  # Grade is computed on demand
+            "percentage": round(pct, 1)
+        })
+    
+    # Calculate overall average from actual exam percentages
+    overall_avg = sum(percentages) / len(percentages) if percentages else 0
+    
+    # Get semester result for SGPA/CGPA (if populated)
     semester_result = db.query(SemesterResult).filter(
         SemesterResult.student_id == current_user.user_id
     ).order_by(SemesterResult.semester.desc()).first()
@@ -648,41 +682,9 @@ async def get_student_dashboard(
     sgpa = float(semester_result.sgpa) if semester_result and semester_result.sgpa else 0.0
     cgpa = float(semester_result.cgpa) if semester_result and semester_result.cgpa else 0.0
     
-    # Build results data
-    results = []
-    for fm in final_marks:
-        subject = db.query(Subject).filter(Subject.id == fm.subject_id).first()
-        if subject:
-            # Find the offering for this student's cohort
-            offering_id = None
-            if enrollment:
-                offering = db.query(SubjectOffering).filter(
-                    SubjectOffering.subject_id == subject.id,
-                    SubjectOffering.cohort_id == enrollment.cohort_id
-                ).first()
-                if offering:
-                    offering_id = str(offering.id)
-
-            results.append({
-                "subject_id": str(subject.id),
-                "subject_name": subject.name,
-                "subject_code": subject.code,
-                "offering_id": offering_id,
-                "internal_1": float(fm.internal_1) if fm.internal_1 else None,
-                "internal_2": float(fm.internal_2) if fm.internal_2 else None,
-                "total_marks": float(fm.internal_1 or 0) + float(fm.internal_2 or 0) + float(fm.external_marks or 0),
-                "max_marks": 100,  # Assuming 100 max
-                "grade": "N/A", # Grade is computed on demand, not stored
-                "percentage": float(fm.internal_1 or 0) + float(fm.internal_2 or 0) + float(fm.external_marks or 0) # Simplified
-            })
-    
-    # Calculate real Bloom performance from student's marks
+    # ---- BLOOM PERFORMANCE (already uses StudentMarks correctly) ----
     bloom_performance = []
     bloom_levels = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create']
-    
-    student_marks = db.query(StudentMarks).filter(
-        StudentMarks.student_id == current_user.user_id
-    ).all()
     
     if student_marks:
         sq_ids = [m.sub_question_id for m in student_marks]

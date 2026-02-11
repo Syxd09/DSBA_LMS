@@ -14,6 +14,7 @@ from app.api.v1.analytics.sgpa_cgpa import router as sgpa_router
 from app.api.v1.analytics.result import router as result_router
 from app.api.v1.analytics.role_scoped import router as role_scoped_router
 from app.api.v1.analytics.stats import router as stats_router
+from app.api.v1.analytics.bloom import router as bloom_router
 
 
 router = APIRouter()
@@ -25,6 +26,7 @@ router.include_router(po_router)
 router.include_router(pso_router)  # NEW: PSO analytics
 router.include_router(sgpa_router)
 router.include_router(result_router)
+router.include_router(bloom_router)
 
 # Phase-3 Role-Scoped Analytics
 router.include_router(role_scoped_router)

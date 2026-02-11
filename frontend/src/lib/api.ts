@@ -292,7 +292,7 @@ export const subjectsApi = {
 
 // Exams API
 export const examsApi = {
-    list: (params?: { subject_id?: string; cohort_id?: string; status_filter?: string }) =>
+    list: (params?: { subject_id?: string; cohort_id?: string; offering_id?: string; status_filter?: string }) =>
         apiClient.get('/exams', { params }).then(r => r.data),
 
     create: (data: { subject_id: string; cohort_id: string; exam_type: string; max_marks: number }) =>
@@ -411,6 +411,11 @@ export const roleAnalyticsApi = {
 
     getTopicHeatmap: (offeringId: string) =>
         apiClient.get(`/analytics/role/student/topic-heatmap/${offeringId}`).then(r => r.data),
+
+    getStudentInsights: (offeringId?: string) =>
+        apiClient.get('/analytics/role/student/insights', {
+            params: { offering_id: offeringId }
+        }).then(r => r.data),
 
     // Faculty analytics (assigned subjects)
     getSubjectHealth: (offeringId: string) =>

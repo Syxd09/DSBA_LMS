@@ -346,7 +346,7 @@ export default function GradeManagement() {
                       <TableCell>{m.internal_2 ?? '-'}</TableCell>
                       <TableCell>{m.best_internal}</TableCell>
                       <TableCell>{m.total_marks}</TableCell>
-                      <TableCell>{m.percentage?.toFixed(1)}%</TableCell>
+                      <TableCell>{(Number(m.percentage) || 0).toFixed(1)}%</TableCell>
                       <TableCell>
                         <Badge variant={m.grade !== 'F' ? 'default' : 'destructive'}>
                           {m.grade}

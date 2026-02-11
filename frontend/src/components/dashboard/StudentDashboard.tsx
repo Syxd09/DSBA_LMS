@@ -1,5 +1,6 @@
 import { StatsCard } from './StatsCard';
 import { COAttainmentChart } from './COAttainmentChart';
+import { BloomTaxonomyChart } from './BloomTaxonomyChart';
 import { TopicWeaknessHeatmap } from './TopicWeaknessHeatmap';
 import { InternalExternalGapChart } from './InternalExternalGapChart';
 import { InsightsCard } from './InsightsCard';
@@ -152,32 +153,7 @@ export function StudentDashboard() {
       {/* Learning Analysis */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Bloom's Taxonomy Performance */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Brain className="w-4 h-4" />
-              Bloom's Taxonomy Performance
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {radarData.length > 0 ? (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={radarData}>
-                    <PolarGrid stroke="hsl(var(--border))" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} />
-                    <Radar name="Performance" dataKey="A" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.5} />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <p className="text-center py-8 text-muted-foreground">
-                Bloom's taxonomy analysis will appear after exams are completed.
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <BloomTaxonomyChart data={bloomPerformance} />
 
         {/* Topic Weakness Heatmap */}
         <TopicWeaknessHeatmap results={results} />

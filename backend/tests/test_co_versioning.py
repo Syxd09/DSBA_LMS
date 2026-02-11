@@ -11,22 +11,31 @@ from sqlalchemy.orm import Session
 
 from app.main import app
 from app.database import get_db
-from app.models import Profile, Subject, SubjectOffering, Cohort, CourseOutcome, Program
+from app.models import Profile, Subject, SubjectOffering, Cohort, CourseOutcome, Program, UserRole
 from app.core.security import create_access_token
 
 @pytest.fixture
-def client():
+def client(db: Session):
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            pass
+    app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
+    app.dependency_overrides.clear()
 
 @pytest.fixture
 def setup_versioning_data(db: Session):
     """Create a Subject and two Offerings (Batch 2023, Batch 2024)."""
     # 1. Admin/HOD User
+    hod_uid = uuid4()
     hod = Profile(
-        id=uuid4(), email="hod_audit@test.com", full_name="Audit HOD", role="hod", is_active=True
+        id=uuid4(), user_id=hod_uid, email="hod_audit@test.com", full_name="Audit HOD"
     )
     db.add(hod)
+    db.add(UserRole(id=uuid4(), user_id=hod_uid, role="hod"))
     
     # 2. Program
     program = Program(id=uuid4(), name="CSE", code="CSE", duration_semesters=8)
@@ -89,7 +98,7 @@ def test_co_versioning_isolation(client: TestClient, setup_versioning_data, db: 
     offering_2023 = data["offering_2023"]
     offering_2024 = data["offering_2024"]
     
-    token = create_token(hod.id, "hod")
+    token = create_token(hod.user_id, "hod")
     headers = {"Authorization": f"Bearer {token}"}
     
     # 1. Create CO for 2023 Batch

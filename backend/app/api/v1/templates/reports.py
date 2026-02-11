@@ -345,7 +345,7 @@ async def get_naac_criterion_2_report(
     db: Session = Depends(get_db)
 ):
     """Generate NAAC Criterion 2 compliance report."""
-    from app.models import Program, Cohort, ProgramOutcome, StudentEnrollment, Exam
+    from app.models import Program, Cohort, ProgramOutcome, Student, Exam
     
     try:
         program = db.query(Program).filter(Program.id == program_id).first()
@@ -365,8 +365,8 @@ async def get_naac_criterion_2_report(
         # Build 2.6.1 data (Student Pass Percentage)
         pass_percentage_data = []
         for cohort in cohorts:
-            total_students = db.query(StudentEnrollment).filter(
-                StudentEnrollment.cohort_id == cohort.id
+            total_students = db.query(Student).filter(
+                Student.cohort_id == cohort.id
             ).count()
             
             pass_percentage_data.append({

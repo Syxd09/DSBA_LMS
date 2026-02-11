@@ -11,7 +11,10 @@ from decimal import Decimal
 from datetime import datetime
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from starlette.concurrency import run_in_threadpool
+
+from app.models.survey import Survey, SurveyQuestion, SurveyResponse, SurveyQuestionResponse
 
 from app.services.analytics.query_helpers import (
     get_program_pos,
@@ -163,6 +166,10 @@ async def compute_program_po_attainments(
                     final_attainment_level=co_dto.final_attainment.level
                 )
     
+    # Compute Indirect Attainment
+    po_ids_list = [po["po_id"] for po in pos]
+    indirect_map = await _compute_indirect_attainment(db, program_id, academic_year, po_ids_list)
+
     # Compute PO attainments
     po_results = []
     
@@ -189,7 +196,7 @@ async def compute_program_po_attainments(
             if m.co_id in all_co_attainments
         ]
         
-        # Compute PO attainment (Phase-2A)
+        # Compute Direct PO attainment (Phase-2A)
         po_result = compute_po_attainment(
             po_id=po_id,
             po_code=po_code,
@@ -198,6 +205,16 @@ async def compute_program_po_attainments(
             thresholds=thresholds
         )
         all_warnings.extend([_warning_to_dto(w) for w in po_result.warnings])
+        
+        # Compute Final Attainment (Direct + Indirect)
+        direct_percentage = po_result.attainment_percentage
+        indirect_percentage = indirect_map.get(po_id, Decimal("0"))
+        
+        # NBA Standard: 80% Direct + 20% Indirect
+        final_percentage = (direct_percentage * Decimal("0.8")) + (indirect_percentage * Decimal("0.2"))
+        
+        # Rescale level based on final percentage
+        final_level = classify_attainment_static(final_percentage, thresholds)
         
         # Build contributing COs DTOs
         contributing = [
@@ -214,8 +231,10 @@ async def compute_program_po_attainments(
             po_id=po_id,
             po_code=po_code,
             po_statement=po["po_statement"],
-            attainment_percentage=po_result.attainment_percentage,
-            attainment_level=po_result.attainment_level,
+            attainment_percentage=final_percentage,
+            attainment_level=final_level,
+            direct_attainment=direct_percentage,
+            indirect_attainment=indirect_percentage,
             contributing_cos=contributing
         ))
     
@@ -316,9 +335,61 @@ async def get_po_contributing_cos(
                 attainment_percentage=co_dto.final_attainment.percentage
             ))
     
+
     return AnalyticsResponse(
         data=contributions,
         warnings=all_warnings,
         is_complete=True,
         computed_at=datetime.utcnow()
     )
+
+
+async def _compute_indirect_attainment(
+    db: Session,
+    program_id: UUID,
+    academic_year: int,
+    po_ids: List[UUID]
+) -> Dict[UUID, Decimal]:
+    """
+    Compute indirect attainment for a list of POs based on surveys.
+    Returns: Dict[po_id, attainment_percentage]
+    """
+    # Query:
+    # SELECT sq.mapped_po_id, AVG(sqr.score)
+    # FROM survey_question_responses sqr
+    # JOIN survey_questions sq ON sqr.question_id = sq.id
+    # JOIN surveys s ON sq.survey_id = s.id
+    # WHERE s.program_id = :pid AND s.academic_year = :year AND s.is_active = True
+    # AND sq.mapped_po_id IN :po_ids
+    # GROUP BY sq.mapped_po_id
+    
+    if not po_ids:
+        return {}
+
+    query = (
+        db.query(
+            SurveyQuestion.mapped_po_id,
+            func.avg(SurveyQuestionResponse.score).label("avg_score")
+        )
+        .join(SurveyQuestionResponse.question)
+        .join(SurveyQuestion.survey)
+        .filter(
+            Survey.program_id == program_id,
+            Survey.academic_year == academic_year,
+            Survey.is_active == True,
+            SurveyQuestion.mapped_po_id.in_(po_ids)
+        )
+        .group_by(SurveyQuestion.mapped_po_id)
+    )
+    
+    rows = await run_in_threadpool(query.all)
+    
+    results = {}
+    for po_id, avg_score in rows:
+        if avg_score is not None:
+            # Score is 1-5. Convert to percentage.
+            # (Avg / 5) * 100
+            percentage = (Decimal(str(avg_score)) / Decimal("5")) * Decimal("100")
+            results[po_id] = percentage
+            
+    return results

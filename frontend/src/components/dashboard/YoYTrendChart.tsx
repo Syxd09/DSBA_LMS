@@ -126,7 +126,7 @@ export function YoYTrendChart() {
                 <YAxis domain={[0, 100]} fontSize={10} tickLine={false} axisLine={false} />
                 <Tooltip 
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                  formatter={(value: number) => [`${value.toFixed(1)}%`, '']}
+                  formatter={(value: number) => [`${(Number(value) || 0).toFixed(1)}%`, '']}
                 />
                 <Legend />
                 <Line 
@@ -155,7 +155,7 @@ export function YoYTrendChart() {
         {summary.years_with_data > 0 && (
           <div className="mt-4 pt-4 border-t flex justify-between text-sm text-muted-foreground">
             <span>{summary.years_analyzed} years analyzed</span>
-            <span>Latest: {summary.latest_pass_rate.toFixed(1)}% pass rate</span>
+            <span>Latest: {(Number(summary.latest_pass_rate) || 0).toFixed(1)}% pass rate</span>
           </div>
         )}
       </CardContent>

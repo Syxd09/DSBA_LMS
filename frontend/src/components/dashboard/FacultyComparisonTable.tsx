@@ -145,7 +145,7 @@ export function FacultyComparisonTable() {
                         className="w-20 h-2" 
                       />
                       <span className="text-sm font-medium w-12">
-                        {teacher.avg_co_attainment.toFixed(1)}%
+                        {(Number(teacher.avg_co_attainment) || 0).toFixed(1)}%
                       </span>
                     </div>
                   </TableCell>

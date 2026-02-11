@@ -26,8 +26,12 @@ export default function Analytics() {
   });
 
   const { data: exams = [] } = useQuery({
-    queryKey: ['exams'],
-    queryFn: () => examsApi.list(),
+    queryKey: ['exams', selectedCohort, selectedOffering],
+    queryFn: () => examsApi.list({ 
+      cohort_id: selectedCohort || undefined,
+      offering_id: selectedOffering || undefined
+    }),
+    enabled: !!selectedCohort, 
   });
 
   const { data: coAttainment, isLoading: loadingCO } = useQuery({
@@ -47,7 +51,18 @@ export default function Analytics() {
     queryFn: () => analyticsApi.getDepartmentStats(),
   });
 
-  const coData = coAttainment?.outcomes || coAttainment || [];
+  // Transform CO data
+  const coData = useMemo(() => {
+    if (!coAttainment?.data?.cos) return [];
+    
+    return coAttainment.data.cos.map((co: any) => ({
+      co_number: co.co_code.replace('CO', ''),
+      co_code: co.co_code,
+      description: co.co_statement,
+      attainment: Number(co.final_attainment?.percentage || 0),
+    }));
+  }, [coAttainment]);
+
   const deptData = departmentStats || [];
 
   // Transform bloom distribution for radar chart
@@ -55,7 +70,7 @@ export default function Analytics() {
     if (bloomDistribution && bloomDistribution.length > 0) {
       return bloomDistribution.map((b: any) => ({
         subject: b.level,
-        A: b.count || b.percentage || 0,
+        A: b.percentage || b.count || 0,
         fullMark: 100,
       }));
     }

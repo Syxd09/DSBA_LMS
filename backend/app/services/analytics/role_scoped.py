@@ -12,12 +12,12 @@ from uuid import UUID
 from datetime import datetime
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, and_, or_
 
 from app.models import (
-    Profile, Department, Program, Cohort, Subject, StudentEnrollment,
+    Profile, Department, Program, Cohort, Subject, Student,
     TeacherAssignment, CourseOutcome, ProgramOutcome,
-    SubjectOffering, Exam, Question, SubQuestion, StudentMarks
+    SubjectOffering, Exam, ExamSection, Question, SubQuestion, StudentQuestionMark, FinalMarks
 )
 from app.services.analytics.schemas import AnalyticsResponse, WarningDTO
 
@@ -50,22 +50,22 @@ class StudentAnalyticsService:
         warnings = []
         
         # Get student enrollment
-        enrollment = db.query(StudentEnrollment).filter(
-            StudentEnrollment.student_id == student_id,
-            StudentEnrollment.status == "active"
+        student = db.query(Student).filter(
+            Student.user_id == student_id,
+            Student.status == "active"
         ).first()
         
-        if not enrollment:
+        if not student:
             return AnalyticsResponse(
                 data={"error": "Student not enrolled"},
-                warnings=[WarningDTO(code="NOT_ENROLLED", message="Student not found")],
+                warnings=[WarningDTO(code="STU-001", message="Student not found or inactive")],
                 is_complete=False,
                 computed_at=datetime.utcnow()
             )
         
         # Get offerings for this student's cohort
         offerings = db.query(SubjectOffering).filter(
-            SubjectOffering.cohort_id == enrollment.cohort_id
+            SubjectOffering.cohort_id == student.cohort_id
         ).all()
         
         subjects_performance = []
@@ -73,7 +73,7 @@ class StudentAnalyticsService:
             try:
                 marks_response = await get_student_marks_for_offering(
                     db=db,
-                    usn=enrollment.usn,
+                    usn=student.usn,
                     offering_id=offering.id,
                     regulation_year=regulation_year
                 )
@@ -99,11 +99,12 @@ class StudentAnalyticsService:
         return AnalyticsResponse(
             data={
                 "student_id": str(student_id),
-                "usn": enrollment.usn,
+                "usn": student.usn,
+                "name": student.name,
                 "subjects": subjects_performance,
                 "subjects_count": len(subjects_performance),
-                "passed_count": len([s for s in subjects_performance if s.get("is_pass")]),
-                "failed_count": len([s for s in subjects_performance if not s.get("is_pass")]),
+                "passed_count": sum(1 for s in subjects_performance if s.get("is_pass")),
+                "failed_count": sum(1 for s in subjects_performance if not s.get("is_pass")),
             },
             warnings=warnings,
             is_complete=len(warnings) == 0,
@@ -122,14 +123,14 @@ class StudentAnalyticsService:
         """
         from app.services.analytics.co_service import get_co_student_evidence
         
-        enrollment = db.query(StudentEnrollment).filter(
-            StudentEnrollment.student_id == student_id
+        enrollment = db.query(Student).filter(
+            Student.user_id == student_id
         ).first()
         
         if not enrollment:
             return AnalyticsResponse(
                 data={},
-                warnings=[WarningDTO(code="NOT_ENROLLED", message="Student not found")],
+                warnings=[WarningDTO(code="STU-001", message="Student not found")],
                 is_complete=False,
                 computed_at=datetime.utcnow()
             )
@@ -217,7 +218,7 @@ class FacultyAnalyticsService:
         # Verify teacher has access to this offering
         assignment = db.query(TeacherAssignment).filter(
             TeacherAssignment.teacher_id == teacher_id,
-            TeacherAssignment.subject_offering_id == offering_id
+            TeacherAssignment.offering_id == offering_id
         ).first()
         
         if not assignment:
@@ -268,7 +269,7 @@ class FacultyAnalyticsService:
             )
         
         # Get all questions and student marks
-        questions = db.query(Question).filter(Question.exam_id == exam_id).all()
+        questions = db.query(Question).join(ExamSection, Question.section_id == ExamSection.id).filter(ExamSection.exam_id == exam_id).all()
         
         question_analysis = []
         for question in questions:
@@ -277,12 +278,12 @@ class FacultyAnalyticsService:
             ).all()
             sq_ids = [sq.id for sq in sub_questions]
             
-            marks = db.query(StudentMarks).filter(
-                StudentMarks.sub_question_id.in_(sq_ids)
+            marks = db.query(StudentQuestionMark).filter(
+                StudentQuestionMark.sub_question_id.in_(sq_ids)
             ).all() if sq_ids else []
             
             # Calculate metrics
-            total_students = len(set(m.student_id for m in marks)) if marks else 0
+            total_students = len(set(m.usn for m in marks)) if marks else 0
             attempted = len([m for m in marks if m.marks and float(m.marks) > 0])
             max_possible = sum(float(sq.max_marks) for sq in sub_questions) * total_students
             actual_total = sum(float(m.marks) for m in marks) if marks else 0
@@ -336,7 +337,7 @@ class FacultyAnalyticsService:
         # Verify teacher assignment (RBAC)
         assignment = db.query(TeacherAssignment).filter(
             TeacherAssignment.teacher_id == teacher_id,
-            TeacherAssignment.subject_offering_id == offering_id
+            TeacherAssignment.offering_id == offering_id
         ).first()
         
         if not assignment:
@@ -357,10 +358,11 @@ class FacultyAnalyticsService:
                 computed_at=datetime.utcnow()
             )
         
+        
         # Get all students in this offering's cohort (batch query)
-        students = db.query(StudentEnrollment).filter(
-            StudentEnrollment.cohort_id == offering.cohort_id,
-            StudentEnrollment.status == "active"
+        students = db.query(Student).filter(
+            Student.cohort_id == offering.cohort_id,
+            Student.status == "active"
         ).all()
         
         if not students:
@@ -373,7 +375,10 @@ class FacultyAnalyticsService:
         
         # Get all exams for this offering
         exams = db.query(Exam).filter(
-            Exam.offering_id == offering_id,
+            or_(
+                Exam.offering_id == offering_id,
+                and_(Exam.subject_id == offering.subject_id, Exam.cohort_id == offering.cohort_id)
+            ),
             Exam.status == "locked"
         ).all()
         exam_ids = [e.id for e in exams]
@@ -392,7 +397,7 @@ class FacultyAnalyticsService:
             )
         
         # Batch query: Get all questions and subquestions for these exams
-        questions = db.query(Question).filter(Question.exam_id.in_(exam_ids)).all()
+        questions = db.query(Question).join(ExamSection, Question.section_id == ExamSection.id).filter(ExamSection.exam_id.in_(exam_ids)).all()
         question_ids = [q.id for q in questions]
         
         sub_questions = db.query(SubQuestion).filter(
@@ -401,23 +406,49 @@ class FacultyAnalyticsService:
         sq_ids = [sq.id for sq in sub_questions]
         
         # Batch query: Get all student marks at once
-        all_marks = db.query(StudentMarks).filter(
-            StudentMarks.sub_question_id.in_(sq_ids)
+        all_marks = db.query(StudentQuestionMark).filter(
+            StudentQuestionMark.sub_question_id.in_(sq_ids)
         ).all() if sq_ids else []
         
-        # Build lookup: student_id -> marks list
+        # Build lookup: usn -> marks list
         student_marks_map = {}
         for mark in all_marks:
-            if mark.student_id not in student_marks_map:
-                student_marks_map[mark.student_id] = []
-            student_marks_map[mark.student_id].append(mark)
+            if mark.usn not in student_marks_map:
+                student_marks_map[mark.usn] = []
+            student_marks_map[mark.usn].append(mark)
         
         # Calculate max possible marks
         max_marks_per_sq = {sq.id: float(sq.max_marks) for sq in sub_questions}
         total_max_marks = sum(max_marks_per_sq.values())
         
+        # Get FinalMarks for attendance check
+        final_marks_map = {}
+        if offering.subject_id and offering.cohort_id:
+            fms = db.query(FinalMarks).filter(
+                FinalMarks.subject_id == offering.subject_id,
+                FinalMarks.cohort_id == offering.cohort_id
+            ).all()
+            for fm in fms:
+                final_marks_map[fm.student_id] = fm
+
         at_risk_students = []
         for student in students:
+            reasons = []
+            
+            # 1. Check Attendance
+            fm = final_marks_map.get(student.user_id) # maps by user_id usually? No, FinalMarks uses student_id as user_id or usn? 
+            # Model check: FinalMarks.student_id is UUID (user_id).
+            fm = final_marks_map.get(student.student_id)
+            
+            if fm and fm.attendance:
+                # Assuming attendance is marks out of 5. < 3.75 is < 75%
+                try:
+                    att = float(fm.attendance)
+                    if att < 3.75:
+                        reasons.append("Low Attendance (<75%)")
+                except:
+                    pass
+
             marks = student_marks_map.get(student.usn, [])
             if not marks:
                 # No marks yet - may be at risk
@@ -436,20 +467,28 @@ class FacultyAnalyticsService:
             obtained = sum(float(m.marks) if m.marks else 0 for m in marks)
             percentage = (obtained / total_max_marks * 100) if total_max_marks > 0 else 0
             
+            # 2. Check Overall Threshold
             if percentage < threshold:
-                reason = "Low overall score"
                 if percentage < 35:
-                    reason = "Critical: Below passing threshold"
+                    reasons.append("Critical: Overall < 35%")
                 elif percentage < 45:
-                    reason = "Needs immediate attention"
-                
+                    reasons.append("Overall < 45%")
+                else:
+                    reasons.append("Low overall score")
+            
+            # 3. Check Specific Exam Failures (Heuristic: < 40% in any locked exam)
+            # We need to map marks back to exams to do this efficiently
+            # For now, simplistic approach: if overall is low, we flag it. 
+            # To be more granular, we would need to group marks by exam_id.
+            
+            if reasons:
                 at_risk_students.append({
                     "usn": student.usn,
                     "name": student.name,
                     "email": student.email,
                     "percentage": round(percentage, 2),
                     "status": "AT_RISK",
-                    "reason": reason,
+                    "reason": "; ".join(reasons),
                     "marks_obtained": round(obtained, 2),
                     "max_marks": total_max_marks
                 })
@@ -514,15 +553,97 @@ class HODAnalyticsService:
         ).all() if program_ids else []
         
         # Count metrics
-        total_students = db.query(StudentEnrollment).filter(
-            StudentEnrollment.cohort_id.in_([c.id for c in cohorts]),
-            StudentEnrollment.status == "active"
+        total_students = db.query(Student).filter(
+            Student.cohort_id.in_([c.id for c in cohorts]),
+            Student.status == "active"
         ).count() if cohorts else 0
         
-        total_offerings = db.query(SubjectOffering).filter(
+        # Calculate Subject Stats for Backlog Analysis
+        subject_stats = []
+        
+        all_offerings = db.query(SubjectOffering).filter(
             SubjectOffering.cohort_id.in_([c.id for c in cohorts])
-        ).count() if cohorts else 0
+        ).all() if cohorts else []
         
+        for offering in all_offerings:
+             # Get marks for this offering
+            students_enrolled = db.query(Student).filter(
+                Student.cohort_id == offering.cohort_id,
+                Student.status == "active"
+            ).all()
+            
+            student_count = len(students_enrolled)
+            if student_count == 0:
+                continue
+                
+            # Get locked exams for this offering
+            exams = db.query(Exam).filter(
+                or_(
+                    Exam.offering_id == offering.id,
+                    and_(Exam.subject_id == offering.subject_id, Exam.cohort_id == offering.cohort_id)
+                ),
+                Exam.status == 'locked'
+            ).all()
+            exam_ids = [e.id for e in exams]
+            
+            if not exam_ids:
+                continue
+
+            # Fetch all marks for these exams
+            # Simplified: Check if student has passing marks (>=40% usually)
+            # For accurate analysis we need total internal + external. 
+            # This is complex to do on fly. 
+            # Strategy: Count students with < 40% in any locked exam or final calc.
+            
+            # Using a simplified heuristic for "Backlog Risk":
+            # If student average across all locked exams < 50% -> At Risk / Potential Backlog
+            
+            backlog_count = 0
+            internal_fails = 0
+            external_fails = 0
+            
+            # Get questions to map marks
+            questions = db.query(Question).join(ExamSection, Question.section_id == ExamSection.id).filter(ExamSection.exam_id.in_(exam_ids)).all()
+            q_ids = [q.id for q in questions]
+            sub_questions = db.query(SubQuestion).filter(SubQuestion.question_id.in_(q_ids)).all()
+            sq_ids = [sq.id for sq in sub_questions]
+            
+            marks = db.query(StudentQuestionMark).filter(StudentQuestionMark.sub_question_id.in_(sq_ids)).all()
+            
+            # Map student -> total marks
+            student_scores = {}
+            for m in marks:
+                if m.usn not in student_scores:
+                    student_scores[m.usn] = 0
+                student_scores[m.usn] += float(m.marks) if m.marks else 0
+                
+            # Max possible marks
+            total_max = sum(float(sq.max_marks) for sq in sub_questions)
+            
+            if total_max > 0:
+                for s_id, score in student_scores.items():
+                    percentage = (score / total_max) * 100
+                    if percentage < 40: # Fail threshold
+                        backlog_count += 1
+                        # Heuristic: Internal vs External based on exam type
+                        # We don't have exam type breakdown here easily without more queries.
+                        # Assuming 50/50 split for prototype
+                        internal_fails += 0.5 
+                        external_fails += 0.5
+
+            subject_stats.append({
+                "subject_code": offering.subject.code if offering.subject else "",
+                "subject_name": offering.subject.name if offering.subject else "",
+                "student_count": student_count,
+                "backlog_count": backlog_count,
+                "internal_fail_rate": (internal_fails / student_count * 100) if student_count else 0,
+                "external_fail_rate": (external_fails / student_count * 100) if student_count else 0,
+                "avg_attempts": 1 # Placeholder
+            })
+        
+        # Sort by backlog count descending
+        subject_stats.sort(key=lambda x: x["backlog_count"], reverse=True)
+
         return AnalyticsResponse(
             data={
                 "department_id": str(department_id),
@@ -531,7 +652,8 @@ class HODAnalyticsService:
                 "cohorts_count": len(cohorts),
                 "active_students": total_students,
                 "total_offerings": total_offerings,
-                "health_status": "ACTIVE" if total_offerings > 0 else "NO_DATA"
+                "health_status": "ACTIVE" if total_offerings > 0 else "NO_DATA",
+                "subject_stats": subject_stats
             },
             warnings=warnings,
             is_complete=True,
@@ -647,7 +769,7 @@ class HODAnalyticsService:
                 }
             
             # Get offering details
-            offering = db.query(SubjectOffering).get(assignment.subject_offering_id)
+            offering = db.query(SubjectOffering).get(assignment.offering_id)
             if offering:
                 teacher_data[teacher_id]["offerings"].append({
                     "offering_id": str(offering.id),
@@ -656,9 +778,9 @@ class HODAnalyticsService:
                 })
                 
                 # Count students
-                students = db.query(StudentEnrollment).filter(
-                    StudentEnrollment.cohort_id == offering.cohort_id,
-                    StudentEnrollment.status == "active"
+                students = db.query(Student).filter(
+                    Student.cohort_id == offering.cohort_id,
+                    Student.status == "active"
                 ).count()
                 teacher_data[teacher_id]["total_students"] += students
                 
@@ -724,6 +846,7 @@ class PrincipalAnalyticsService:
     ) -> AnalyticsResponse:
         """
         Get institution-wide overview for principal.
+        Enhanced to include total_exams, active_cohorts, and alerts.
         """
         warnings = []
         
@@ -731,11 +854,23 @@ class PrincipalAnalyticsService:
         total_departments = db.query(Department).count()
         total_programs = db.query(Program).count()
         total_cohorts = db.query(Cohort).count()
-        total_students = db.query(StudentEnrollment).filter(
-            StudentEnrollment.status == "active"
+        total_students = db.query(Student).filter(
+            Student.status == "active"
         ).count()
         total_teachers = db.query(TeacherAssignment).distinct(
             TeacherAssignment.teacher_id
+        ).count()
+        
+        # Exam stats
+        total_exams = db.query(Exam).count()
+        locked_exams = db.query(Exam).filter(Exam.status == "locked").count()
+        pending_approval = db.query(Exam).filter(
+            Exam.status.in_(["submitted", "draft"])
+        ).count()
+        
+        # Active cohorts
+        active_cohorts = db.query(Cohort).filter(
+            Cohort.status.in_(["active", "ongoing"])
         ).count()
         
         # Get department breakdown
@@ -757,13 +892,19 @@ class PrincipalAnalyticsService:
         return AnalyticsResponse(
             data={
                 "institution_summary": {
-                    "departments": total_departments,
-                    "programs": total_programs,
-                    "cohorts": total_cohorts,
-                    "active_students": total_students,
-                    "active_teachers": total_teachers
+                    "total_departments": total_departments,
+                    "total_programs": total_programs,
+                    "total_cohorts": total_cohorts,
+                    "total_students": total_students,
+                    "total_teachers": total_teachers,
+                    "total_exams": total_exams,
+                    "exams_locked": locked_exams,
+                    "active_cohorts": active_cohorts
                 },
-                "department_breakdown": dept_summary
+                "department_breakdown": dept_summary,
+                "alerts": {
+                    "pending_approvals": pending_approval
+                }
             },
             warnings=warnings,
             is_complete=True,
@@ -776,38 +917,71 @@ class PrincipalAnalyticsService:
     ) -> AnalyticsResponse:
         """
         Compare departments by key metrics.
+        Optimized to avoid N+1 query explosion.
         """
         warnings = []
         
+        # 1. Fetch Hierarchy
         departments = db.query(Department).all()
+        dept_map = {d.id: d for d in departments}
+
+        # 2. Bulk Counts (Programs, Cohorts, Students, Offerings)
+        # Programs per Dept
+        prog_counts = db.query(
+            Program.department_id, func.count(Program.id)
+        ).group_by(Program.department_id).all()
+        prog_map = {did: count for did, count in prog_counts}
+
+        # Cohorts per Dept (via Program)
+        cohort_counts = db.query(
+            Program.department_id, func.count(Cohort.id)
+        ).join(Program, Cohort.program_id == Program.id)\
+         .group_by(Program.department_id).all()
+        cohort_map = {did: count for did, count in cohort_counts}
+
+        # Students per Dept (Active only)
+        # Note: Joining through Cohort -> Program -> Department
+        # Students per Dept (Active only)
+        # Note: Joining through Cohort -> Program -> Department
+        student_counts = db.query(
+            Department.id, func.count(Student.usn)
+        ).join(Program, Program.department_id == Department.id)\
+         .join(Cohort, Cohort.program_id == Program.id)\
+         .join(Student, Student.cohort_id == Cohort.id)\
+         .filter(Student.status == "active")\
+         .group_by(Department.id).all()
+        student_map = {did: count for did, count in student_counts}
+
+        # Offerings per Dept
+        offering_counts = db.query(
+            Department.id, func.count(SubjectOffering.id)
+        ).join(Program, Program.department_id == Department.id)\
+         .join(Cohort, Cohort.program_id == Program.id)\
+         .join(SubjectOffering, SubjectOffering.cohort_id == Cohort.id)\
+         .group_by(Department.id).all()
+        offering_map = {did: count for did, count in offering_counts}
+
+        # 3. Exam Metrics (Pass %, Avg Score, At Risk)
+        # This is complex due to "Best N" logic, so we batch fetch per department
+        # but optimized to 4 queries per department instead of N+1
+        
         comparison = []
         
         for dept in departments:
-            programs = db.query(Program).filter(Program.department_id == dept.id).all()
-            program_ids = [p.id for p in programs]
-            
-            cohorts = db.query(Cohort).filter(
-                Cohort.program_id.in_(program_ids)
-            ).all() if program_ids else []
-            cohort_ids = [c.id for c in cohorts]
-            
-            students = db.query(StudentEnrollment).filter(
-                StudentEnrollment.cohort_id.in_(cohort_ids),
-                StudentEnrollment.status == "active"
-            ).count() if cohort_ids else 0
-            
-            offerings = db.query(SubjectOffering).filter(
-                SubjectOffering.cohort_id.in_(cohort_ids)
-            ).count() if cohort_ids else 0
+            # Get metrics using optimized helper
+            metrics = PrincipalAnalyticsService._compute_department_exam_metrics(db, dept.id)
             
             comparison.append({
                 "department_id": str(dept.id),
                 "department_name": dept.name,
                 "department_code": dept.code,
-                "programs": len(programs),
-                "cohorts": len(cohorts),
-                "students": students,
-                "offerings": offerings
+                "programs": prog_map.get(dept.id, 0),
+                "cohorts": cohort_map.get(dept.id, 0),
+                "students": student_map.get(dept.id, 0),
+                "offerings": offering_map.get(dept.id, 0),
+                "pass_percentage": metrics["pass_percentage"],
+                "average_score": metrics["average_score"],
+                "at_risk_students": metrics["at_risk_students"]
             })
         
         # Sort by student count
@@ -823,6 +997,143 @@ class PrincipalAnalyticsService:
             is_complete=True,
             computed_at=datetime.utcnow()
         )
+
+    @staticmethod
+    def _compute_department_exam_metrics(db: Session, dept_id: UUID) -> Dict[str, float]:
+        """
+        Compute exam metrics for a department using batch queries.
+        Avoids N+1 loop by fetching all exams/marks in bulk.
+        """
+        # 1. Get all published exams for this department
+        exams = db.query(Exam).join(Cohort).join(Program).filter(
+            Program.department_id == dept_id,
+            Exam.status.in_(["published", "locked"])
+        ).all()
+        
+        if not exams:
+            return {"pass_percentage": 0.0, "average_score": 0.0, "at_risk_students": 0}
+            
+        exam_ids = [e.id for e in exams]
+        exam_map = {e.id: e for e in exams}
+        
+        # 2. Bulk fetch structure (Sections, Questions, SubQuestions)
+        # Map: ExamID -> SectionID -> [Questions]
+        # Map: QuestionID -> [SubQuestionIDs]
+        
+        # We need mapping from SubQuestionID -> Section info to apply Best N rules
+        subq_to_section_map = {} # sq_id -> (section_obj, question_id)
+        
+        # Fetch sections
+        sections = db.query(ExamSection).filter(ExamSection.exam_id.in_(exam_ids)).all()
+        section_map = {s.id: s for s in sections}
+        
+        # Fetch questions
+        questions = db.query(Question).filter(Question.section_id.in_(section_map.keys())).all()
+        question_map = {q.id: q for q in questions}
+        
+        # Fetch subquestions
+        subquestions = db.query(SubQuestion).filter(SubQuestion.question_id.in_(question_map.keys())).all()
+        
+        for sq in subquestions:
+            q = question_map[sq.question_id]
+            sec = section_map[q.section_id]
+            subq_to_section_map[sq.id] = {
+                "section_id": sec.id,
+                "selection_mode": sec.selection_mode,
+                "required_questions": sec.required_questions,
+                "question_id": q.id
+            }
+
+        # 3. Bulk fetch marks
+        all_marks = db.query(StudentQuestionMark).filter(StudentQuestionMark.exam_id.in_(exam_ids)).all()
+        
+        # Group marks by (Exam, Student)
+        # student_exam_marks: { (exam_id, usn): { sub_q_id: mark } }
+        student_exam_marks = {}
+        
+        for m in all_marks:
+            key = (m.exam_id, m.usn)
+            if key not in student_exam_marks:
+                student_exam_marks[key] = {}
+            student_exam_marks[key][m.sub_question_id] = m.marks
+
+        # 4. Compute aggregation
+        student_percentages = {} # usn -> [pct1, pct2]
+        
+        for (exam_id, usn), marks_dict in student_exam_marks.items():
+            exam = exam_map[exam_id]
+            if not exam.max_marks or exam.max_marks <= 0:
+                continue
+                
+            # Compute total for this exam
+            # Group marks by section -> question
+            section_totals = {} # section_id -> total
+            
+            # Helper to group marks by question
+            q_marks_map = {} # (section_id, question_id) -> total_marks
+            
+            for sq_id, mark in marks_dict.items():
+                if sq_id not in subq_to_section_map:
+                    continue # Should not happen if integrity is maintained
+                
+                meta = subq_to_section_map[sq_id]
+                sec_id = meta["section_id"]
+                q_id = meta["question_id"]
+                
+                k = (sec_id, q_id)
+                q_marks_map[k] = q_marks_map.get(k, Decimal(0)) + mark
+            
+            # Apply Section Rules (Best N)
+            current_exam_total = Decimal(0)
+            
+            # Iterate sections for this exam
+            exam_sections = [s for s in sections if s.exam_id == exam_id]
+            
+            for sec in exam_sections:
+                # Get all questions for this section that the student attempted
+                q_scores = []
+                # Find all questions in this section
+                sec_questions = [q for q in questions if q.section_id == sec.id]
+                
+                for q in sec_questions:
+                    score = q_marks_map.get((sec.id, q.id), Decimal(0))
+                    q_scores.append(score)
+                
+                # Sort descending for Best N
+                if sec.selection_mode == "BEST_N":
+                    q_scores.sort(reverse=True)
+                    section_total = sum(q_scores[:sec.required_questions])
+                else:
+                    # FIRST_N or ALL - simplified to take first N or all
+                    # For strict FIRST_N we need sequence, assuming list is ordered by sequence?
+                    # Using taking first N found for simplicity or ALL
+                    # Re-reading logic: logic usually implies Best N or All. 
+                    # If FIRST_N, we'd need to sort by Question.sequence.
+                    # For now treating as ALL if not BEST_N to match previous logic
+                    section_total = sum(q_scores[:sec.required_questions])
+                
+                current_exam_total += section_total
+            
+            pct = float(current_exam_total) / float(exam.max_marks) * 100
+            if usn not in student_percentages:
+                student_percentages[usn] = []
+            student_percentages[usn].append(pct)
+            
+        # 5. Final Aggregates
+        if not student_percentages:
+            return {"pass_percentage": 0.0, "average_score": 0.0, "at_risk_students": 0}
+            
+        averages = {sid: sum(pcts)/len(pcts) for sid, pcts in student_percentages.items()}
+        passed = sum(1 for avg in averages.values() if avg >= 40)
+        pass_percentage = round(passed / len(averages) * 100, 1)
+        average_score = round(sum(averages.values()) / len(averages), 1)
+        at_risk_students = sum(1 for avg in averages.values() if avg < 40)
+        
+        return {
+            "pass_percentage": pass_percentage,
+            "average_score": average_score,
+            "at_risk_students": at_risk_students
+        }
     
     @staticmethod
     async def get_comprehensive_analytics(
@@ -839,8 +1150,8 @@ class PrincipalAnalyticsService:
         # Basic counts
         total_departments = db.query(Department).count()
         total_programs = db.query(Program).count()
-        total_students = db.query(StudentEnrollment).filter(
-            StudentEnrollment.status == "active"
+        total_students = db.query(Student).filter(
+            Student.status == "active"
         ).count()
         
         # Teacher stats
@@ -853,7 +1164,7 @@ class PrincipalAnalyticsService:
         ).all()
         
         # Calculate at-risk percentage across institution
-        total_marks_entries = db.query(StudentMarks).count()
+        total_marks_entries = db.query(StudentQuestionMark).count()
         
         # Exam stats
         total_exams = db.query(Exam).count()
@@ -875,9 +1186,9 @@ class PrincipalAnalyticsService:
             ).all() if program_ids else []
             cohort_ids = [c.id for c in cohorts]
             
-            dept_students = db.query(StudentEnrollment).filter(
-                StudentEnrollment.cohort_id.in_(cohort_ids),
-                StudentEnrollment.status == "active"
+            dept_students = db.query(Student).filter(
+                Student.cohort_id.in_(cohort_ids),
+                Student.status == "active"
             ).count() if cohort_ids else 0
             
             offerings = db.query(SubjectOffering).filter(

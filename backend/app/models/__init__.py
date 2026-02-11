@@ -135,3 +135,12 @@ __all__ = [
     "AttainmentConfig",
 ]
 
+
+# Survey
+from app.models.survey import (
+    Survey,
+    SurveyQuestion,
+    SurveyResponse,
+    SurveyQuestionResponse,
+    SurveyType
+)

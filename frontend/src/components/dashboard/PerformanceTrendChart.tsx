@@ -1,38 +1,96 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { TrendingUp, Loader2 } from 'lucide-react';
 
-interface PerformanceTrendChartProps {
-  data: Array<{ semester: string; CO1: number; CO2: number; CO3: number; CO4: number; CO5: number }>;
+interface TrendData {
+  period: string; // Semester or Year
+  average: number;
+  passRate?: number;
 }
 
-export function PerformanceTrendChart({ data }: PerformanceTrendChartProps) {
+interface PerformanceTrendChartProps {
+  data: TrendData[];
+  title?: string;
+  isLoading?: boolean;
+}
+
+export function PerformanceTrendChart({ data, title = "Performance Trend", isLoading }: PerformanceTrendChartProps) {
+  if (isLoading) {
+    return (
+      <Card className="h-full">
+        <CardHeader>
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" />
+            {title}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="h-[300px] flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <div className="border border-border bg-card p-6">
-      <div className="mb-6">
-        <h3 className="font-semibold text-foreground">CO Attainment Trend</h3>
-        <p className="text-sm text-muted-foreground">Course outcome progression over semesters</p>
-      </div>
-      <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="semester" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-            <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} domain={[60, 90]} />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: 'hsl(var(--card))',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '0',
-              }}
-            />
-            <Legend />
-            <Line type="monotone" dataKey="CO1" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={{ fill: 'hsl(var(--chart-1))' }} />
-            <Line type="monotone" dataKey="CO2" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={{ fill: 'hsl(var(--chart-2))' }} />
-            <Line type="monotone" dataKey="CO3" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={{ fill: 'hsl(var(--chart-3))' }} />
-            <Line type="monotone" dataKey="CO4" stroke="hsl(var(--chart-4))" strokeWidth={2} dot={{ fill: 'hsl(var(--chart-4))' }} />
-            <Line type="monotone" dataKey="CO5" stroke="hsl(var(--chart-5))" strokeWidth={2} dot={{ fill: 'hsl(var(--chart-5))' }} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
+    <Card className="h-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <TrendingUp className="w-4 h-4" />
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {data && data.length > 0 ? (
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis 
+                  dataKey="period" 
+                  stroke="hsl(var(--muted-foreground))" 
+                  fontSize={12} 
+                  tickMargin={10}
+                />
+                <YAxis 
+                  stroke="hsl(var(--muted-foreground))" 
+                  fontSize={12} 
+                  domain={[0, 100]} 
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '6px'
+                  }}
+                  itemStyle={{ color: 'hsl(var(--foreground))' }}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="average"
+                  name="Average Score"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth={2}
+                  activeDot={{ r: 8 }}
+                />
+                {data[0].passRate !== undefined && (
+                  <Line
+                    type="monotone"
+                    dataKey="passRate"
+                    name="Pass Rate"
+                    stroke="hsl(var(--green-500))" // Simplified color handle
+                    strokeWidth={2}
+                  />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+            <p className="text-sm">No trend data available</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

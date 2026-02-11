@@ -62,7 +62,8 @@ class StudentQuestionMark(Base):
     
     # Relationships
     student = relationship("Student", back_populates="question_marks")
-    sub_question = relationship("SubQuestion")
+    exam = relationship("Exam", back_populates="question_marks")
+    sub_question = relationship("SubQuestion", back_populates="question_marks")
     
     def __repr__(self):
         return f"<StudentQuestionMark {self.usn}: {self.marks}>"

@@ -123,11 +123,11 @@ export function HODDashboard() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{subject.average?.toFixed(1)}%</span>
-                        <Progress value={subject.average} className="w-16 h-2" />
+                        <span className="font-medium">{(Number(subject.average) || 0).toFixed(1)}%</span>
+                        <Progress value={Number(subject.average) || 0} className="w-16 h-2" />
                       </div>
                     </TableCell>
-                    <TableCell>{subject.pass_rate?.toFixed(1)}%</TableCell>
+                    <TableCell>{(Number(subject.pass_rate) || 0).toFixed(1)}%</TableCell>
                     <TableCell>{subject.total_students}</TableCell>
                     <TableCell>
                       <Badge variant={subject.pass_rate >= 70 ? 'default' : 'destructive'}>

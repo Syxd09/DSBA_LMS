@@ -36,7 +36,7 @@ export function DepartmentTable({ departments }: DepartmentTableProps) {
                   <span className="text-sm">{dept.passPercentage}%</span>
                 </div>
               </TableCell>
-              <TableCell>{dept.averageScore.toFixed(1)}</TableCell>
+              <TableCell>{(Number(dept.averageScore) || 0).toFixed(1)}</TableCell>
               <TableCell>
                 <span className={dept.atRiskStudents > 20 ? 'text-destructive font-medium' : ''}>
                   {dept.atRiskStudents}

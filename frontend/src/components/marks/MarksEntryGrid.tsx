@@ -105,10 +105,10 @@ const MarksEntryRow = React.memo(({
       ))}
        <TableCell className="text-center font-semibold w-[80px]">
          <div className="flex flex-col items-center justify-center">
-            <span>{cappedTotal.toFixed(1)}</span>
+            <span>{(Number(cappedTotal) || 0).toFixed(1)}</span>
             {isCapped && (
                 <span className="text-[10px] text-muted-foreground line-through">
-                    {sectionObtained.toFixed(1)}
+                    {(Number(sectionObtained) || 0).toFixed(1)}
                 </span>
             )}
          </div>

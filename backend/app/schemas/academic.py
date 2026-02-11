@@ -95,33 +95,6 @@ class StudentEnrollmentResponse(StudentEnrollmentBase):
         from_attributes = True
 
 
-# Teacher assignment schemas
-class TeacherAssignmentBase(BaseModel):
-    """Base teacher assignment schema."""
-    teacher_id: UUID
-    subject_id: UUID
-    cohort_id: UUID
-    academic_year: str
-
-
-class TeacherAssignmentCreate(TeacherAssignmentBase):
-    """Create teacher assignment schema."""
-    pass
-
-
-class TeacherAssignmentResponse(TeacherAssignmentBase):
-    """Teacher assignment response schema."""
-    id: UUID
-    created_at: datetime
-    subject: Optional[SubjectResponse] = None
-    teacher: Optional[ProfileResponse] = None
-    cohort: Optional[CohortResponse] = None
-    
-    class Config:
-        from_attributes = True
-
-
-
 # Subject Offering schemas
 class SubjectOfferingCreate(BaseModel):
     """Create subject offering schema."""
@@ -144,6 +117,34 @@ class SubjectOfferingResponse(BaseModel):
     is_active: bool
     created_at: datetime
     subject: Optional[SubjectResponse] = None
+    cohort: Optional[CohortResponse] = None
+    
+    class Config:
+        from_attributes = True
+
+
+# Teacher assignment schemas
+class TeacherAssignmentBase(BaseModel):
+    """Base teacher assignment schema."""
+    teacher_id: UUID
+    subject_id: Optional[UUID] = None
+    offering_id: Optional[UUID] = None
+    cohort_id: UUID
+    academic_year: str
+
+
+class TeacherAssignmentCreate(TeacherAssignmentBase):
+    """Create teacher assignment schema."""
+    pass
+
+
+class TeacherAssignmentResponse(TeacherAssignmentBase):
+    """Teacher assignment response schema."""
+    id: UUID
+    created_at: datetime
+    subject: Optional[SubjectResponse] = None
+    offering: Optional[SubjectOfferingResponse] = None
+    teacher: Optional[ProfileResponse] = None
     cohort: Optional[CohortResponse] = None
     
     class Config:

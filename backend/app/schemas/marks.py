@@ -37,20 +37,6 @@ class StudentMarksResponse(BaseModel):
         from_attributes = True
 
 
-# Computed marks schemas
-class MarksComputedResponse(BaseModel):
-    """Computed marks response schema."""
-    id: UUID
-    exam_id: UUID
-    student_id: UUID
-    total_marks: float
-    selected_questions: List[str]
-    computed_at: datetime
-    
-    class Config:
-        from_attributes = True
-
-
 # Final marks schemas
 class FinalMarksBase(BaseModel):
     """Base final marks schema."""
@@ -66,19 +52,22 @@ class FinalMarksCreate(FinalMarksBase):
     external_marks: Optional[float] = None
 
 
-class FinalMarksResponse(FinalMarksBase):
-    """Final marks response schema."""
+class FinalMarksResponse(BaseModel):
+    """Final marks response schema — RAW INPUTS ONLY."""
     id: UUID
+    usn: Optional[str] = None
+    subject_id: Optional[UUID] = None
+    cohort_id: UUID
     internal_1: Optional[float] = None
     internal_2: Optional[float] = None
-    best_internal: Optional[float] = None
+    assignment_1: Optional[float] = None
+    assignment_2: Optional[float] = None
+    attendance: Optional[float] = None
+    activity: Optional[float] = None
     external_marks: Optional[float] = None
-    total_marks: Optional[float] = None
-    percentage: Optional[float] = None
-    grade: Optional[str] = None
-    grade_point: Optional[float] = None
+    is_backlog: bool = False
+    attempt_number: int = 1
     created_at: datetime
-    student: Optional[ProfileResponse] = None
     
     class Config:
         from_attributes = True

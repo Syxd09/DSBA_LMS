@@ -385,15 +385,19 @@ def _get_co_student_evidence_sync(
     threshold = co_data["threshold"]
     
     # Get exams and marks
-    ext_exam = get_exam_by_type(db, offering_id, "EXT")
+    # Get ALL exams and marks
+    all_exams = get_offering_exams(db, offering_id)
     all_marks = {}
-    if ext_exam:
-        all_marks = get_all_student_marks_for_exam(db, ext_exam.id)
     
-    # Get CO-mapped questions
+    for exam in all_exams:
+        exam_marks = get_all_student_marks_for_exam(db, exam.id)
+        all_marks.update(exam_marks)
+    
+    # Get CO-mapped questions from ALL exams
     co_sqs = []
-    if ext_exam:
-        co_sqs = get_co_sub_questions(db, co_id, ext_exam.id)
+    for exam in all_exams:
+        exam_sqs = get_co_sub_questions(db, co_id, exam.id)
+        co_sqs.extend(exam_sqs)
     
     max_marks = sum(sq.max_marks for sq in co_sqs)
     

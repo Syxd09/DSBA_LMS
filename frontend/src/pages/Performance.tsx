@@ -211,7 +211,7 @@ export default function Performance() {
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 {results.slice(0, 5).map((result: any) => (
                   <div key={result.subject_id || result.subject_code} className="p-4 border border-border text-center rounded-lg">
-                    <p className="text-2xl font-bold text-foreground">{result.percentage?.toFixed(0) || 0}%</p>
+                    <p className="text-2xl font-bold text-foreground">{(Number(result.percentage) || 0).toFixed(0)}%</p>
                     <p className="font-medium text-primary truncate">{result.subject_code}</p>
                     <p className="text-xs text-muted-foreground mt-1 truncate">{result.subject_name}</p>
                     <Progress value={result.percentage || 0} className="h-1 mt-2" />

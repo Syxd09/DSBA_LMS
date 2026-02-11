@@ -254,5 +254,5 @@ class TestAnalyticsDrilldown:
         data_content = res["data"]
         # Principal override returns 'departments' count inside 'institution_summary'
         assert "institution_summary" in data_content
-        assert "departments" in data_content["institution_summary"]
+        assert "total_departments" in data_content["institution_summary"]
         assert "department_breakdown" in data_content

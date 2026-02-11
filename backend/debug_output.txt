@@ -1,0 +1,775 @@
+2026-02-10 21:35:17 | INFO     | edumetrics | Logging configured: level=DEBUG
+============================= test session starts ==============================
+platform darwin -- Python 3.11.14, pytest-7.4.4, pluggy-1.6.0
+benchmark: 4.0.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /Users/deepstacker/WorkSpace/outcome-master/backend
+plugins: playwright-0.7.2, asyncio-0.23.3, flask-1.3.0, html-4.1.1, json-report-1.5.0, Faker-20.1.0, metadata-3.1.1, cov-4.1.0, httpx-0.25.0, mock-3.12.0, anyio-3.7.1, xdist-3.5.0, base-url-2.1.0, django-4.5.2, benchmark-4.0.0
+asyncio: mode=Mode.STRICT
+collected 5 items / 4 deselected / 1 selected
+
+tests/test_dashboard_unified.py 2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.address`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.address` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.automotive`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.automotive` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.bank`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Specified locale `en_US` is not available for provider `faker.providers.bank`. Locale reset to `en_GB` for this provider.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.barcode`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.barcode` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.color`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.color` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.company`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.company` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.credit_card`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.credit_card` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.currency`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.currency` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.date_time`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.date_time` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.emoji` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.file` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.geo`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.geo` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.internet`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.internet` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.isbn` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.job`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.job` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.lorem`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.lorem` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.misc`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.misc` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.passport`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.passport` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.person`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.person` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.phone_number`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.phone_number` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.profile` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.python` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.sbn` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Looking for locale `en_US` in provider `faker.providers.ssn`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.ssn` has been localized to `en_US`.
+2026-02-10 21:35:17 | DEBUG    | faker.factory | Provider `faker.providers.user_agent` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+DEBUG: Exam ID: a79ae176-7ece-4a3a-9416-70effdf99c8e, Student USN: UNIF844a
+DEBUG: Raw Marks Count: 0
+DEBUG: Sections count: 1
+DEBUG: Section ID: c10acd41-a3d5-4d78-80f2-52252d8acbca, ExamID: a79ae176-7ece-4a3a-9416-70effdf99c8e
+DEBUG: Questions in Section: 1
+DEBUG: SQs in Question: 1
+DEBUG: Helper SubQuestions: 1
+DEBUG: Helper SQ: 97a964d2-57f0-43e9-b865-905744b81117, Section: c10acd41-a3d5-4d78-80f2-52252d8acbca
+DEBUG: Exam ID: a79ae176-7ece-4a3a-9416-70effdf99c8e, Student USN: UNIF844a
+DEBUG: ALL Marks Count: 273
+DEBUG: Mark ID=adef4a5f-7a13-4ee1-b9ad-3aeab2f62f05, ExamID=6ce59f76-aec7-4970-b27c-b84d77c1ee3a, USN=1MSba50, Marks=9.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=c1bc47ef-6dea-492c-b1b0-ed359cfb598e, ExamID=6ce59f76-aec7-4970-b27c-b84d77c1ee3a, USN=1MSba50, Marks=8.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=33228507-d02d-45cd-8eeb-444ad26a469c, ExamID=6ce59f76-aec7-4970-b27c-b84d77c1ee3a, USN=1MSb9d2, Marks=3.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=7402222c-cc3d-41e7-9ebe-7bed3a9397c8, ExamID=6ce59f76-aec7-4970-b27c-b84d77c1ee3a, USN=1MSb9d2, Marks=4.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=9ecc12c8-7b22-4877-90ec-275a786a8a7b, ExamID=dd752116-72e1-4c77-a4e9-35663fbacffb, USN=1MSd080, Marks=9.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=2ec5281e-1649-401b-97f4-318f781372f1, ExamID=dd752116-72e1-4c77-a4e9-35663fbacffb, USN=1MSd080, Marks=8.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=9a9e5ee6-472a-4690-aca5-c6a5bae57d2a, ExamID=dd752116-72e1-4c77-a4e9-35663fbacffb, USN=1MSb36a, Marks=3.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=a2e30eb8-982a-4016-b503-0359ac2fe5fe, ExamID=dd752116-72e1-4c77-a4e9-35663fbacffb, USN=1MSb36a, Marks=4.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=d8fae2d4-216e-4b55-85dc-cfb84c402d63, ExamID=51bed8d7-455f-4960-aa8d-9cbbb0329fb5, USN=UNIFc2bf, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=513b7949-d423-4a9c-9e8d-af1f01d4183b, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=1a9e62af-4002-45ae-9db9-5ab27bb8831b, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=24712251-beab-4f63-a7d2-65a9b41d615e, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=4.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=307f22ce-c9fd-4263-a327-9163324dd3da, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=1.50
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=30895629-42cd-405a-b272-e953f78b435e, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=35f47c35-cec7-4162-8eb0-c9af86f82ab1, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=1.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=5b072cc9-218e-4fd5-87e7-35681230f80b, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=78f71a74-abd1-444e-a43e-12dc086cee9e, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=7e183a4f-20bf-4c42-aef9-a13c9485cfeb, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=c23c6464-7592-4527-9cfc-421fef42fc9a, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e3804ff9-efa4-46d7-b595-d986a3cb5182, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=07593cd1-82f9-4094-88ef-8888becc816e, ExamID=5eb0084e-4dc3-4455-a4f8-fc0c15cb2a82, USN=1MS46d2, Marks=9.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=abca3a1b-1e0b-4e69-ad3c-01702f0964f2, ExamID=5eb0084e-4dc3-4455-a4f8-fc0c15cb2a82, USN=1MS46d2, Marks=8.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=b6204540-486a-43db-ab8c-cf71a9168f82, ExamID=5eb0084e-4dc3-4455-a4f8-fc0c15cb2a82, USN=1MS3f19, Marks=3.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=7f631954-ad1b-46dc-86da-c9c8af57b7c7, ExamID=5eb0084e-4dc3-4455-a4f8-fc0c15cb2a82, USN=1MS3f19, Marks=4.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=36a47130-9c92-4479-9b31-300cec07be9f, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=3e4c560d-1f5b-47bc-86dc-e66d5f9006f2, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=1.50
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=45c373ca-2305-4fda-9721-be7dde5d772d, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=4651da4a-4373-4591-96c3-c499c6da01b5, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=4.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=4a33155d-a34f-4cc8-aa47-2861cf93c972, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=4cf9d330-5c0b-46a7-a8ac-23f476d6d24e, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=4f203d45-13e6-4cae-9db9-5bbda690ca2b, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=54b4a6d2-7247-4cbb-9f95-783f05f26ebd, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=4.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=64841e59-5939-400f-9d05-635d9b13a016, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=65bc60d5-70a2-4598-8ac2-f29f64be3436, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=7b1f369f-b530-428f-b294-7fd86caa3578, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=6.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=83309313-0ca6-4e12-b905-243c2cc282f0, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=95823275-3b81-4d88-a5dd-355e9feefad2, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=09ce5fd3-d3f2-48f7-b297-d62018a5ab20, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=09f2d601-9838-476b-8b6a-c4e8d00aa7ad, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=0b2be7cb-2f5e-468d-b620-c1b55fcf51c5, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=109a83ad-342e-4844-83c9-cf7babfe1fd3, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=10e9265b-00b1-408c-8c36-8aa7af603743, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=1290ab56-8d59-419f-9d56-a2e0d7c9a735, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=4.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=15ae28e7-9fe4-45d4-b1da-693bbddbef2f, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=4.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=073d963c-a315-4c88-9ca9-886dd4429c44, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=1d496e2a-4077-4d9a-b516-36a5c78344e1, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=212b8a70-6cd2-41a5-a0e3-fe57e558ed9b, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=22eabe81-4dcd-43e6-bab5-db8ea57ad978, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=2559c494-4ec7-45a9-87a2-c78259056b6c, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=2f34f766-dfa2-4b2c-a0e7-f1c0b4a54553, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=373182ff-df7e-456d-89f9-19777848a732, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=744a3177-d3d3-4609-93dd-d460945db312, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=76790571-4ef0-47c7-a5de-45aa4a6f258e, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=7b4495ae-2438-43fc-91f2-485b9ec9ae68, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=8106471e-3eb7-453c-ba33-f7b9b603a514, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=99d0e3f4-f7c4-4ada-8236-1aefcf8480d2, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=bf1f3128-515d-46ae-8c16-9f2692156ebe, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=c092b333-b8b6-47cc-b33c-11936e01ed2e, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=c3fedd99-a55d-428e-817c-88a87f8224b0, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=efb00323-8b3e-48ef-8e61-fa07bd4d10a5, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f3eb8f06-d1e5-46c9-8a2d-37f6f903af33, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f7ad74e4-e07b-47ed-93d2-1106f079629b, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=ad25ac0c-25a9-4a3a-a283-bf9f0cff80a3, ExamID=1fff2419-11f7-4fd7-a096-623f8f8aac0b, USN=1MS3698, Marks=9.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e187c89a-967d-418f-bdc5-4040fad66f6a, ExamID=1fff2419-11f7-4fd7-a096-623f8f8aac0b, USN=1MS3698, Marks=8.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=7f55704c-3cf1-4d51-9c02-4d7d8a7171bf, ExamID=1fff2419-11f7-4fd7-a096-623f8f8aac0b, USN=1MS922a, Marks=3.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e4d28d12-ae9f-40f7-bd48-2b9372ea2dd8, ExamID=1fff2419-11f7-4fd7-a096-623f8f8aac0b, USN=1MS922a, Marks=4.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f6561563-0f9e-49c2-8d61-e71ee63ba4a3, ExamID=7425bfbb-1a8c-458e-9512-52e84c572997, USN=1MSc4c3, Marks=9.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=18b2d035-7d36-4ee2-afc1-acf7889228c2, ExamID=7425bfbb-1a8c-458e-9512-52e84c572997, USN=1MSc4c3, Marks=8.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=b673586d-ba17-4967-aada-032486cf3c29, ExamID=7425bfbb-1a8c-458e-9512-52e84c572997, USN=1MS051f, Marks=3.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=9d8d3211-5ba5-4ac5-a0f5-9d1f49236bb2, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=a9af0453-43ac-47fe-8ab3-7f8c4cf0f0a5, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=b49a7df8-40e9-499a-8d57-0fb79e1b7125, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=b948f40f-bc41-47a5-b27f-bbb7aeec3077, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=bfcc690c-6429-43c2-9dc6-51d8ca82a02f, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=3.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=cb6c5e95-05aa-41b0-95ce-ff5cc677eb1d, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=3.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=cefed864-d2c3-4550-8881-f280d7dd719a, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=d0fcf026-55f1-4499-bf3d-a3dc9200ba0f, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=4.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=d7fc1ea2-2127-4c9c-a522-d40d2a3b65f4, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=dac7445a-b712-4798-9385-1218ea374c3b, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=UO3CH23S0055, Marks=3.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e4c4cacb-d860-4d0a-b95a-847261cd3711, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=ea8be28c-5b13-496e-89a4-feb68a39d921, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f21cef12-b634-4079-8306-2cee429a24dc, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=4.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=6b07ae42-ddf5-4348-a2db-f0952c9e74c3, ExamID=7425bfbb-1a8c-458e-9512-52e84c572997, USN=1MS051f, Marks=4.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f526c30b-9315-480f-a751-6f90522ce928, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=fb396199-bece-40c3-8fc9-4005902e9e02, ExamID=b54eca99-497d-42c2-81bb-edaa25d3df10, USN=U03CH23S0056, Marks=8.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=09c456cb-ee0f-46a6-b1c7-41f1ebfe4378, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=15c6e53b-b742-487a-a0b6-197231192e09, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=2e23ebcb-db32-43f9-b97c-b1d9944e98d4, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=327ea889-e834-44b7-b97b-7820eaa65935, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=388429cd-e02a-444c-8182-d48d7ecd9e15, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=3ab71300-3362-41dc-9748-d62f4e8c688c, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=40778316-db54-442e-9e79-f21bc26521f3, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA006, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=0733fe68-d5f4-4faa-a98c-eecdd9154c45, ExamID=7b27e240-d7bb-46dc-a6e3-dbe0a4399aae, USN=1MSefd5, Marks=9.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=3daf2948-60a8-4761-a183-d61e30eb2b1e, ExamID=7b27e240-d7bb-46dc-a6e3-dbe0a4399aae, USN=1MSefd5, Marks=8.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=aa9ce63a-7593-4bb0-a417-b737a8eeaaf0, ExamID=7b27e240-d7bb-46dc-a6e3-dbe0a4399aae, USN=1MScef6, Marks=3.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=af7730ce-5fe9-4b9f-bdf1-48079d262d55, ExamID=7b27e240-d7bb-46dc-a6e3-dbe0a4399aae, USN=1MScef6, Marks=4.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=5785f939-bf1d-4288-ab75-650bd5a1c469, ExamID=69d3aecc-977a-4848-8efa-74fd39285236, USN=UNIF3f74, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=55165da6-81bd-4733-9579-a52b6db44795, ExamID=d7a3b6cd-4df4-4df6-9cb9-a1bdacfe89cd, USN=UNIF2c4c, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=ae51a4d8-ff5e-43ec-8cfc-2e08927133a5, ExamID=59205710-9262-4255-9bbc-5c3275e9d761, USN=UNIF5b38, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=03ec097c-4280-42cc-9e68-85e4aa9a083b, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=060caad3-8c7c-4924-abb9-3312ae004ea0, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=0796400f-28b4-4f2a-8938-dc8c4db3a181, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=0bba5bf0-630e-475b-8439-fc74306c5464, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=1033715c-e03d-4df0-abdf-ec7f2c981537, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=103a098c-a1e4-4133-b574-5e38efba59a4, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=105e8321-5acb-498f-9699-4e5114d4d66b, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=11453f95-8c81-4ae3-9e58-44980a54e156, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=11a7bbd2-cb82-4abc-b7e0-871602910158, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=123e1000-9b98-4305-9a5e-0835698c405c, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=16946522-c408-4d25-a5e9-161ab9531e4f, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=1744cd4c-9897-4550-8873-a6880bb07f0c, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=194f828f-7a8b-4486-9292-d69ba75386af, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=19b27e85-5afe-412c-b90c-1805ef7a898c, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=1a0140c2-104f-4c6a-800f-d0c1a155b440, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=1d57ca64-5a11-4dd0-b4f1-4d226cff88e6, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=1d8bd67b-d1be-4d2f-b19e-7a34e1b2fdf1, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=1d9443a2-bbec-401a-bbd0-14dd1b6fe023, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=1de201ef-03bc-4c8f-8082-7353da6c0f18, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=1f0b6290-d5f3-449c-84cf-e295f29429ab, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=28905081-b208-4628-be61-9f3c5b0bee5f, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=29024391-b5c5-4d33-8268-f874ab43d552, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=2f51d22f-a4e4-4706-9ca1-7a318b09270e, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=2fb22759-df48-437b-a803-8a6f5abc3163, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=306f8889-bcc6-45be-a384-d690e079f822, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=30b32fa0-d565-4e2a-89ac-01b357fca56b, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=30d0a24d-7db9-4857-9bcd-16d1dbe1773c, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=311fa2c2-7a4b-466c-8897-65892b04cce2, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=337940f5-a013-4acf-852d-ad614469d63b, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=6bcfa6d5-4726-409a-b7e4-986635297d1d, ExamID=b7ea3665-a4c4-4d2d-9490-f627a09ea209, USN=UNIF926f, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=2e39fd5a-dd03-4c32-bfce-299eb2c601f3, ExamID=c5c35e28-1780-4ef5-9dac-b1c4ed4f14f8, USN=UNIF704e, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=34b25000-5e5a-425e-80da-0f5d1635192c, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=358e271f-55c8-4d9b-9aae-e702f3fa8515, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=3634ba4f-8d37-4b4d-8ed0-040c59cc40bd, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=3724de94-8340-4f33-bd79-c22edcace6c1, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=3c878a6d-5409-488d-8018-1a9ecbc0ffd1, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=3ce7629f-3f49-4ee0-8376-9ca0b4fa73b7, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=3ded0c79-7d61-48bf-aaaf-89ea16786b42, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=3e8101f2-0d14-4f4e-807d-d6a5c2e21060, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=ced0f8c0-e9d6-465c-b7b8-60e4c29a91c0, ExamID=8d930c79-312c-467a-814d-96439ff3caaa, USN=UNIFd176, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=93c1b22c-288b-4301-a63a-e0c3a8e44193, ExamID=d9c101c4-a24d-4348-b56d-9d3e344c2385, USN=UNIFb8b0, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=397a380e-364e-4f7b-b6a2-2a4f0f0cbca5, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=3c45c318-fbea-4c91-a7e4-23b81f025f4d, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=50425d64-bfb7-4227-9af8-7aa3f7050d2c, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=54722f9f-9176-4239-bf32-1db8a638ab5e, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=552cb5a6-2d4b-48a0-875f-26d1415fdb87, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=555f9e9f-3c6e-4ce0-ae86-ca38f111ddef, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=562d1b23-6e82-4263-8f4e-da69497eb98c, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=58d0b82b-ef7a-4bcd-be2a-f9357e268823, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=24c0cbed-08e5-46f8-a1c1-6e03cd61b32e, ExamID=7d39b955-e34a-4d6a-8753-6b33abac1dd1, USN=UNIF91a2, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=7f101681-c79a-498d-acc6-a42aadba920d, ExamID=47190035-b2cc-42b0-92c7-d45dd862f1a0, USN=UNIF8582, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=3e9543de-de84-49ea-80fa-ce16c8111fdb, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=401afa63-e78d-4560-853d-d7e4008d3b60, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=40441199-0684-4806-ad07-557feee5a72e, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=45399c1a-5073-4cf2-a9ec-6f3e81664f7f, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f7076a99-36c3-41d8-897e-6d72ab263f1f, ExamID=c4f5c644-c8a0-4e41-8314-24505227f905, USN=UNIF9891, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e29a42ea-9650-4d89-9d08-17225d5be77d, ExamID=87ff118a-82ae-413b-9ff3-554eec970c3d, USN=UNIF1ea5, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=46aa0933-0a8c-49f5-b33a-000b6e50bbd6, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=4a738d11-8a57-4a4f-86f8-cb357afd5b39, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=4ac1fdc0-1e8e-46e3-8c92-062c92212dd2, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=4dc45e53-94fb-4823-9719-05f362203afc, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=4ef0e23c-de27-4284-adb8-aebbb4fe6bd4, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.50
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=4f391b32-68c6-47bb-9bbb-173a8c521dd0, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=c855b609-f1fb-4452-afd5-99230ac39bcb, ExamID=1d8cced0-dc17-4cd8-b50a-395ff82c76f0, USN=UNIFed63, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=5d3da0b2-b686-470c-ae6a-d21116e7596d, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=5ddf0c66-37ff-44bb-97c3-a22dcf14c258, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=5f70124b-13fc-4a41-9f54-09254fd4da1f, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=5f8f2919-fe4d-4c81-91a9-5aeec889ed1a, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=63c38f70-56c7-4570-84c8-0c9518951052, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=6600b7f1-70d7-4477-a0ef-8100f0643872, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=6625e9fa-a342-405c-a30f-8a23f0f5aaab, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=66bc395b-85f8-486a-aaed-783da890f08d, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f21c3f12-1004-411f-ab83-088d72b42d4a, ExamID=524e7c87-b4e7-4bd9-9c74-d9ff4582f43a, USN=UNIF0370, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=a3d255d1-c805-4103-bb3b-14ed902dc8e5, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=a4ef19df-dc77-4e17-bedc-ef0733bb7f40, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=a632ad99-80c1-4dac-9b92-88a9011d511e, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=a828ff1b-d541-4477-919b-75182e3121ab, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=aaaa11d0-6b43-4a85-8049-99cf64df5d84, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=acc0f375-dbaf-417e-a109-e5d419085589, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=ade2afad-149b-4f38-9d15-8f9487780448, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=ae99229b-e66a-4364-8e12-fdd9359dca02, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=b0113b9a-6d61-454e-8404-da7f1a563515, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=b0ff9bda-34e3-4bbc-9c23-b8b726ec8d06, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=b168577a-4d75-4b1c-88ba-23f0171bb343, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=b2fad81e-2241-4daf-b9b5-5d3d6e92d8dc, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=b4b7da30-12a8-4a6d-9181-2567d762cd23, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=b62e63d4-de90-4aa3-a00f-942e070310d6, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=684e87af-d734-41cc-8f17-f8d2083fd9a1, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=6cc629f8-96d3-4a11-9846-158e02ca482d, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=6fed410e-8f34-493a-941f-f423867780cb, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=70c3d76a-ea76-414e-b873-3a1f23cc5f04, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=75479b0e-3736-42c4-a750-b4aa2be88a21, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=76717944-7287-4c33-993b-71824e22eeb0, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=7743b6b9-eef2-47ce-8b35-66de8868ccba, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=7903dfd9-2d5b-4d5e-a6d1-341df440d5c7, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=79a776ff-0f1d-40c1-8a17-bb7474356664, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=7ff7cd8a-6952-45b0-9b88-bbcf54cc0148, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=85b30082-175b-4d9f-b21d-0fa24045df30, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=87d706b2-eff3-4f34-97fe-b132f2a4ef0a, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=88c62e79-d35d-447d-8e84-86e31a9b0884, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=8a2d9705-8f4e-4d30-adb2-b97a2337821c, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=8b070b4c-b37c-492b-8037-98a346fc00fe, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=8c3f8f50-cdf5-489c-8606-55741f27fbd2, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=8f0613e4-406e-4a0e-9dc7-a7e98788eb57, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=910d3952-4b96-42a1-b012-657888849cad, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=9279e014-8466-4d18-9cb4-a12f69fb2bc1, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=94400153-aaed-46f5-a585-adc180d244a1, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=96beca4f-49cb-4c4f-90ba-23844a3b3a97, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=9773b9f3-c336-4fe1-a77f-8ec62634d17a, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=991fd686-3694-4fc7-af45-14762012cd5f, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=9a5d1778-35f5-4201-9c2a-5bf425b13b6c, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=9bd89c5a-f10a-45e4-b550-f7016092d412, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=9c0a1976-c732-4073-a697-1c109b06416f, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=9ca8d47c-afbb-463b-b640-e17260a514e9, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=9e03c125-3dab-4a52-8186-c8b280c812f6, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=9ee2778b-29a2-4da4-a78d-aecf5f1bcf57, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=9f5eef08-8065-49cd-a829-109d1a172d69, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=a046b660-8ede-4ea9-8968-1159980da910, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=a0ceae31-94a1-4c70-927e-896242424f53, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=a1948e1d-7f8e-48fd-a656-9ce9b8c6df63, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=b7964f94-d3fd-49e7-a23f-dba3648500d0, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=b7d43c8f-6b0d-476a-83a6-2f612d0b9ca7, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=b8c651dd-dd26-49ac-bd53-006f7c7bd350, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=01b96140-abac-4c2b-83ce-193f98d9c421, ExamID=a79ae176-7ece-4a3a-9416-70effdf99c8e, USN=UNIF2974, Marks=15.00
+DEBUG: Match? Exam=True, USN=False
+DEBUG: Mark ID=d8366ecc-05d1-4494-bcee-8a4118094287, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=d866f887-49bf-4dfc-bfd4-96c08ab7fdbd, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=daa4a851-1cdd-4c17-bd92-55e253d52635, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=dddf715a-2052-40fb-8423-38b824557a20, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=df3de8d1-c7af-4b70-a60f-623267e4d212, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=df5c6b4f-2123-4ef8-93c7-484ba2a352fc, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e06d8133-9bc1-4c74-b76d-9db4e09c7b63, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e081e36c-f7b1-4a2b-906d-dc3bbd09a642, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e121c111-2aa8-4787-992b-e50954464088, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e265f18c-af97-4fe8-ae72-812c3c9998c0, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e32417de-551d-4f4e-b266-bebba449ed17, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e3d27f5a-9ff7-476a-b88f-ae63ea931a9a, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e3ef58f9-00c4-4d33-9532-8aa1ef99b0dd, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e89942ed-6e73-4997-8bab-d2d6522a0bc2, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e8ba527d-962d-4fac-84bd-d52dbed5e12f, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=e9e9680d-7638-489f-928b-119a670b00d0, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=ea89d1f1-5cc9-4944-9126-9f86b7af7553, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=eb89ad70-8fc8-4ea4-b8a7-4555176df9c3, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=ebc6e675-cb70-42dd-bf7b-1ee439d80694, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=ec0a83b0-ccd3-45df-995a-39b6777e3142, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=ee3803f8-492e-4e35-8430-98f931e0fc3e, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=efe47037-dc2c-475d-9191-6729cd647da1, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f071e393-1f18-4871-9baf-5cfde774a4a6, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f08b64e1-f49f-4416-b86f-7e67c69f3f00, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=UO3CH23S0055, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f0f80cb8-a933-4be1-950e-7c3a86990180, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA008, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f59d4d0a-ddb0-431a-83e7-47b807fde8fd, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f5a1476a-af39-45d4-b502-16bec41cdd4a, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f809b007-93d5-4979-be79-2aa7c2259df7, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f906dfa0-a6e6-4c36-81fc-d415a46d3098, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f9f7af27-a997-4747-a821-5b99896dbcbc, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=U03CH23S0056, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=fb8036ca-dd39-45dc-a9d8-807f61d690ba, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA005, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=fbd5fc39-411d-4e4c-b437-c622bba4f405, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=fc4f4f18-3111-418a-8c67-e016e89613a0, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=fc7d29b7-dd05-4701-aad8-72a4c010b5de, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA007, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=fdd3aafb-256d-4dbe-8539-143615c8418f, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=fde09760-3cec-4d3e-8cef-c1ae4af20638, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=a7012c2f-147a-48ea-a2dc-0c0da765f247, ExamID=09b02bbb-2fce-42fc-83e1-c05c75574abb, USN=UNIFbf00, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=bb0b4bd8-09eb-410c-92b2-73d259dcd33c, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=bb42d617-8333-4c58-9210-620aafd9eae3, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=bd32cbdd-6c81-4f33-81ea-12ba6636d37d, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=bff98ffc-d357-4d00-8c0c-13447d89601e, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA009, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=cc1e94da-dc7c-4f46-b8a0-b9acf1e89bb8, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA004, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=cd2aec61-d45b-428b-b60b-5a23e57586e8, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA003, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=cd9fcace-b421-437b-bfb1-871a471d276a, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=ce0d95f8-c655-407b-adaa-d2285af7e3b1, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA002, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=d0d199cc-ac94-4887-a764-016a31caec20, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=2.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=d5fb5790-83b5-4684-ac0a-ca07912b128c, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=d7cae672-8382-4cbc-972f-e6ec373e2460, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA001, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=f8ede57f-1644-4fc4-b528-a2ebe5a63626, ExamID=582f7f34-a67b-4d9f-a776-54d470961e70, USN=1DS23CA010, Marks=0.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Mark ID=ec88927b-66e4-4a06-bde9-3093c36fd485, ExamID=4ba1bdff-e3a7-41be-be48-25af47622afe, USN=UNIF1674, Marks=15.00
+DEBUG: Match? Exam=False, USN=False
+DEBUG: Filtered Marks Count: 0
+DEBUG: Computed Total: 0
+F
+
+=================================== FAILURES ===================================
+________________ TestUnifiedDashboard.test_direct_marks_service ________________
+
+self = <test_dashboard_unified.TestUnifiedDashboard object at 0x11392ced0>
+db_session = <sqlalchemy.orm.session.Session object at 0x11392bdd0>
+setup_data = {'dept_id': 'f8cdea5e-9b24-4837-bdea-fa84dac32a0b', 'subject_id': '30514d11-1693-46ab-8d91-263767359983', 'token_h': '...00MmNkY2I2MTY3ZTMiLCJyb2xlIjoicHJpbmNpcGFsIiwiZXhwIjoxNzcwODI1OTE3fQ.O_8OKRbF8qZnQouUxnUc2yIcqrVf0Es4WXe6c7Bs25Q', ...}
+
+    def test_direct_marks_service(self, db_session, setup_data):
+        """Debug: Test marks_service directly."""
+        from app.services.analytics import marks_service
+        from app.models import Exam, Student, StudentQuestionMark
+    
+        # Fetch setup objects
+        exam_id = setup_data.get("exam_id")
+        # Wait, setup_data returns tokens/ids but not exam_id directly?
+        # Let's fetch exam.
+        exam = db_session.query(Exam).filter(Exam.exam_type == "IA1").first()
+        student = db_session.query(Student).filter(Student.usn.like("UNIF%")).first()
+    
+        print(f"DEBUG: Exam ID: {exam.id}, Student USN: {student.usn}")
+    
+        # Check raw marks
+        raw_marks = db_session.query(StudentQuestionMark).filter(
+            StudentQuestionMark.exam_id == exam.id,
+            StudentQuestionMark.usn == student.usn
+        ).all()
+        print(f"DEBUG: Raw Marks Count: {len(raw_marks)}")
+        for m in raw_marks:
+            print(f"DEBUG: Mark: {m.marks}, SubQ: {m.sub_question_id}")
+    
+        # Deep Inspection
+        from app.models import ExamSection, Question, SubQuestion
+        sections = db_session.query(ExamSection).filter(ExamSection.exam_id == exam.id).all()
+        print(f"DEBUG: Sections count: {len(sections)}")
+        for s in sections:
+            print(f"DEBUG: Section ID: {s.id}, ExamID: {s.exam_id}")
+            qs = db_session.query(Question).filter(Question.section_id == s.id).all()
+            print(f"DEBUG: Questions in Section: {len(qs)}")
+            for q in qs:
+                sqs_q = db_session.query(SubQuestion).filter(SubQuestion.question_id == q.id).all()
+                print(f"DEBUG: SQs in Question: {len(sqs_q)}")
+    
+        from app.services.analytics import query_helpers
+        sqs = query_helpers.get_exam_sub_questions(db_session, exam.id)
+        print(f"DEBUG: Helper SubQuestions: {len(sqs)}")
+        for sq in sqs:
+            print(f"DEBUG: Helper SQ: {sq.id}, Section: {sq.section_id}")
+    
+        # Manual Query Execution (Control)
+        from sqlalchemy import select
+        from app.models import SubQuestion, Question, ExamSection
+        print(f"DEBUG: Exam ID: {exam.id}, Student USN: {student.usn}")
+    
+        # Check ALL raw marks
+        all_marks = db_session.query(StudentQuestionMark).all()
+        print(f"DEBUG: ALL Marks Count: {len(all_marks)}")
+        for m in all_marks:
+            print(f"DEBUG: Mark ID={m.id}, ExamID={m.exam_id}, USN={m.usn}, Marks={m.marks}")
+            print(f"DEBUG: Match? Exam={m.exam_id == exam.id}, USN={m.usn == student.usn}")
+    
+        # Check filtered marks
+        raw_marks = db_session.query(StudentQuestionMark).filter(
+            StudentQuestionMark.exam_id == exam.id,
+            StudentQuestionMark.usn == student.usn
+        ).all()
+        print(f"DEBUG: Filtered Marks Count: {len(raw_marks)}")
+    
+        total, _ = marks_service.compute_exam_marks(db_session, exam.id, student.usn)
+        print(f"DEBUG: Computed Total: {total}")
+    
+>       assert total == 15.0
+E       AssertionError: assert Decimal('0') == 15.0
+
+tests/test_dashboard_unified.py:272: AssertionError
+------------------------------ Captured log setup ------------------------------
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.address`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.address` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.automotive`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.automotive` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.bank`.
+DEBUG    faker.factory:factory.py:86 Specified locale `en_US` is not available for provider `faker.providers.bank`. Locale reset to `en_GB` for this provider.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.barcode`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.barcode` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.color`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.color` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.company`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.company` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.credit_card`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.credit_card` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.currency`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.currency` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.date_time`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.date_time` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:106 Provider `faker.providers.emoji` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+DEBUG    faker.factory:factory.py:106 Provider `faker.providers.file` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.geo`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.geo` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.internet`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.internet` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:106 Provider `faker.providers.isbn` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.job`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.job` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.lorem`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.lorem` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.misc`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.misc` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.passport`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.passport` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.person`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.person` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.phone_number`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.phone_number` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:106 Provider `faker.providers.profile` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+DEBUG    faker.factory:factory.py:106 Provider `faker.providers.python` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+DEBUG    faker.factory:factory.py:106 Provider `faker.providers.sbn` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+DEBUG    faker.factory:factory.py:76 Looking for locale `en_US` in provider `faker.providers.ssn`.
+DEBUG    faker.factory:factory.py:95 Provider `faker.providers.ssn` has been localized to `en_US`.
+DEBUG    faker.factory:factory.py:106 Provider `faker.providers.user_agent` does not feature localization. Specified locale `en_US` is not utilized for this provider.
+=============================== warnings summary ===============================
+../../../../../opt/homebrew/lib/python3.11/site-packages/pydantic/_internal/_config.py:271: 41 warnings
+  /opt/homebrew/lib/python3.11/site-packages/pydantic/_internal/_config.py:271: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.5/migration/
+    warnings.warn(DEPRECATION_MESSAGE, DeprecationWarning)
+
+app/database.py:30
+  /Users/deepstacker/WorkSpace/outcome-master/backend/app/database.py:30: MovedIn20Warning: The ``declarative_base()`` function is now available as sqlalchemy.orm.declarative_base(). (deprecated since: 2.0) (Background on SQLAlchemy 2.0 at: https://sqlalche.me/e/b8d9)
+    Base = declarative_base()
+
+../../../../../opt/homebrew/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /opt/homebrew/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+app/main.py:86
+  /Users/deepstacker/WorkSpace/outcome-master/backend/app/main.py:86: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+../../../../../opt/homebrew/lib/python3.11/site-packages/fastapi/applications.py:4495
+../../../../../opt/homebrew/lib/python3.11/site-packages/fastapi/applications.py:4495
+  /opt/homebrew/lib/python3.11/site-packages/fastapi/applications.py:4495: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+app/main.py:111
+  /Users/deepstacker/WorkSpace/outcome-master/backend/app/main.py:111: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("shutdown")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_dashboard_unified.py::TestUnifiedDashboard::test_direct_marks_service
+================= 1 failed, 4 deselected, 47 warnings in 0.23s =================

@@ -45,7 +45,8 @@ class Exam(Base):
     subject = relationship("Subject", back_populates="exams")  # Legacy
     cohort = relationship("Cohort", back_populates="exams")
     sections = relationship("ExamSection", back_populates="exam", cascade="all, delete-orphan")
-    student_marks = relationship("StudentMarks", back_populates="exam", cascade="all, delete-orphan")
+    student_marks = relationship("StudentMarks", back_populates="exam", cascade="all, delete-orphan")  # Legacy
+    question_marks = relationship("StudentQuestionMark", back_populates="exam", cascade="all, delete-orphan")  # Active
     exam_snapshots = relationship("ExamSnapshot", back_populates="exam")
     
     def __repr__(self):
@@ -149,7 +150,8 @@ class SubQuestion(Base):
     unit = relationship("Unit", back_populates="sub_questions")
     topic = relationship("Topic", back_populates="sub_questions")
     bloom = relationship("Bloom", back_populates="sub_questions")
-    student_marks = relationship("StudentMarks", back_populates="sub_question")
+    student_marks = relationship("StudentMarks", back_populates="sub_question")  # Legacy
+    question_marks = relationship("StudentQuestionMark", back_populates="sub_question")  # Active
     
     def __repr__(self):
         return f"<SubQuestion {self.label}>"

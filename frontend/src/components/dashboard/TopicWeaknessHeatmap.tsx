@@ -94,7 +94,7 @@ export function TopicWeaknessHeatmap({ results }: TopicWeaknessHeatmapProps) {
                         {topic.topic_name} <span className="text-xs">({topic.unit})</span>
                       </span>
                       <Badge variant="destructive" className="ml-2">
-                        {topic.percentage.toFixed(0)}%
+                        {(Number(topic.percentage) || 0).toFixed(0)}%
                       </Badge>
                     </div>
                   ))}
@@ -115,7 +115,7 @@ export function TopicWeaknessHeatmap({ results }: TopicWeaknessHeatmapProps) {
                         {topic.topic_name}
                       </span>
                       <Badge className="bg-green-500 ml-2">
-                        {topic.percentage.toFixed(0)}%
+                        {(Number(topic.percentage) || 0).toFixed(0)}%
                       </Badge>
                     </div>
                   ))}
@@ -135,13 +135,13 @@ export function TopicWeaknessHeatmap({ results }: TopicWeaknessHeatmapProps) {
                       <div
                         key={topic.topic_id}
                         className={`p-2 rounded-lg text-center ${getPerformanceColor(topic.percentage)}`}
-                        title={`${topic.topic_name}: ${topic.percentage.toFixed(1)}%`}
+                        title={`${topic.topic_name}: ${(Number(topic.percentage) || 0).toFixed(1)}%`}
                       >
                         <p className="text-xs font-medium truncate text-white">
                           {topic.topic_name}
                         </p>
                         <p className="text-lg font-bold text-white">
-                          {topic.percentage.toFixed(0)}%
+                          {(Number(topic.percentage) || 0).toFixed(0)}%
                         </p>
                       </div>
                     ))}

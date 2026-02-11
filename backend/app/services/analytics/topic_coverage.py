@@ -13,7 +13,7 @@ from uuid import UUID
 from decimal import Decimal
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_, func, case
+from sqlalchemy import select, and_, or_, func, case
 
 from app.models import (
     Unit, Topic, Question, SubQuestion, StudentQuestionMark,
@@ -241,6 +241,15 @@ class TopicCoverageService:
         offering_id: UUID
     ) -> Dict[str, Dict]:
         """Get question counts and marks per topic."""
+        offering = self.db.query(SubjectOffering).filter(SubjectOffering.id == offering_id).first()
+        if not offering:
+            return {}
+        
+        exam_filter = or_(
+            Exam.offering_id == offering_id,
+            and_(Exam.subject_id == offering.subject_id, Exam.cohort_id == offering.cohort_id)
+        )
+        
         result = self.db.execute(
             select(
                 SubQuestion.topic_id,
@@ -253,7 +262,7 @@ class TopicCoverageService:
             .join(Exam, Exam.id == ExamSection.exam_id)
             .outerjoin(CourseOutcome, CourseOutcome.id == SubQuestion.co_id)
             .where(and_(
-                Exam.offering_id == offering_id,
+                exam_filter,
                 SubQuestion.topic_id.isnot(None)
             ))
             .group_by(SubQuestion.topic_id)
@@ -273,6 +282,15 @@ class TopicCoverageService:
         offering_id: UUID
     ) -> Dict[str, Dict]:
         """Get average performance per topic across all students."""
+        offering = self.db.query(SubjectOffering).filter(SubjectOffering.id == offering_id).first()
+        if not offering:
+            return {}
+        
+        exam_filter = or_(
+            Exam.offering_id == offering_id,
+            and_(Exam.subject_id == offering.subject_id, Exam.cohort_id == offering.cohort_id)
+        )
+        
         result = self.db.execute(
             select(
                 SubQuestion.topic_id,
@@ -290,7 +308,7 @@ class TopicCoverageService:
             .join(ExamSection, ExamSection.id == Question.section_id)
             .join(Exam, Exam.id == ExamSection.exam_id)
             .where(and_(
-                Exam.offering_id == offering_id,
+                exam_filter,
                 SubQuestion.topic_id.isnot(None)
             ))
             .group_by(SubQuestion.topic_id)

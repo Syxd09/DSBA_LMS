@@ -16,8 +16,8 @@ from datetime import datetime
 from app.database import get_db
 from app.api.deps import require_teacher_or_above, require_hod_or_above, require_principal
 from app.models import (
-    Profile, GradingRule, GradeScale, FinalMarks, Exam, StudentMarks,
-    Subject, SemesterResult, StudentEnrollment, SubQuestion, Question, ExamSection
+    Profile, GradingRule, GradeScale, FinalMarks, Exam, Student, StudentQuestionMark,
+    Subject, SemesterResult, SubQuestion, Question, ExamSection
 )
 from app.schemas import (
     GradingRuleResponse, FinalMarksResponse,
@@ -76,21 +76,21 @@ async def create_grade_scale(
 def _compute_exam_total_for_student(
     db: Session,
     exam_id: UUID,
-    student_id: UUID
+    student_usn: str
 ) -> Decimal:
     """
     Compute exam total for a student on-demand.
     
-    This replaces the stored MarksComputed table.
+    Uses StudentQuestionMark (active model) with USN.
     Implements BEST_N selection logic.
     """
     # Get all sections
     sections = db.query(ExamSection).filter(ExamSection.exam_id == exam_id).all()
     
-    # Get all marks for this student and exam
-    student_marks = db.query(StudentMarks).filter(
-        StudentMarks.exam_id == exam_id,
-        StudentMarks.student_id == student_id
+    # Get all marks for this student and exam using StudentQuestionMark
+    student_marks = db.query(StudentQuestionMark).filter(
+        StudentQuestionMark.exam_id == exam_id,
+        StudentQuestionMark.usn == student_usn
     ).all()
     
     if not student_marks:
@@ -119,7 +119,7 @@ def _compute_exam_total_for_student(
             best = question_totals[:section.required_questions]
             total += sum(best)
         else:
-            # FIRST_N or ALL - sum all at marks
+            # FIRST_N or ALL - sum all marks
             for question in section_questions[:section.required_questions]:
                 sub_questions = db.query(SubQuestion).filter(SubQuestion.question_id == question.id).all()
                 sq_ids = [sq.id for sq in sub_questions]
@@ -150,7 +150,7 @@ async def create_grading_rule(
     current_user: Profile = Depends(require_principal)
 ):
     """Create a new grading rule."""
-    # Validate required fields - FIX: Added grade_scale_id to required fields
+    # Validate required fields
     required_fields = ["grade_scale_id", "grade", "min_percentage", "max_percentage", "grade_point"]
     for field in required_fields:
         if field not in rule_data:
@@ -176,7 +176,7 @@ async def create_grading_rule(
     
     rule = GradingRule(
         id=uuid_lib.uuid4(),
-        grade_scale_id=rule_data["grade_scale_id"],  # FIX: Set required FK
+        grade_scale_id=rule_data["grade_scale_id"],
         grade=rule_data["grade"],
         min_percentage=Decimal(str(rule_data["min_percentage"])),
         max_percentage=Decimal(str(rule_data["max_percentage"])),
@@ -229,7 +229,7 @@ async def delete_grading_rule(
     return {"message": "Grading rule deleted successfully"}
 
 
-@router.post("/calculate", response_model=List[FinalMarksResponse])
+@router.post("/calculate")
 async def calculate_grades(
     request: CalculateGradesRequest,
     db: Session = Depends(get_db),
@@ -238,7 +238,9 @@ async def calculate_grades(
     """
     Calculate grades for a cohort and subject.
     
-    NOTE: Now uses on-demand computation instead of MarksComputed table.
+    Uses on-demand computation. Stores only raw marks in FinalMarks.
+    Computed values (best_internal, total, percentage, grade) are returned
+    in the response but NOT stored per the "no stored analytics" rule.
     """
     # Get grading rules
     rules = db.query(GradingRule).order_by(GradingRule.min_percentage.desc()).all()
@@ -260,44 +262,43 @@ async def calculate_grades(
         Exam.status.in_(["published", "locked"])
     ).first()
     
-    # Get students in cohort
-    enrollments = db.query(StudentEnrollment).filter(
-        StudentEnrollment.cohort_id == request.cohort_id,
-        StudentEnrollment.status == "active"
+    # Get students in cohort (using Student model, not legacy StudentEnrollment)
+    students = db.query(Student).filter(
+        Student.cohort_id == request.cohort_id,
+        Student.status == "active"
     ).all()
     
     results = []
     
-    for enrollment in enrollments:
-        student_id = enrollment.student_id
+    for student in students:
+        usn = student.usn
         
-        # Compute internal 1 marks ON-DEMAND (no MarksComputed)
+        # Compute internal 1 marks ON-DEMAND
         internal1_marks = None
         if internal1_exam:
-            computed = _compute_exam_total_for_student(db, internal1_exam.id, student_id)
+            computed = _compute_exam_total_for_student(db, internal1_exam.id, usn)
             if computed is not None:
                 internal1_marks = float(computed)
         
-        # Compute internal 2 marks ON-DEMAND (no MarksComputed)
+        # Compute internal 2 marks ON-DEMAND
         internal2_marks = None
         if internal2_exam:
-            computed = _compute_exam_total_for_student(db, internal2_exam.id, student_id)
+            computed = _compute_exam_total_for_student(db, internal2_exam.id, usn)
             if computed is not None:
                 internal2_marks = float(computed)
         
-        # Calculate best internal
+        # Compute best internal (derived, NOT stored)
         best_internal = max(internal1_marks or 0, internal2_marks or 0)
         
         # TODO: Add external marks when implemented
         external_marks = None
         
-        # Calculate total and percentage
-        # Assuming internal is out of 30 and external is out of 70
-        total = best_internal  # Simplified - add external when available
-        max_total = (internal1_exam.max_marks if internal1_exam else 30)  # Simplified
+        # Calculate total and percentage (derived, NOT stored)
+        total = best_internal
+        max_total = (internal1_exam.max_marks if internal1_exam else 30)
         percentage = (total / max_total * 100) if max_total > 0 else 0
         
-        # Determine grade
+        # Determine grade (derived, NOT stored)
         grade = "F"
         grade_point = Decimal(0)
         for rule in rules:
@@ -306,9 +307,9 @@ async def calculate_grades(
                 grade_point = rule.grade_point
                 break
         
-        # Save or update final marks
+        # Save or update final marks — RAW INPUTS ONLY
         existing = db.query(FinalMarks).filter(
-            FinalMarks.student_id == student_id,
+            FinalMarks.usn == usn,
             FinalMarks.subject_id == request.subject_id,
             FinalMarks.cohort_id == request.cohort_id
         ).first()
@@ -316,55 +317,46 @@ async def calculate_grades(
         if existing:
             existing.internal_1 = Decimal(str(internal1_marks)) if internal1_marks else None
             existing.internal_2 = Decimal(str(internal2_marks)) if internal2_marks else None
-            existing.best_internal = Decimal(str(best_internal))
             existing.external_marks = Decimal(str(external_marks)) if external_marks else None
-            existing.total_marks = Decimal(str(total))
-            existing.percentage = Decimal(str(round(percentage, 2)))
-            existing.grade = grade
-            existing.grade_point = grade_point
             existing.updated_at = datetime.utcnow()
             final_mark = existing
         else:
             final_mark = FinalMarks(
                 id=uuid_lib.uuid4(),
-                student_id=student_id,
+                usn=usn,
                 subject_id=request.subject_id,
                 cohort_id=request.cohort_id,
                 internal_1=Decimal(str(internal1_marks)) if internal1_marks else None,
                 internal_2=Decimal(str(internal2_marks)) if internal2_marks else None,
-                best_internal=Decimal(str(best_internal)),
                 external_marks=Decimal(str(external_marks)) if external_marks else None,
-                total_marks=Decimal(str(total)),
-                percentage=Decimal(str(round(percentage, 2))),
-                grade=grade,
-                grade_point=grade_point
             )
             db.add(final_mark)
         
         db.flush()
         
-        results.append(FinalMarksResponse(
-            id=final_mark.id,
-            student_id=student_id,
-            subject_id=request.subject_id,
-            cohort_id=request.cohort_id,
-            internal_1=internal1_marks,
-            internal_2=internal2_marks,
-            best_internal=best_internal,
-            external_marks=external_marks,
-            total_marks=total,
-            percentage=round(percentage, 2),
-            grade=grade,
-            grade_point=float(grade_point),
-            created_at=final_mark.created_at
-        ))
+        # Return computed values in response (without storing them)
+        results.append({
+            "id": str(final_mark.id),
+            "usn": usn,
+            "subject_id": str(request.subject_id),
+            "cohort_id": str(request.cohort_id),
+            "internal_1": internal1_marks,
+            "internal_2": internal2_marks,
+            "best_internal": best_internal,
+            "external_marks": external_marks,
+            "total_marks": total,
+            "percentage": round(percentage, 2),
+            "grade": grade,
+            "grade_point": float(grade_point),
+            "created_at": final_mark.created_at.isoformat() if final_mark.created_at else None,
+        })
     
     db.commit()
     
     return results
 
 
-@router.get("/final-marks", response_model=List[FinalMarksResponse])
+@router.get("/final-marks")
 async def get_final_marks(
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above),
@@ -372,7 +364,7 @@ async def get_final_marks(
     subject_id: UUID = None
 ):
     """Get final marks with optional filters."""
-    query = db.query(FinalMarks).options(joinedload(FinalMarks.student))
+    query = db.query(FinalMarks)
     
     if cohort_id:
         query = query.filter(FinalMarks.cohort_id == cohort_id)
@@ -380,5 +372,20 @@ async def get_final_marks(
         query = query.filter(FinalMarks.subject_id == subject_id)
     
     marks = query.all()
-    return marks
-
+    return [
+        {
+            "id": str(m.id),
+            "usn": m.usn,
+            "subject_id": str(m.subject_id) if m.subject_id else None,
+            "cohort_id": str(m.cohort_id),
+            "internal_1": float(m.internal_1) if m.internal_1 else None,
+            "internal_2": float(m.internal_2) if m.internal_2 else None,
+            "external_marks": float(m.external_marks) if m.external_marks else None,
+            "attendance": float(m.attendance) if m.attendance else None,
+            "assignment_1": float(m.assignment_1) if m.assignment_1 else None,
+            "assignment_2": float(m.assignment_2) if m.assignment_2 else None,
+            "activity": float(m.activity) if m.activity else None,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        }
+        for m in marks
+    ]

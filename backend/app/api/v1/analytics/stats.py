@@ -1,7 +1,6 @@
 """
 EduMetrics Analytics API - General Statistics Endpoints
 
-Migrated from legacy analytics.py.
 Contains:
 - Department Statistics
 - Subject Performance
@@ -17,10 +16,8 @@ from app.database import get_db
 from app.api.deps import require_teacher_or_above, require_hod_or_above, require_authenticated
 from app.models import (
     Exam, Question, SubQuestion, ExamSection, Subject,
-    Department, Program, Cohort, StudentEnrollment
+    Department, Program, Cohort, Student, StudentQuestionMark
 )
-# We need schema definitions. Assuming they are in app.schemas or local.
-# analytics.py imported from app.schemas.
 from app.schemas import (
     BloomDistribution, SubjectPerformance, DepartmentStats
 )
@@ -42,13 +39,13 @@ async def get_department_stats(
         programs = db.query(Program).filter(Program.department_id == dept.id).all()
         program_ids = [p.id for p in programs]
         
-        # Count cohorts and students
+        # Count cohorts and students (using Student model, not legacy StudentEnrollment)
         cohorts = db.query(Cohort).filter(Cohort.program_id.in_(program_ids)).all() if program_ids else []
         cohort_ids = [c.id for c in cohorts]
         
-        students = db.query(StudentEnrollment).filter(
-            StudentEnrollment.cohort_id.in_(cohort_ids),
-            StudentEnrollment.status == "active"
+        students = db.query(Student).filter(
+            Student.cohort_id.in_(cohort_ids),
+            Student.status == "active"
         ).count() if cohort_ids else 0
         
         # TODO: Get actual teacher count from teacher_assignments
@@ -73,7 +70,9 @@ async def get_subject_performance(
     current_user = Depends(require_hod_or_above)
 ):
     """Get subject-wise performance for a cohort."""
-    # Get all exams for this cohort
+    from app.services.analytics import marks_service
+    
+    # Get all locked/published exams for this cohort
     exams = db.query(Exam).filter(
         Exam.cohort_id == cohort_id,
         Exam.status.in_(["published", "locked"])
@@ -86,15 +85,23 @@ async def get_subject_performance(
         if not subject:
             continue
         
-        # Get computed marks for this exam
-        # Importing MarksComputed locally to avoid circular imports if any
-        from app.models import MarksComputed
-        computed = db.query(MarksComputed).filter(MarksComputed.exam_id == exam.id).all()
+        # Get unique student USNs for this exam
+        student_usns = db.query(StudentQuestionMark.usn).filter(
+            StudentQuestionMark.exam_id == exam.id
+        ).distinct().all()
         
-        if not computed:
+        if not student_usns:
             continue
         
-        marks_list = [float(c.total_marks) for c in computed]
+        # Compute marks on-demand for each student
+        marks_list = []
+        for (usn,) in student_usns:
+            total, _ = marks_service.compute_exam_marks(db, exam.id, usn)
+            if total is not None:
+                marks_list.append(float(total))
+        
+        if not marks_list:
+            continue
         
         if subject.id not in subject_stats:
             subject_stats[subject.id] = {
@@ -141,35 +148,45 @@ async def get_bloom_distribution(
     """Get Bloom's taxonomy distribution for an exam."""
     bloom_levels = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create']
     
-    # Get all questions for this exam
+    # Get all sub-questions for this exam (sub-questions are the evaluable unit)
     sections = db.query(ExamSection).filter(ExamSection.exam_id == exam_id).all()
-    section_ids = [s.id for s in sections]
+    if not sections:
+        return [BloomDistribution(level=l, count=0, percentage=0.0) for l in bloom_levels]
     
+    section_ids = [s.id for s in sections]
     questions = db.query(Question).filter(Question.section_id.in_(section_ids)).all()
+    q_ids = [q.id for q in questions]
+    q_bloom_map = {q.id: q.bloom_level for q in questions}  # fallback bloom from parent
+    
     sub_questions = db.query(SubQuestion).filter(
-        SubQuestion.question_id.in_([q.id for q in questions])
+        SubQuestion.question_id.in_(q_ids)
     ).all()
     
-    # Count by bloom level (case-insensitive)
+    # Count sub-questions by bloom level and sum max marks
     level_counts = {level.upper(): 0 for level in bloom_levels}
-    total = len(questions) + len(sub_questions)
-    
-    for q in questions:
-        if q.bloom_level and q.bloom_level.upper() in level_counts:
-            level_counts[q.bloom_level.upper()] += 1
+    level_max_marks = {level.upper(): 0 for level in bloom_levels}
+    level_sq_ids = {level.upper(): [] for level in bloom_levels}
     
     for sq in sub_questions:
-        if sq.bloom_level and sq.bloom_level.upper() in level_counts:
-            level_counts[sq.bloom_level.upper()] += 1
+        # Priority: SubQuestion.bloom_level > parent Question.bloom_level
+        bl = sq.bloom_level or q_bloom_map.get(sq.question_id)
+        if bl and bl.upper() in level_counts:
+            key = bl.upper()
+            level_counts[key] += 1
+            level_max_marks[key] += sq.max_marks or 0
+            level_sq_ids[key].append(sq.id)
+    
+    total_questions = sum(level_counts.values()) or 1  # avoid division by zero
     
     results = []
     for level in bloom_levels:
-        count = level_counts[level.upper()]
-        percentage = (count / total * 100) if total > 0 else 0
+        key = level.upper()
+        count = level_counts[key]
+        percentage = round((count / total_questions * 100), 1)
         results.append(BloomDistribution(
             level=level,
             count=count,
-            percentage=round(percentage, 1)
+            percentage=percentage
         ))
     
     return results

@@ -10,7 +10,7 @@ import uuid as uuid_lib
 
 from app.database import get_db
 from app.api.deps import require_authenticated, require_hod_or_above
-from app.models import Profile, Cohort, Program, StudentEnrollment, Exam
+from app.models import Profile, Cohort, Program, Student, Exam
 from app.schemas import CohortCreate, CohortUpdate, CohortResponse
 
 router = APIRouter(prefix="/cohorts", tags=["Cohorts"])
@@ -32,7 +32,7 @@ async def list_cohorts(
     cohorts = query.order_by(Cohort.year.desc()).all()
     
     for cohort in cohorts:
-        cohort.student_count = db.query(StudentEnrollment).filter(StudentEnrollment.cohort_id == cohort.id).count()
+        cohort.student_count = db.query(Student).filter(Student.cohort_id == cohort.id).count()
         cohort.exam_count = db.query(Exam).filter(Exam.cohort_id == cohort.id).count()
         
     return cohorts

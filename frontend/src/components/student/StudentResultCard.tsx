@@ -55,17 +55,17 @@ export function StudentResultCard({
                 <TrendingDown className="w-4 h-4 text-destructive" />
               )}
               <span className={isAboveAverage ? 'text-green-500' : 'text-destructive'}>
-                {isAboveAverage ? '+' : ''}{(totalMarks - classAverage).toFixed(1)} vs avg
+                {isAboveAverage ? '+' : ''}{(Number(totalMarks - classAverage) || 0).toFixed(1)} vs avg
               </span>
             </div>
-            <p className="text-sm text-muted-foreground">Class avg: {classAverage.toFixed(1)}</p>
+            <p className="text-sm text-muted-foreground">Class avg: {(Number(classAverage) || 0).toFixed(1)}</p>
           </div>
         </div>
 
         <div className="space-y-1">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Score</span>
-            <span className="font-medium">{percentage.toFixed(1)}%</span>
+            <span className="font-medium">{(Number(percentage) || 0).toFixed(1)}%</span>
           </div>
           <Progress value={percentage} className="h-2" />
         </div>
@@ -91,7 +91,7 @@ export function StudentResultCard({
                   >
                     {co}
                   </div>
-                  <p className="text-sm font-semibold mt-1">{coPercent.toFixed(0)}%</p>
+                  <p className="text-sm font-semibold mt-1">{(Number(coPercent) || 0).toFixed(0)}%</p>
                 </div>
               );
             })}

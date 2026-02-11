@@ -72,3 +72,7 @@ router.include_router(notifications_router, prefix="/notifications", tags=["Noti
 from app.api.v1.co_po_mapping import router as co_po_mapping_router
 router.include_router(co_po_mapping_router)
 
+
+# Survey (Indirect Attainment)
+from app.api.v1.surveys import router as surveys_router
+router.include_router(surveys_router)

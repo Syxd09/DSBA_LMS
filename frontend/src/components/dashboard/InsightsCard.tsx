@@ -17,8 +17,8 @@ interface Insight {
 
 export function InsightsCard({ usn }: InsightsCardProps) {
   const { data, isLoading } = useQuery({
-    queryKey: ['student-insights', usn],
-    queryFn: () => roleAnalyticsApi.getStudentPerformance(),
+    queryKey: ['student-insights-api', usn],
+    queryFn: () => roleAnalyticsApi.getStudentInsights(),
     enabled: !!usn,
     staleTime: 60000,
   });
@@ -41,87 +41,15 @@ export function InsightsCard({ usn }: InsightsCardProps) {
     );
   }
 
-  // Generate rule-based insights from performance data
-  const perfData = data?.data || {};
-  const insights: Insight[] = [];
+  // Use server-side insights
+  const insights: Insight[] = data?.data || [];
 
-  // Insight 1: Overall performance
-  const avgScore = perfData.overall_percentage || 0;
-  if (avgScore >= 75) {
-    insights.push({
-      type: 'strength',
-      title: 'Strong Overall Performance',
-      description: `You're performing at ${Math.round(avgScore)}% average, above the 70% threshold.`,
-      priority: 'low',
-    });
-  } else if (avgScore < 50) {
-    insights.push({
-      type: 'warning',
-      title: 'Performance Below Expectations',
-      description: `Your average of ${Math.round(avgScore)}% needs improvement across subjects.`,
-      priority: 'high',
-    });
-  }
-
-  // Insight 2: Bloom analysis
-  const bloomPerformance = perfData.bloom_performance || [];
-  const lowBloomLevels = bloomPerformance.filter((b: any) => b.percentage < 50);
-  const highBloomLevels = bloomPerformance.filter((b: any) => b.percentage >= 70);
-  
-  if (lowBloomLevels.length > 0) {
-    const weakLevels = lowBloomLevels.map((b: any) => b.level).join(', ');
-    insights.push({
-      type: 'weakness',
-      title: 'Cognitive Skill Gap Detected',
-      description: `Weak in ${weakLevels}. Focus on higher-order thinking skills.`,
-      priority: 'medium',
-    });
-  }
-
-  if (highBloomLevels.length >= 3) {
-    insights.push({
-      type: 'strength',
-      title: 'Strong Cognitive Balance',
-      description: 'You demonstrate good performance across multiple Bloom levels.',
-      priority: 'low',
-    });
-  }
-
-  // Insight 3: Internal vs External consistency
-  const subjectPerf = perfData.subject_performance || [];
-  const gapSubjects = subjectPerf.filter((s: any) => {
-    if (!s.internal_max || !s.external_max) return false;
-    const intPct = (s.internal_marks / s.internal_max) * 100;
-    const extPct = (s.external_marks / s.external_max) * 100;
-    return Math.abs(intPct - extPct) > 20;
-  });
-
-  if (gapSubjects.length > 2) {
-    insights.push({
-      type: 'warning',
-      title: 'Internal vs External Inconsistency',
-      description: `${gapSubjects.length} subjects show >20% gap. Consider exam preparation strategies.`,
-      priority: 'high',
-    });
-  }
-
-  // Insight 4: Subject-specific recommendations
-  const failedSubjects = subjectPerf.filter((s: any) => s.grade === 'F' || s.percentage < 40);
-  if (failedSubjects.length > 0) {
-    insights.push({
-      type: 'warning',
-      title: 'Subjects At Risk',
-      description: `${failedSubjects.length} subject(s) below passing threshold. Prioritize these.`,
-      priority: 'high',
-    });
-  }
-
-  // Default suggestion if no major issues
+  // Fallback if no insights returned
   if (insights.length === 0) {
     insights.push({
       type: 'suggestion',
-      title: 'Keep Up the Good Work!',
-      description: 'Your performance is on track. Continue maintaining consistency.',
+      title: 'No Trends Detected Yet',
+      description: 'Complete more assessments to generate personalized insights.',
       priority: 'low',
     });
   }

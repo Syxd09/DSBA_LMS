@@ -119,7 +119,7 @@ export function SemesterTrendChart({ usn }: SemesterTrendChartProps) {
                   <YAxis 
                     tick={{ fontSize: 11 }}
                     domain={selectedMetric === 'sgpa' ? [0, 10] : [0, 100]}
-                    tickFormatter={(v) => selectedMetric === 'sgpa' ? v.toFixed(1) : `${v}%`}
+                    tickFormatter={(v) => selectedMetric === 'sgpa' ? (Number(v) || 0).toFixed(1) : `${v}%`}
                   />
                   <Tooltip 
                     content={({ active, payload, label }) => {
@@ -128,8 +128,8 @@ export function SemesterTrendChart({ usn }: SemesterTrendChartProps) {
                         return (
                           <div className="bg-background border rounded-lg p-3 shadow-lg">
                             <p className="font-medium">{label}</p>
-                            <p className="text-sm text-muted-foreground">SGPA: {d.sgpa.toFixed(2)}</p>
-                            <p className="text-sm text-muted-foreground">CGPA: {d.cgpa.toFixed(2)}</p>
+                            <p className="text-sm text-muted-foreground">SGPA: {(Number(d.sgpa) || 0).toFixed(2)}</p>
+                            <p className="text-sm text-muted-foreground">CGPA: {(Number(d.cgpa) || 0).toFixed(2)}</p>
                             <p className="text-sm text-muted-foreground">Credits: {d.credits}</p>
                             <Badge variant={d.status === 'pass' ? 'default' : 'destructive'} className="mt-1">
                               {d.status}
@@ -168,11 +168,11 @@ export function SemesterTrendChart({ usn }: SemesterTrendChartProps) {
             {/* Summary stats */}
             <div className="grid grid-cols-3 gap-2 mt-4 text-center text-sm">
               <div className="p-2 bg-primary/10 rounded-lg">
-                <p className="font-semibold">{latestSgpa.toFixed(2)}</p>
+                <p className="font-semibold">{(Number(latestSgpa) || 0).toFixed(2)}</p>
                 <p className="text-xs text-muted-foreground">Latest SGPA</p>
               </div>
               <div className="p-2 bg-secondary rounded-lg">
-                <p className="font-semibold">{latestCgpa.toFixed(2)}</p>
+                <p className="font-semibold">{(Number(latestCgpa) || 0).toFixed(2)}</p>
                 <p className="text-xs text-muted-foreground">CGPA</p>
               </div>
               <div className="p-2 bg-muted rounded-lg">

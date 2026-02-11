@@ -1,7 +1,8 @@
 import { StatsCard } from './StatsCard';
 import { AtRiskStudentsList } from './AtRiskStudentsList';
 import { QuestionDifficultyChart } from './QuestionDifficultyChart';
-import { BookOpen, Users, Clock, TrendingUp, Plus, FileText, Activity, Download, Upload, BarChart2, Settings } from 'lucide-react';
+import { SubjectHealthCard } from './SubjectHealthCard';
+import { BookOpen, Users, Clock, TrendingUp, Plus, FileText, Activity, Download, Upload, BarChart2, Settings, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,15 +10,27 @@ import { useQuery } from '@tanstack/react-query';
 import { dashboardApi, roleAnalyticsApi, templatesApi } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useState, useEffect } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function TeacherDashboard() {
   const navigate = useNavigate();
+  const [detailedSubjectId, setDetailedSubjectId] = useState<string>('');
   
   // Primary dashboard data
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['teacher-dashboard'],
     queryFn: () => dashboardApi.getTeacherDashboard(),
   });
+
+  const subjects = dashboardData?.subjects || [];
+
+  // Update selected subject when data loads
+  useEffect(() => {
+    if (subjects.length > 0 && !detailedSubjectId) {
+      setDetailedSubjectId(subjects[0].offering_id || '');
+    }
+  }, [subjects, detailedSubjectId]);
 
   const handleDownloadReport = async (offeringId: string, subjectName: string) => {
     if (!offeringId) return;
@@ -37,14 +50,10 @@ export function TeacherDashboard() {
     }
   };
 
-  // Note: Phase 3 roleAnalyticsApi.getSubjectHealth() and getQuestionAnalysis()
-  // can be called when a specific subject/exam is selected for detailed analytics
-
   const assignedSubjects = dashboardData?.assigned_subjects || 0;
   const totalStudents = dashboardData?.total_students || 0;
   const pendingEvaluations = dashboardData?.pending_evaluations || 0;
   const classAverage = dashboardData?.class_average || 0;
-  const subjects = dashboardData?.subjects || [];
 
   // Performance comparison data from real subject data
   const comparisonData = subjects.map((s: any) => ({
@@ -52,6 +61,8 @@ export function TeacherDashboard() {
     average: s.average || 0,
     target: 70,
   }));
+
+  const selectedSubjectName = subjects.find((s: any) => s.offering_id === detailedSubjectId)?.name || 'Subject';
 
   if (isLoading) {
     return (
@@ -129,14 +140,6 @@ export function TeacherDashboard() {
               <BarChart2 className="w-4 h-4 mr-2" />
               Manage COs
             </Button>
-            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/units')}>
-              <Settings className="w-4 h-4 mr-2" />
-              Units & Topics
-            </Button>
-            <Button variant="outline" className="w-full justify-start" onClick={() => navigate('/assessment-components')}>
-              <Upload className="w-4 h-4 mr-2" />
-              Upload Attendance/Activity
-            </Button>
           </CardContent>
         </Card>
 
@@ -183,10 +186,50 @@ export function TeacherDashboard() {
       {/* At-Risk Students */}
       <AtRiskStudentsList subjects={subjects} />
 
+      {/* Detailed Analytics Section */}
+      {subjects.length > 0 && (
+         <div className="space-y-4">
+             <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <Activity className="w-5 h-5 text-primary" />
+                    Detailed Subject Analytics
+                </h3>
+                <div className="w-64">
+                   <Select value={detailedSubjectId} onValueChange={setDetailedSubjectId}>
+                      <SelectTrigger>
+                         <SelectValue placeholder="Select Subject" />
+                      </SelectTrigger>
+                      <SelectContent>
+                         {subjects.filter((s: any) => s.offering_id).map((s: any) => (
+                             <SelectItem key={s.offering_id} value={s.offering_id}>{s.name} ({s.code})</SelectItem>
+                         ))}
+                      </SelectContent>
+                   </Select>
+                </div>
+             </div>
+             
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                 {/* Subject Health */}
+                 <div className="lg:col-span-1">
+                     {detailedSubjectId && (
+                        <SubjectHealthCard offeringId={detailedSubjectId} subjectName={selectedSubjectName} />
+                     )}
+                 </div>
+                 
+                 {/* Question Analysis */}
+                 <div className="lg:col-span-2">
+                     {detailedSubjectId && (
+                         <QuestionDifficultyChart offeringId={detailedSubjectId} />
+                     )}
+                 </div>
+             </div>
+         </div>
+      )}
+
       {/* Performance Chart */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-semibold">Subject Performance Comparison</CardTitle>
+          <CardTitle className="text-base font-semibold">Overall Performance Comparison</CardTitle>
         </CardHeader>
         <CardContent>
           {comparisonData.length > 0 ? (
@@ -214,11 +257,6 @@ export function TeacherDashboard() {
           )}
         </CardContent>
       </Card>
-
-      {/* Question Difficulty Analysis */}
-      {subjects.length > 0 && subjects[0]?.offering_id && (
-        <QuestionDifficultyChart offeringId={subjects[0].offering_id} />
-      )}
     </div>
   );
 }

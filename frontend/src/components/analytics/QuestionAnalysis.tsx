@@ -169,7 +169,7 @@ const QuestionRow = ({ question }: { question: QuestionData }) => {
                     <TableRow key={sq.sub_question_id}>
                       <TableCell className="font-mono">{sq.label}</TableCell>
                       <TableCell>{sq.max_marks}</TableCell>
-                      <TableCell>{sq.avg_marks.toFixed(1)}</TableCell>
+                      <TableCell>{(Number(sq.avg_marks) || 0).toFixed(1)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
                           <Progress value={sq.attempt_percentage} className="w-12 h-2" />
@@ -178,7 +178,7 @@ const QuestionRow = ({ question }: { question: QuestionData }) => {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className={getDifficultyColor(sq.difficulty_index)}>
-                          {sq.difficulty_index.toFixed(2)}
+                          {(Number(sq.difficulty_index) || 0).toFixed(2)}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -219,7 +219,7 @@ const SectionCard = ({ section }: { section: SectionData }) => {
               {section.question_count} Questions
             </Badge>
             <Badge variant="outline" className={getDifficultyColor(section.avg_difficulty)}>
-              Avg Difficulty: {section.avg_difficulty.toFixed(2)}
+              Avg Difficulty: {(Number(section.avg_difficulty) || 0).toFixed(2)}
             </Badge>
           </div>
         </div>
@@ -343,7 +343,7 @@ export default function QuestionAnalysis({ examId }: QuestionAnalysisProps) {
                         </Badge>
                       )}
                       <Badge className="bg-red-500 text-white">
-                        {(q.difficulty * 100).toFixed(0)}%
+                        {(Number(q.difficulty * 100) || 0).toFixed(0)}%
                       </Badge>
                     </div>
                   </div>
@@ -372,7 +372,7 @@ export default function QuestionAnalysis({ examId }: QuestionAnalysisProps) {
                         </Badge>
                       )}
                       <Badge className="bg-emerald-500 text-white">
-                        {(q.difficulty * 100).toFixed(0)}%
+                        {(Number(q.difficulty * 100) || 0).toFixed(0)}%
                       </Badge>
                     </div>
                   </div>
@@ -402,12 +402,12 @@ export default function QuestionAnalysis({ examId }: QuestionAnalysisProps) {
                       <div className={`px-4 py-2 rounded-lg ${getBloomColor(bloom)}`}>
                         <p className="font-medium capitalize">{bloom}</p>
                         <p className="text-sm">
-                          {data.count} questions • {(data.avg_difficulty * 100).toFixed(0)}% easy
+                          {data.count} questions • {(Number(data.avg_difficulty * 100) || 0).toFixed(0)}% easy
                         </p>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Average Difficulty Index: {data.avg_difficulty.toFixed(3)}</p>
+                      <p>Average Difficulty Index: {(Number(data.avg_difficulty) || 0).toFixed(3)}</p>
                       <p>{data.count} questions at this level</p>
                     </TooltipContent>
                   </Tooltip>

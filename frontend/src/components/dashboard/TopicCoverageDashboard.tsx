@@ -132,7 +132,7 @@ const UnitCoverageCard = ({ unit }: { unit: UnitInfo }) => {
                 variant={unit.avg_performance >= 60 ? "secondary" : "destructive"}
                 className={unit.avg_performance >= 60 ? "bg-emerald-100 text-emerald-700" : ""}
               >
-                {unit.avg_performance.toFixed(0)}% avg
+                {(Number(unit.avg_performance) || 0).toFixed(0)}% avg
               </Badge>
             )}
           </div>
@@ -181,7 +181,7 @@ const UnitCoverageCard = ({ unit }: { unit: UnitInfo }) => {
                             'bg-red-500'
                           }`}
                         />
-                        <span>{topic.avg_percentage.toFixed(0)}%</span>
+                        <span>{(Number(topic.avg_percentage) || 0).toFixed(0)}%</span>
                         <span className="text-xs text-muted-foreground">
                           ({topic.attempt_count} students)
                         </span>
@@ -347,7 +347,7 @@ export default function TopicCoverageDashboard({
               variant={coverage.coverage_percentage >= 80 ? "secondary" : "destructive"}
               className={coverage.coverage_percentage >= 80 ? "bg-emerald-100 text-emerald-700" : ""}
             >
-              {coverage.coverage_percentage.toFixed(0)}% Covered
+              {(Number(coverage.coverage_percentage) || 0).toFixed(0)}% Covered
             </Badge>
           </div>
           
@@ -361,7 +361,7 @@ export default function TopicCoverageDashboard({
             <CoverageStatCard
               title="Topics Assessed"
               value={coverage.assessed_topics}
-              subtitle={`${coverage.coverage_percentage.toFixed(0)}% coverage`}
+              subtitle={`${(Number(coverage.coverage_percentage) || 0).toFixed(0)}% coverage`}
               icon={Target}
               variant="success"
             />
@@ -373,7 +373,7 @@ export default function TopicCoverageDashboard({
             />
             <CoverageStatCard
               title="Avg Performance"
-              value={coverage.avg_performance ? `${coverage.avg_performance.toFixed(0)}%` : 'N/A'}
+              value={coverage.avg_performance ? `${(Number(coverage.avg_performance) || 0).toFixed(0)}%` : 'N/A'}
               icon={BarChart3}
               variant={
                 coverage.avg_performance === null ? 'default' :

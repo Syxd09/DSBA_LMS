@@ -188,7 +188,7 @@ export default function TopicHeatmap({
                 <div className="flex items-center gap-2">
                   <div className={`w-4 h-4 rounded ${getPerformanceColor(stats.avg)}`} />
                   <span className="text-sm">
-                    Average: <strong>{stats.avg.toFixed(0)}%</strong>
+                    Average: <strong>{(Number(stats.avg) || 0).toFixed(0)}%</strong>
                   </span>
                 </div>
                 <Badge variant="destructive" className="gap-1">
@@ -235,7 +235,7 @@ export default function TopicHeatmap({
                                 : topic.topic_name}
                             </span>
                             <span className="text-lg font-bold text-white">
-                              {topic.percentage.toFixed(0)}%
+                              {(Number(topic.percentage) || 0).toFixed(0)}%
                             </span>
                           </div>
                         </TooltipTrigger>
@@ -243,7 +243,7 @@ export default function TopicHeatmap({
                           <div className="space-y-1">
                             <p className="font-medium">{topic.topic_name}</p>
                             <p className="text-sm">
-                              Score: {topic.scored}/{topic.max_marks} ({topic.percentage.toFixed(1)}%)
+                              Score: {topic.scored}/{topic.max_marks} ({(Number(topic.percentage) || 0).toFixed(1)}%)
                             </p>
                             <p className={`text-sm font-medium ${
                               topic.percentage >= 60 ? 'text-green-600' : 'text-red-600'

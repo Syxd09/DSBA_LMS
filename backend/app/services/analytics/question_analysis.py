@@ -332,10 +332,21 @@ class QuestionAnalysisService:
     
     async def _get_total_students(self, offering_id: UUID) -> int:
         """Get total enrolled students for an offering."""
+        from app.models import SubjectOffering
+        from sqlalchemy import or_
+        offering = self.db.query(SubjectOffering).filter(SubjectOffering.id == offering_id).first()
+        if not offering:
+            return 0
+        
+        exam_filter = or_(
+            Exam.offering_id == offering_id,
+            and_(Exam.subject_id == offering.subject_id, Exam.cohort_id == offering.cohort_id)
+        )
+        
         result = self.db.execute(
             select(func.count(func.distinct(StudentQuestionMark.usn)))
             .join(Exam, Exam.id == StudentQuestionMark.exam_id)
-            .where(Exam.offering_id == offering_id)
+            .where(exam_filter)
         )
         return result.scalar() or 0
 

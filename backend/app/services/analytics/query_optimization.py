@@ -11,7 +11,7 @@ Provides:
 from typing import List, Dict, Optional, Any, TypeVar, Generic
 from uuid import UUID
 from sqlalchemy.orm import Session, joinedload, selectinload
-from sqlalchemy import select, and_, func, text
+from sqlalchemy import select, and_, or_, func, text
 from dataclasses import dataclass
 import logging
 
@@ -144,14 +144,22 @@ async def get_offering_dashboard_stats(
         .where(FinalMarks.offering_id == offering_id)
     ).scalar() or 0
     
-    # Exam counts
-    exam_stats = db.execute(
-        select(
-            func.count(Exam.id).label('total'),
-            func.count(Exam.id).filter(Exam.is_published == True).label('published')
+    # Exam counts - resolve offering to subject_id + cohort_id
+    offering = db.query(SubjectOffering).filter(SubjectOffering.id == offering_id).first()
+    
+    exam_stats = None
+    if offering:
+        exam_filter = or_(
+            Exam.offering_id == offering_id,
+            and_(Exam.subject_id == offering.subject_id, Exam.cohort_id == offering.cohort_id)
         )
-        .where(Exam.offering_id == offering_id)
-    ).first()
+        exam_stats = db.execute(
+            select(
+                func.count(Exam.id).label('total'),
+                func.count(Exam.id).filter(Exam.status == 'locked').label('published')
+            )
+            .where(exam_filter)
+        ).first()
     
     total_exams = exam_stats[0] if exam_stats else 0
     published_exams = exam_stats[1] if exam_stats else 0

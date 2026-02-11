@@ -27,6 +27,7 @@ async def list_exams(
     role: str = Depends(get_user_role),
     subject_id: Optional[UUID] = None,
     cohort_id: Optional[UUID] = None,
+    offering_id: Optional[UUID] = None,
     status_filter: Optional[str] = None
 ):
     """List exams (filtered by role)."""
@@ -43,6 +44,8 @@ async def list_exams(
         query = query.filter(Exam.subject_id == subject_id)
     if cohort_id:
         query = query.filter(Exam.cohort_id == cohort_id)
+    if offering_id:
+        query = query.filter(Exam.offering_id == offering_id)
     if status_filter:
         query = query.filter(Exam.status == status_filter)
     
@@ -606,40 +609,6 @@ async def revert_exam(
     return exam
 
 
-@router.post("/{exam_id}/reject", response_model=ExamResponse)
-async def reject_exam(
-    exam_id: UUID,
-    reason: str, # Expect JSON body { "reason": "..." }? No, query param for simplicity or body?
-                 # Standard is body. But keeping consistent with unlock which used query param in this file signature (Step 668 line 393)
-                 # Wait, unlock used `reason: str`. FastAPI treats simple types as query params by default.
-                 # Let's stick to Pydantic body for cleanliness? Or Query param?
-                 # Step 668 line 393: reason: str. This is a query param.
-                 # I will use Body for reject to be better, but consistent with unlock...
-                 # Let's use Body for better practice.
-    db: Session = Depends(get_db),
-    current_user: Profile = Depends(require_hod_or_above)
-):
-    """
-    Reject an exam (HOD only).
-    
-    Status transition: submitted → draft
-    """
-    from app.models import AuditLog
-    # Note: If reason is body, we need a Pydantic model. 
-    # If using Body(embed=True) it expects {"reason": "..."}
-    # For now, let's assume query param to match unlock signature style, or fix both.
-    # Unlock signature: `reason: str`. This implies query param `?reason=...`
-    # Let's check `lib/api.ts` implementation of reject.
-    # `apiClient.post(/exams/${id}/reject, { reason })` -> This sends JSON BODY.
-    # So `reason` must be declared as Body.
-    
-    # Correction: I cannot easily change signature to Body without import.
-    # I will use `from fastapi import Body`.
-    
-    # Wait, I am replacing a chunk. I can add imports.
-    pass
-
-# Redefining reject properly below in replacement content:
 
 @router.post("/{exam_id}/reject", response_model=ExamResponse)
 async def reject_exam(

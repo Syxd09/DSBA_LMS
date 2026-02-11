@@ -18,7 +18,7 @@ from decimal import Decimal
 from datetime import datetime
 
 from sqlalchemy.orm import Session
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, or_, func
 
 # Import models - use __init__.py exports or direct paths
 try:
@@ -167,6 +167,34 @@ def get_student_by_usn(
 
 
 # =============================================================================
+# Exam Lookup Helper (handles both offering_id and subject_id+cohort_id links)
+# =============================================================================
+
+def exam_filter_for_offering(db: Session, offering_id: UUID):
+    """
+    Build SQLAlchemy filter clause for finding exams linked to an offering.
+    
+    Returns (filter_clause, offering_obj) or (None, None) if offering not found.
+    
+    Handles both:
+    - Exams linked directly via Exam.offering_id (new path)
+    - Legacy exams linked via subject_id + cohort_id (offering_id NULL)
+    """
+    offering = db.query(SubjectOffering).filter(SubjectOffering.id == offering_id).first()
+    if not offering:
+        return None, None
+    
+    filter_clause = or_(
+        Exam.offering_id == offering_id,
+        and_(
+            Exam.subject_id == offering.subject_id,
+            Exam.cohort_id == offering.cohort_id
+        )
+    )
+    return filter_clause, offering
+
+
+# =============================================================================
 # Exam & Section Queries
 # =============================================================================
 
@@ -177,11 +205,17 @@ def get_offering_exams(
     """
     Fetch exams for an offering (INT1, INT2, EXT).
     
-    Returns list of ExamDTO.
+    Handles both:
+    - Exams linked directly via Exam.offering_id
+    - Legacy exams linked via subject_id + cohort_id (offering_id NULL)
     """
+    exam_filter, offering = exam_filter_for_offering(db, offering_id)
+    if exam_filter is None:
+        return []
+    
     result = db.execute(
         select(Exam.id, Exam.exam_type, Exam.offering_id)
-        .where(Exam.offering_id == offering_id)
+        .where(exam_filter)
     )
     return [
         ExamDTO(id=row[0], exam_type=row[1], offering_id=row[2])
@@ -195,10 +229,14 @@ def get_exam_by_type(
     exam_type: str
 ) -> Optional[ExamDTO]:
     """Fetch specific exam by type."""
+    exam_filter, offering = exam_filter_for_offering(db, offering_id)
+    if exam_filter is None:
+        return None
+    
     result = db.execute(
         select(Exam.id, Exam.exam_type, Exam.offering_id)
         .where(and_(
-            Exam.offering_id == offering_id,
+            exam_filter,
             Exam.exam_type == exam_type
         ))
     )
