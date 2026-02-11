@@ -8,6 +8,7 @@ import { AlertTriangle, Users, ChevronDown, ChevronUp, Loader2, Mail } from 'luc
 import { useQuery } from '@tanstack/react-query';
 import { roleAnalyticsApi } from '@/lib/api';
 import { ExportButton } from '@/components/ui/export-button';
+import { RemedialActionModal } from '@/components/remedial/RemedialActionModal';
 
 interface AtRiskStudentsListProps {
   subjects: Array<{
@@ -22,6 +23,7 @@ export function AtRiskStudentsList({ subjects }: AtRiskStudentsListProps) {
   const [selectedOffering, setSelectedOffering] = useState<string>('');
   const [expanded, setExpanded] = useState(true);
   const [threshold, setThreshold] = useState(50);
+  const [isRemedialModalOpen, setIsRemedialModalOpen] = useState(false);
 
   // Get at-risk students for selected offering
   const { data: atRiskData, isLoading } = useQuery({
@@ -66,16 +68,34 @@ export function AtRiskStudentsList({ subjects }: AtRiskStudentsListProps) {
           </CardTitle>
           <div className="flex items-center gap-1">
             {selectedOffering && atRiskStudents.length > 0 && (
-              <ExportButton
-                endpoint={`/export/teacher/at-risk-students/${selectedOffering}`}
-                params={{ threshold }}
-                filename={`at_risk_students_${atRiskData?.data?.subject_code || 'report'}`}
-                size="sm"
-              />
+              <>
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mr-1"
+                    onClick={() => setIsRemedialModalOpen(true)}
+                >
+                    Assign Remedial
+                </Button>
+                <ExportButton
+                    endpoint={`/export/teacher/at-risk-students/${selectedOffering}`}
+                    params={{ threshold }}
+                    filename={`at_risk_students_${atRiskData?.data?.subject_code || 'report'}`}
+                    size="sm"
+                />
+              </>
             )}
             <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)}>
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </Button>
+            
+            {/* Remedial Modal */}
+            <RemedialActionModal 
+                isOpen={isRemedialModalOpen}
+                onClose={() => setIsRemedialModalOpen(false)}
+                studentIds={atRiskStudents.map((s: any) => s.usn)}
+                offeringId={selectedOffering}
+            />
           </div>
         </div>
       </CardHeader>

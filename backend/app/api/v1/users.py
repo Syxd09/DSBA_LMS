@@ -27,8 +27,24 @@ async def list_users(
     """List all users (HOD and above)."""
     query = db.query(Profile)
     
+    # FILTER: Scoping for HOD
+    from app.models import Department
+    user_role_obj = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
+    if user_role_obj and user_role_obj.role == AppRole.HOD:
+        # Get HOD's department
+        hod_dept = db.query(Department).filter(Department.hod_id == current_user.user_id).first()
+        if hod_dept:
+            # Filter profiles belonging to this department name
+            # Note: Profile.department is a string name (denormalized). 
+            # Ideally we should link via Department ID, but schema uses name here.
+            query = query.filter(Profile.department == hod_dept.name)
+        else:
+            # HOD with no department assigned -> Should see nothing or everything?
+            # Safest: See nothing (or only themselves)
+            query = query.filter(Profile.user_id == current_user.user_id)
+
     if role:
-        # Join with user_roles to filter by role
+        # Join with user_roles to filter by target role
         query = query.join(UserRole, Profile.user_id == UserRole.user_id)
         query = query.filter(UserRole.role == role)
     
@@ -204,7 +220,7 @@ async def change_my_password(
     current_user: Profile = Depends(get_current_user)
 ):
     """Change current user's password."""
-    from app.core.security import verify_password, hash_password
+    from app.core.security import verify_password, get_password_hash
     
     current_password = password_data.get("current_password")
     new_password = password_data.get("new_password")
@@ -235,7 +251,7 @@ async def change_my_password(
         )
     
     # Update password
-    current_user.password_hash = hash_password(new_password)
+    current_user.password_hash = get_password_hash(new_password)
     db.commit()
     
     return {"message": "Password changed successfully"}
@@ -250,7 +266,7 @@ async def reset_user_password(
     """
     Reset ANY user's password (Principal only).
     """
-    from app.core.security import hash_password
+    from app.core.security import get_password_hash
     
     new_password = password_data.get("new_password")
     
@@ -267,7 +283,7 @@ async def reset_user_password(
             detail="User not found"
         )
         
-    user.password_hash = hash_password(new_password)
+    user.password_hash = get_password_hash(new_password)
     db.commit()
     
     return {"message": f"Password reset successfully for {user.full_name}"}

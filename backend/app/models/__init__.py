@@ -144,3 +144,8 @@ from app.models.survey import (
     SurveyQuestionResponse,
     SurveyType
 )
+
+# Remedial (OBE)
+from app.models.remedial import RemedialAction
+
+__all__.append("RemedialAction")

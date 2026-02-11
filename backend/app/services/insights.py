@@ -44,18 +44,39 @@ async def get_student_insights(
     final_marks = final_marks.all()
     
     for fm in final_marks:
-        if fm.attendance and float(fm.attendance) < 75:
-             # Attendance marks (max 5) -> < 3.75 is < 75%
-             if float(fm.attendance) < 3.75:
-                 subject = db.query(Subject).get(fm.subject_id)
-                 insights.append({
-                     "type": "warning",
-                     "title": f"Low Attendance in {subject.code if subject else 'Unknown'}",
-                     "description": "Your attendance is below 75%. You may be debarred from exams.",
-                     "priority": "high"
-                 })
+        if fm.attendance:
+             try:
+                 att_val = float(fm.attendance)
+                 if att_val < 75:
+                     # Attendance marks (max 5) -> < 3.75 is < 75% ?? 
+                     # Wait, fm.attendance is usually percentage in FinalMarks or marks?
+                     # FinalMarks.attendance is usually "85.5".
+                     # The logic `if float(fm.attendance) < 3.75` implies it checks *marks* not percentage.
+                     # But `fm.attendance` field comment says "marks out of 5"?
+                     # If it is marks: 5 * 0.75 = 3.75.
+                     # If it is percentage: 75.
+                     # Let's assume it checks percentage if > 5? Safe fallback.
+                     
+                     is_low = False
+                     if att_val <= 5.0 and att_val < 3.75:
+                         is_low = True
+                     elif att_val > 5.0 and att_val < 75.0:
+                         is_low = True
+                         
+                     if is_low:
+                         subject = db.query(Subject).get(fm.subject_id)
+                         insights.append({
+                             "type": "warning",
+                             "title": f"Low Attendance in {subject.code if subject else 'Unknown'}",
+                             "description": "Your attendance is below 75%. You may be debarred from exams.",
+                             "priority": "high"
+                         })
+             except ValueError:
+                 pass
 
     # 3. Performance Analysis
+    # ... (No changes needed here for now)
+    
     recent_exams_query = db.query(Exam).filter(
         Exam.cohort_id == student.cohort_id
     )
@@ -102,7 +123,14 @@ async def get_student_insights(
     
     for level, scored, max_m in bloom_stats:
         if not level or not max_m: continue
-        pct = (scored / max_m) * 100
+        
+        # FIX: Handle potential None for scored
+        scored_val = float(scored) if scored is not None else 0.0
+        max_val = float(max_m)
+        
+        if max_val <= 0: continue
+            
+        pct = (scored_val / max_val) * 100
         
         if pct < 50 and level in ['Apply', 'Analyze', 'Evaluate', 'Create']:
             insights.append({

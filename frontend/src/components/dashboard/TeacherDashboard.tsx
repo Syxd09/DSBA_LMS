@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi, roleAnalyticsApi, templatesApi } from '@/lib/api';
+import { AcademicConfig } from '@/config/academicConfig';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useState, useEffect } from 'react';
@@ -59,7 +60,7 @@ export function TeacherDashboard() {
   const comparisonData = subjects.map((s: any) => ({
     name: s.code || s.name?.substring(0, 10),
     average: s.average || 0,
-    target: 70,
+    target: AcademicConfig.CLASS_AVERAGE_TARGET,
   }));
 
   const selectedSubjectName = subjects.find((s: any) => s.offering_id === detailedSubjectId)?.name || 'Subject';
@@ -112,7 +113,7 @@ export function TeacherDashboard() {
           value={`${classAverage}%`}
           subtitle="Overall performance"
           icon={TrendingUp}
-          variant={classAverage >= 70 ? "success" : "default"}
+          variant={classAverage >= AcademicConfig.CLASS_AVERAGE_TARGET ? "success" : "default"}
         />
       </div>
 

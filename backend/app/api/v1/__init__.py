@@ -73,6 +73,10 @@ from app.api.v1.co_po_mapping import router as co_po_mapping_router
 router.include_router(co_po_mapping_router)
 
 
+# Remedial Actions (OBE)
+from app.api.v1.remedial import router as remedial_router
+router.include_router(remedial_router)
+
 # Survey (Indirect Attainment)
 from app.api.v1.surveys import router as surveys_router
 router.include_router(surveys_router)

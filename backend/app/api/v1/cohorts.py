@@ -27,6 +27,26 @@ async def list_cohorts(
         joinedload(Cohort.program),
         joinedload(Cohort.sections)
     )
+    
+    # FILTER: Scoping for HOD
+    from app.models import UserRole, Department, Program
+    from app.core.permissions import AppRole
+    
+    user_role_obj = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
+    if user_role_obj and user_role_obj.role == AppRole.HOD:
+         hod_dept = db.query(Department).filter(Department.hod_id == current_user.user_id).first()
+         if hod_dept:
+             # Get programs for this department
+             programs = db.query(Program).filter(Program.department_id == hod_dept.id).all()
+             program_ids = [p.id for p in programs]
+             
+             if program_ids:
+                 query = query.filter(Cohort.program_id.in_(program_ids))
+             else:
+                 return []
+         else:
+             return []
+
     if program_id:
         query = query.filter(Cohort.program_id == program_id)
     cohorts = query.order_by(Cohort.year.desc()).all()

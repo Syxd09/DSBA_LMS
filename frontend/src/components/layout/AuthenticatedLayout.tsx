@@ -14,11 +14,11 @@ export function AuthenticatedLayout({ children, allowedRoles }: AuthenticatedLay
   const { user, role, isLoading, signOut, profile } = useAuth();
   const navigate = useNavigate();
 
+  // Ensure user is authenticated
   useEffect(() => {
-    if (!isLoading && !user) {
-      navigate('/auth');
-    }
-  }, [user, isLoading, navigate]);
+    // Redundant redirect removed to prevent infinite loop
+    // ProtectedRoute handles the redirect to /auth
+  }, []);
 
   if (isLoading) {
     return (

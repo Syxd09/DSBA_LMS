@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi, departmentsApi, analyticsApi, roleAnalyticsApi } from '@/lib/api';
+import { AcademicConfig } from '@/config/academicConfig';
 
 export function PrincipalDashboard() {
   
@@ -50,7 +51,7 @@ export function PrincipalDashboard() {
     passPercentage: Number(dept.pass_percentage || 0),
     averageScore: Number(dept.average_score || 0),
     atRiskStudents: dept.at_risk_students || 0,
-    status: (dept.pass_percentage || 0) >= 75 ? "Active" : "Review Needed", 
+    status: (dept.pass_percentage || 0) >= AcademicConfig.DEPARTMENT_HEALTH_THRESHOLD ? "Active" : "Review Needed", 
   }));
 
   // Accreditation logic
@@ -127,7 +128,7 @@ export function PrincipalDashboard() {
                   </div>
                   <div className="h-2 w-full bg-background rounded-full overflow-hidden border">
                     <div 
-                      className={`h-full ${readinessScore >= 80 ? 'bg-green-500' : 'bg-yellow-500'}`} 
+                      className={`h-full ${readinessScore >= AcademicConfig.ACCREDITATION_READINESS_THRESHOLD ? 'bg-green-500' : 'bg-yellow-500'}`} 
                       style={{ width: `${readinessScore}%` }} 
                     />
                   </div>

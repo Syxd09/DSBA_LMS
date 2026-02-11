@@ -341,7 +341,8 @@ async def publish_exam(
         raise HTTPException(status_code=404, detail="Exam not found")
     
     if exam.status == "published":
-        raise HTTPException(status_code=400, detail="Exam is already published")
+        # Idempotent: return success if already published
+        return exam
     
     exam.status = "published"
     exam.published_at = datetime.utcnow()

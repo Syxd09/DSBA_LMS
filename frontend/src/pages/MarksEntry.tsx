@@ -6,7 +6,7 @@ import { ExamStructureBuilder } from '@/components/marks/ExamStructureBuilder';
 import { MarksEntryGrid } from '@/components/marks/MarksEntryGrid';
 import { useExams } from '@/hooks/useExams';
 import { useCourseOutcomes } from '@/hooks/useCourseOutcomes';
-import { examsApi, marksApi, enrollmentsApi } from '@/lib/api';
+import { examsApi, marksApi, enrollmentsApi, enrollmentsApi as enrollmentsService } from '@/lib/api'; // Using alias if needed
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -17,7 +17,14 @@ import { Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { ApprovalWorkflowCard } from '@/components/workflow/ApprovalWorkflowCard';
 import { EditRequestModal } from '@/components/modals/EditRequestModal';
-// Removed duplicate useAuth import
+import { Exam, ExamSection, Question, SubQuestion, StudentMark } from '@/types/marks';
+import { Student } from '@/types/academic';
+
+// Helper interface for Enrollment response (since backend might send different shape)
+interface EnrollmentResponse {
+  usn: string;
+  name: string;
+}
 
 export default function MarksEntry() {
   const queryClient = useQueryClient();
@@ -44,21 +51,21 @@ export default function MarksEntry() {
   const { exams, isLoading: examsLoading } = useExams();
 
   // Fetch exam details
-  const { data: examDetails, isLoading: detailsLoading } = useQuery({
+  const { data: examDetails, isLoading: detailsLoading } = useQuery<Exam>({
     queryKey: ['exam-details', selectedExamId],
     queryFn: () => examsApi.get(selectedExamId!),
     enabled: !!selectedExamId,
   });
 
   // Fetch students in cohort
-  const { data: enrollments = [], isLoading: studentsLoading } = useQuery({
+  const { data: enrollments = [], isLoading: studentsLoading } = useQuery<EnrollmentResponse[]>({
     queryKey: ['enrollments', examDetails?.cohort_id],
-    queryFn: () => enrollmentsApi.list({ cohort_id: examDetails?.cohort_id }),
-    enabled: !!examDetails?.cohort_id,
+    queryFn: () => enrollmentsApi.list({ cohort_id: examDetails?.cohort_id }), // Assuming list returns array
+    enabled: !!(examDetails?.cohort_id),
   });
 
   // Fetch existing marks
-  const { data: existingMarks = [], isLoading: marksLoading } = useQuery({
+  const { data: existingMarks = [], isLoading: marksLoading } = useQuery<StudentMark[]>({
     queryKey: ['exam-marks', selectedExamId],
     queryFn: () => marksApi.getExamMarks(selectedExamId!),
     enabled: !!selectedExamId,
@@ -69,17 +76,13 @@ export default function MarksEntry() {
 
   // Save exam structure mutation (with 409 handling)
   const saveStructureMutation = useMutation({
-    mutationFn: async (sections: any[]) => {
+    mutationFn: async (sections: ExamSection[]) => {
        try {
           return await examsApi.updateStructure(selectedExamId!, sections);
        } catch (error: any) {
            // Intercept 409 Conflict (Marks exist)
            if (error.response?.status === 409) {
-               // We need to throw a specific error to be handled in onError or catch block
-               // But mutationFn expects a promise. 
-               // We can't easily show a dialog *inside* mutationFn if we want to use React state.
-               // Actually, we can just throw and handle it in the onError or the calling function.
-               // Let's attach the sections data to the error so we can retry.
+               // Attach the sections data to the error so we can retry.
                error.sectionsData = sections;
                throw error;
            }
@@ -92,8 +95,7 @@ export default function MarksEntry() {
     },
     onError: async (error: any) => {
       if (error.response?.status === 409) {
-          // Show confirmation dialog (Browser native for simplicity and speed as requested "fix it")
-          // In a real app, we'd use a nice modal, but `window.confirm` is reliable for this critical data loss warning.
+          // Show confirmation dialog
           const confirmMessage = error.response.data.detail || "Marks exist. Updating structure will wipe all marks. Continue?";
           if (window.confirm(confirmMessage)) {
               try {
@@ -101,9 +103,6 @@ export default function MarksEntry() {
                   await examsApi.updateStructure(selectedExamId!, error.sectionsData, true);
                   toast({ title: 'Exam structure updated (Marks wiped)' });
                   queryClient.invalidateQueries({ queryKey: ['exam-details', selectedExamId] });
-                  // We need to manually reset the loading state if we were using `isPending` from the mutation
-                  // But `saveStructureMutation` is already "error" state.
-                  // This is a bit hacky but valid for "fix it" requests.
               } catch (retryError: any) {
                    toast({
                         title: 'Error saving structure (Retry failed)',
@@ -168,19 +167,19 @@ export default function MarksEntry() {
     },
   });
 
-  const selectedExam = exams?.find((e: any) => e.id === selectedExamId);
-  const sections = examDetails?.sections || [];
+  const selectedExam: Exam | undefined = exams?.find((e: Exam) => e.id === selectedExamId);
+  const sections: ExamSection[] = examDetails?.sections || [];
   const isLoading = examsLoading || detailsLoading;
 
   // Extract sub-questions from exam structure for the grid
   const subQuestions = useMemo(() => {
     const sqs: Array<{ id: string; label: string; maxMarks: number; questionId: string }> = [];
-    sections.forEach((section: any, sIdx: number) => {
-      section.questions?.forEach((question: any, qIdx: number) => {
-        question.sub_questions?.forEach((sq: any) => {
+    sections.forEach((section: ExamSection, sIdx: number) => {
+      section.questions?.forEach((question: Question, qIdx: number) => {
+        question.sub_questions?.forEach((sq: SubQuestion) => {
           sqs.push({
             id: sq.id,
-            label: `${sIdx + 1}.${qIdx + 1}${sq.label}`,
+            label: `${sIdx + 1}.${qIdx + 1}${sq.sub_question_number || ''}`, // assuming sub_question_number exists e.g. "a"
             maxMarks: sq.max_marks,
             questionId: question.id,
           });
@@ -193,7 +192,7 @@ export default function MarksEntry() {
   // Calculate max marks per section for validation
   const sectionMaxMarks = useMemo(() => {
     const map: Record<string, number> = {};
-    sections.forEach((section: any, sIdx: number) => {
+    sections.forEach((section: ExamSection, sIdx: number) => {
         // Map "1", "2" etc. to max marks
         map[String(sIdx + 1)] = section.max_marks;
     });
@@ -202,7 +201,7 @@ export default function MarksEntry() {
 
   // Transform enrollments to the format expected by MarksEntryGrid
   const students = useMemo(() => {
-    return enrollments.map((e: any) => ({
+    return enrollments.map((e: EnrollmentResponse) => ({
       studentId: e.usn, // API returns StudentResponse (usn is PK)
       studentName: e.name || 'Student',
       rollNumber: e.usn,
@@ -211,7 +210,7 @@ export default function MarksEntry() {
 
   // Transform existing marks to the format expected by MarksEntryGrid
   const formattedMarks = useMemo(() => {
-    return (existingMarks || []).map((m: any) => ({
+    return (existingMarks || []).map((m: StudentMark) => ({
       student_id: m.student_id,
       sub_question_id: m.sub_question_id,
       marks: m.marks,
@@ -238,7 +237,7 @@ export default function MarksEntry() {
                   <SelectValue placeholder="Select an exam" />
                 </SelectTrigger>
                 <SelectContent>
-                  {exams?.map((exam: any) => (
+                  {exams?.map((exam: Exam) => (
                     <SelectItem key={exam.id} value={exam.id}>
                       {exam.subject?.code || 'Subject'} - {exam.exam_type} ({exam.status})
                     </SelectItem>
@@ -246,7 +245,7 @@ export default function MarksEntry() {
                 </SelectContent>
               </Select>
               {selectedExam && (
-                <Badge variant={selectedExam.status === 'published' ? 'default' : 'outline'}>
+                <Badge variant={selectedExam.status === 'PUBLISHED' ? 'default' : 'outline'}>
                   {selectedExam.status}
                 </Badge>
               )}
@@ -265,7 +264,7 @@ export default function MarksEntry() {
               <ApprovalWorkflowCard 
                 examId={selectedExamId}
                 examName={`${selectedExam?.subject?.code} - ${selectedExam?.subject?.name} (${selectedExam?.exam_type})`}
-                currentStatus={selectedExam?.status}
+                currentStatus={selectedExam?.status as any}
                 userRole={user?.role as any}
                 onStatusChange={() => {
                   queryClient.invalidateQueries({ queryKey: ['exams'] });
@@ -309,7 +308,7 @@ export default function MarksEntry() {
                       await publishMutation.mutateAsync();
                     }}
                     isSaving={saveMarksMutation.isPending}
-                    isPublished={selectedExam?.status === 'published'}
+                    isPublished={selectedExam?.status === 'PUBLISHED'}
                     onRequestEdit={() => setIsEditModalOpen(true)}
                     examId={selectedExamId || undefined}
                     sectionMaxMarks={sectionMaxMarks}
@@ -334,9 +333,9 @@ export default function MarksEntry() {
             <TabsContent value="structure">
               <ExamStructureBuilder
                 courseOutcomes={courseOutcomes}
-                initialSections={sections}
+                initialSections={sections as any}
                 onSave={async (sections) => {
-                  await saveStructureMutation.mutateAsync(sections);
+                  await saveStructureMutation.mutateAsync(sections as any);
                 }}
                 isLoading={saveStructureMutation.isPending}
               />

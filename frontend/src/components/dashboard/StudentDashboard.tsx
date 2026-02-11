@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi, roleAnalyticsApi, templatesApi } from '@/lib/api';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { RemedialTasksList } from '@/components/remedial/RemedialTasksList';
 
 export function StudentDashboard() {
   // Primary dashboard data
@@ -118,6 +119,11 @@ export function StudentDashboard() {
           icon={BookOpen}
         />
       </div>
+
+      {/* Remedial Tasks (Top Priority) */}
+      {usn && (
+        <RemedialTasksList usn={usn} />
+      )}
 
       {/* Results Grid */}
       <Card>

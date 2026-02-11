@@ -674,15 +674,29 @@ class InsightRuleEngine:
     
     async def _get_semester_performance(self, usn: str) -> List[Dict]:
         """Get semester-wise average performance."""
+        # Calculate total internal marks safely
+        # Internal components: internal_1, internal_2, assignment_1, assignment_2, attendance, activity
+        # Note: We assume these are already scaled/normalized logic handles them.
+        # This is a Rough Approximation for analytics trend.
+        
+        internal_total = (
+            func.coalesce(FinalMarks.internal_1, 0) +
+            func.coalesce(FinalMarks.internal_2, 0) +
+            func.coalesce(FinalMarks.assignment_1, 0) +
+            func.coalesce(FinalMarks.assignment_2, 0) +
+            func.coalesce(FinalMarks.attendance, 0) +
+            func.coalesce(FinalMarks.activity, 0)
+        )
+        
         result = self.db.execute(
             select(
-                SubjectOffering.semester,
-                func.avg((FinalMarks.internal_marks + FinalMarks.external_marks)).label('avg')
+                SubjectOffering.semester_no,
+                func.avg((internal_total + func.coalesce(FinalMarks.external_marks, 0))).label('avg')
             )
             .join(SubjectOffering, SubjectOffering.id == FinalMarks.offering_id)
             .where(FinalMarks.usn == usn)
-            .group_by(SubjectOffering.semester)
-            .order_by(SubjectOffering.semester)
+            .group_by(SubjectOffering.semester_no)
+            .order_by(SubjectOffering.semester_no)
         )
         
         return [

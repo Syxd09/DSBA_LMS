@@ -32,6 +32,32 @@ async def list_enrollments(
         joinedload(Student.cohort),
         joinedload(Student.section)
     )
+    
+    # FILTER: Scoping for HOD
+    from app.models import UserRole, Department, Program, Cohort
+    from app.core.permissions import AppRole
+    
+    user_role_obj = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
+    if user_role_obj and user_role_obj.role == AppRole.HOD:
+        # Get HOD's department
+        hod_dept = db.query(Department).filter(Department.hod_id == current_user.user_id).first()
+        if hod_dept:
+            # Get all cohorts for this department
+            programs = db.query(Program).filter(Program.department_id == hod_dept.id).all()
+            program_ids = [p.id for p in programs]
+            cohorts = db.query(Cohort).filter(Cohort.program_id.in_(program_ids)).all() if program_ids else []
+            cohort_ids = [c.id for c in cohorts]
+            
+            # Apply filter
+            if cohort_ids:
+                query = query.filter(Student.cohort_id.in_(cohort_ids))
+            else:
+                # No cohorts = no students
+                return []
+        else:
+            # HOD with no department = see nothing
+            return []
+
     if cohort_id:
         query = query.filter(Student.cohort_id == cohort_id)
     if usn:
