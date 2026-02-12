@@ -87,6 +87,21 @@ async def create_exam(
         status="draft"
     )
     db.add(new_exam)
+    
+    # Audit Log
+    from app.models.audit import AuditLog
+    audit = AuditLog(
+        id=uuid_lib.uuid4(),
+        table_name="exams",
+        record_id=new_exam.id,
+        action="EXAM_CREATE",
+        old_values=None,
+        new_values={"subject_id": str(exam.subject_id), "type": exam.exam_type},
+        user_id=current_user.user_id,
+        reason="Exam created"
+    )
+    db.add(audit)
+    
     db.commit()
     db.refresh(new_exam)
     
@@ -186,6 +201,20 @@ async def update_exam(
     
     if exam_update.exam_type is not None:
         exam.exam_type = exam_update.exam_type
+
+    # Audit Log
+    from app.models.audit import AuditLog
+    audit = AuditLog(
+        id=uuid_lib.uuid4(),
+        table_name="exams",
+        record_id=exam_id,
+        action="EXAM_UPDATE",
+        old_values=None, # TBD: Capture old values if critical
+        new_values=exam_update.dict(exclude_unset=True),
+        user_id=current_user.user_id,
+        reason="Exam metadata updated"
+    )
+    db.add(audit)
 
     db.commit()
     db.refresh(exam)
@@ -322,6 +351,21 @@ async def update_exam_structure(
                     )
                     db.add(sub_question)
     
+    # Audit Log for Structure Change
+    from app.models.audit import AuditLog
+    if existing_marks_count == 0: # If marks wiped, already logged above
+        audit = AuditLog(
+            id=uuid_lib.uuid4(),
+            table_name="exams",
+            record_id=exam_id,
+            action="EXAM_STRUCTURE_UPDATE",
+            old_values=None,
+            new_values={"sections_count": len(structure.sections)},
+            user_id=current_user.user_id,
+            reason="Exam structure definition updated"
+        )
+        db.add(audit)
+
     db.commit()
     
     # Return updated exam
@@ -399,6 +443,21 @@ async def delete_exam(
     db.query(ExamSection).filter(ExamSection.exam_id == exam_id).delete(synchronize_session=False)
     
     db.delete(exam)
+    
+    # Audit Log
+    from app.models.audit import AuditLog
+    audit = AuditLog(
+        id=uuid_lib.uuid4(),
+        table_name="exams",
+        record_id=exam_id,
+        action="EXAM_DELETE",
+        old_values={"status": exam.status},
+        new_values=None,
+        user_id=current_user.user_id,
+        reason="Exam deleted"
+    )
+    db.add(audit)
+    
     db.commit()
     
     return None

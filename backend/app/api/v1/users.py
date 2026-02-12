@@ -34,10 +34,26 @@ async def list_users(
         # Get HOD's department
         hod_dept = db.query(Department).filter(Department.hod_id == current_user.user_id).first()
         if hod_dept:
-            # Filter profiles belonging to this department name
-            # Note: Profile.department is a string name (denormalized). 
-            # Ideally we should link via Department ID, but schema uses name here.
-            query = query.filter(Profile.department == hod_dept.name)
+            # OPTION 1: Filter by Profile.department (String Match)
+            # OPTION 2: Filter by TeacherAssignment in this Department (Robust)
+            
+            # Find all cohorts in this department
+            # Dept -> Program -> Cohort
+            from app.models import Program, Cohort, TeacherAssignment
+            from sqlalchemy import or_
+            
+            assigned_teacher_subquery = db.query(TeacherAssignment.teacher_id)\
+                .join(Cohort, TeacherAssignment.cohort_id == Cohort.id)\
+                .join(Program, Cohort.program_id == Program.id)\
+                .filter(Program.department_id == hod_dept.id)\
+                .subquery()
+            
+            query = query.filter(
+                or_(
+                    Profile.department == hod_dept.name,
+                    Profile.user_id.in_(assigned_teacher_subquery)
+                )
+            )
         else:
             # HOD with no department assigned -> Should see nothing or everything?
             # Safest: See nothing (or only themselves)

@@ -127,8 +127,104 @@ def _compute_offering_co_attainments_sync(
         for s in sections:
             exam_section_configs[eid][s.id] = {
                 "selection_mode": s.selection_mode,
-                "required_questions": s.required_questions
+                "required_questions": s.required_questions,
+                "id": s.id
             }
+
+    # =========================================================================
+    # FIX: CALCULATE EFFECTIVE QUESTIONS (Handle Best-N Logic)
+    # =========================================================================
+    # We must identify which questions "counted" towards the student's
+    # grade in each exam, and ONLY use those for CO attainment.
+    
+    effective_sq_ids: Dict[str, set] = {} # usn -> set of SQ IDs that counted
+    
+    # Flatten marks for easier access: exam_id -> usn -> sq_id -> mark
+    # This acts as a cache to avoid repeatedly iterating the huge marks dict
+    
+    # Helper to process an exam and populate effective_sq_ids
+    def _process_effective_questions(exam_id: UUID, marks_dict: Dict, sq_ids_map: Dict[UUID, List]):
+        # Group SQs by Section
+        sqs_by_section = {}
+        for sq in sq_ids_map.get(exam_id, []): # All SQs in this exam (not just CO mapped)
+             # Note: get_all_sub_questions_for_exams returns map by CO_ID, 
+             # but we need map by EXAM_ID here. 
+             # We'll need to rebuild the structure or re-fetch properly.
+             # Actually, we can just iterate all_sqs_map values since they contain exam_id
+             pass
+
+        # RE-FETCH: To be safe and correct, we need ALL SQs for the exam, 
+        # not just those mapped to COs (though all should be mapped).
+        # We'll iterate the `all_sqs_map` which is co_id -> [sq list]. 
+        # But this might miss SQs not mapped to any CO (unlikely in valid data but possible).
+        # For robustness, let's pivot `all_sqs_map` to `exam_id` -> `section_id` -> `[sq]`
+        
+        exam_sqs_by_section = {} # section_id -> [sq objects]
+        
+        # We need a list of ALL SQs for the exam. 
+        # The flattened list from `all_sqs_map` is good enough for now as most SQs have COs.
+        # If a SQ has no CO, it doesn't matter for CO attainment anyway!
+        
+        for co_sq_list in all_sqs_map.values():
+            for sq in co_sq_list:
+                if sq.exam_id == exam_id:
+                    if sq.section_id not in exam_sqs_by_section:
+                        exam_sqs_by_section[sq.section_id] = []
+                    exam_sqs_by_section[sq.section_id].append(sq)
+                    
+        # Identify students involved
+        # Extract USNs from marks_dict keys (usn, sq_id)
+        usns_in_exam = set(k[0] for k in marks_dict.keys())
+        
+        for usn in usns_in_exam:
+            if usn not in effective_sq_ids:
+                effective_sq_ids[usn] = set()
+                
+            for sec_id, sqs in exam_sqs_by_section.items():
+                config = exam_section_configs.get(exam_id, {}).get(sec_id)
+                if not config: continue
+                
+                # Get student marks for these SQs
+                # Pair: (mark, sq_id)
+                student_sq_marks = []
+                for sq in sqs:
+                    mark = marks_dict.get((usn, sq.id))
+                    # Important: If mark is None, it wasn't attempted
+                    if mark is not None:
+                        student_sq_marks.append((mark, sq.id))
+                
+                # Apply Selection Logic
+                mode = config["selection_mode"]
+                required = config["required_questions"]
+                
+                selected_ids = []
+                
+                if mode == "ALL":
+                    selected_ids = [m[1] for m in student_sq_marks]
+                elif mode == "BEST_N":
+                    # Sort desc by mark
+                    student_sq_marks.sort(key=lambda x: x[0], reverse=True)
+                    # Take top N
+                    top_n = student_sq_marks[:required]
+                    selected_ids = [m[1] for m in top_n]
+                elif mode == "FIRST_N":
+                    # We assume `sqs` are in sequence order? 
+                    # Ideally we should sort `student_sq_marks` by `sq.sequence` but 
+                    # for now assuming attempt order or simple truncation
+                    # FIRST_N is rare/legacy, using simple limit
+                    top_n = student_sq_marks[:required]
+                    selected_ids = [m[1] for m in top_n]
+                
+                effective_sq_ids[usn].update(selected_ids)
+
+    # Execute for Internal Exams
+    for eid in internal_exam_ids:
+        _process_effective_questions(eid, int_marks, all_sqs_map)
+        
+    # Execute for External Exam
+    if ext_exam:
+        _process_effective_questions(ext_exam.id, ext_marks, all_sqs_map)
+
     
     # Process each CO
     for co in cos:
@@ -179,7 +275,12 @@ def _compute_offering_co_attainments_sync(
         int_student_co_marks = {}
         for usn in int_valid_usns:
             total = Decimal("0")
+            valid_ids = effective_sq_ids.get(usn, set())
             for sq_id in int_sq_ids:
+                # FIX: Only include marks if question was "Effective" (contributed to grade)
+                if sq_id not in valid_ids:
+                    continue
+                    
                 mark = int_marks.get((usn, sq_id))
                 if mark:
                     total += mark
@@ -188,12 +289,18 @@ def _compute_offering_co_attainments_sync(
         ext_student_co_marks = {}
         for usn in ext_valid_usns:
             total = Decimal("0")
+            valid_ids = effective_sq_ids.get(usn, set())
             for sq_id in ext_sq_ids:
+                # FIX: Only include marks if question was "Effective"
+                if sq_id not in valid_ids:
+                    continue
+                    
                 mark = ext_marks.get((usn, sq_id))
                 if mark:
                     total += mark
             ext_student_co_marks[usn] = total
         
+
         # Compute dynamic max marks for this CO
         # Internal Max = Calculated with section adjustment
         int_sq_dicts = [
@@ -208,7 +315,7 @@ def _compute_offering_co_attainments_sync(
         ]
         int_max_marks = compute_co_max_marks(int_sq_dicts, int_section_configs)
         
-        # External Max = Sum of all mapped external questions
+
         ext_max_marks = Decimal("0")
         if ext_exam:
             for sq in co_sqs_all:

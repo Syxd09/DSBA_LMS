@@ -44,6 +44,46 @@ def invalidate_analytics_cache_bg(offering_id: UUID, program_id: Optional[UUID])
         print(f"Background cache invalidation failed: {e}")
 
 
+def verify_marks_entry_access(db: Session, user: Profile, exam: Exam):
+    """
+    Verify if user is authorized to enter marks for this exam.
+    Allowed:
+    - Creator of the exam
+    - Teacher assigned to the offering
+    - HOD/Principal/Admin
+    """
+    # 1. Check Roles (HOD/Principal can always edit if status allows)
+    # Note: Profile might not have user_role loaded if using simple dependency, 
+    # but require_teacher_or_above usually implies role check.
+    # We should query UserRole explicitly to be safe or rely on joined load.
+    from app.models import UserRole
+    from app.core.permissions import AppRole
+    
+    role_entry = db.query(UserRole).filter(UserRole.user_id == user.user_id).first()
+    if role_entry and role_entry.role in [AppRole.HOD, AppRole.PRINCIPAL, AppRole.ADMIN]:
+        return True
+        
+    # 2. Check Creator
+    if exam.teacher_id == user.user_id:
+        return True
+        
+    # 3. Check Assignment
+    if exam.offering_id:
+        from app.models.academic import TeacherAssignment
+        assignment = db.query(TeacherAssignment).filter(
+            TeacherAssignment.teacher_id == user.user_id,
+            TeacherAssignment.offering_id == exam.offering_id
+        ).first()
+        if assignment:
+            return True
+            
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN, 
+        detail="Not authorized to enter marks for this exam (Not creator or assigned teacher)"
+    )
+
+
+
 @router.get("/exam/{exam_id}", response_model=List[StudentMarksResponse])
 def get_exam_marks(
     exam_id: UUID,
@@ -110,6 +150,9 @@ def save_marks(
             status_code=400,
             detail=f"Unexpected exam status '{exam.status}'. Only 'approved' allows marks entry."
         )
+
+    # IMP: Enforce RBAC
+    verify_marks_entry_access(db, current_user, exam)
 
     # Pre-fetch offering details for cache invalidation (Sync DB access)
     offering_id = exam.offering_id
@@ -399,6 +442,21 @@ def submit_for_approval(
     
     exam.status = "submitted"
     exam.submitted_at = datetime.utcnow()
+    
+    # Audit Log
+    from app.models.audit import AuditLog
+    audit = AuditLog(
+        id=uuid_lib.uuid4(),
+        table_name="exams",
+        record_id=exam_id,
+        action="SUBMIT",
+        old_values={"status": "draft"},
+        new_values={"status": "submitted"},
+        user_id=current_user.user_id,
+        reason="Exam submitted for approval"
+    )
+    db.add(audit)
+    
     db.commit()
     
     return {
@@ -438,9 +496,23 @@ def approve_marks(
             detail=f"Cannot approve exam with status '{exam.status}'. Must be 'submitted'."
         )
     
-    exam.status = "approved"
     exam.approved_at = datetime.utcnow()
     exam.approved_by = current_user.user_id
+    
+    # Audit Log
+    from app.models.audit import AuditLog
+    audit = AuditLog(
+        id=uuid_lib.uuid4(),
+        table_name="exams",
+        record_id=exam_id,
+        action="APPROVE",
+        old_values={"status": "submitted"},
+        new_values={"status": "approved"},
+        user_id=current_user.user_id,
+        reason="Exam marks approved"
+    )
+    db.add(audit)
+    
     db.commit()
     
     return {
@@ -542,6 +614,21 @@ def lock_marks(
         )
     
     exam.status = "locked"
+    
+    # Audit Log
+    from app.models.audit import AuditLog
+    audit = AuditLog(
+        id=uuid_lib.uuid4(),
+        table_name="exams",
+        record_id=exam_id,
+        action="LOCK",
+        old_values={"status": "approved"},
+        new_values={"status": "locked"},
+        user_id=current_user.user_id,
+        reason="Exam locked (immutable)"
+    )
+    db.add(audit)
+    
     db.commit()
     
     return {
@@ -650,6 +737,9 @@ def import_marks_csv(
             status_code=400,
             detail=f"Exam status is '{exam.status}'. Marks entry only allowed after HOD approval."
         )
+
+    # IMP: Enforce RBAC
+    verify_marks_entry_access(db, current_user, exam)
 
     # Pre-fetch offering details for cache invalidation (Sync DB access)
     offering_id = exam.offering_id
