@@ -2,6 +2,7 @@ import { StatsCard } from './StatsCard';
 import { AtRiskStudentsList } from './AtRiskStudentsList';
 import { QuestionDifficultyChart } from './QuestionDifficultyChart';
 import { SubjectHealthCard } from './SubjectHealthCard';
+import { QPQICard } from './QPQICard';
 import { BookOpen, Users, Clock, TrendingUp, Plus, FileText, Activity, Download, Upload, BarChart2, Settings, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -213,7 +214,10 @@ export function TeacherDashboard() {
                  {/* Subject Health */}
                  <div className="lg:col-span-1">
                      {detailedSubjectId && (
-                        <SubjectHealthCard offeringId={detailedSubjectId} subjectName={selectedSubjectName} />
+                        <div className="space-y-6">
+                            <SubjectHealthCard offeringId={detailedSubjectId} subjectName={selectedSubjectName} />
+                            <QPQICard offeringId={detailedSubjectId} subjectName={selectedSubjectName} />
+                        </div>
                      )}
                  </div>
                  

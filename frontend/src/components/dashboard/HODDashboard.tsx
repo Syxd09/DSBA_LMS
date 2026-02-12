@@ -12,8 +12,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress';
 import { useQuery } from '@tanstack/react-query';
 import { dashboardApi, roleAnalyticsApi, templatesApi } from '@/lib/api';
+import { CourseAttainmentGapChart } from './CourseAttainmentGapChart';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useState, useEffect } from 'react';
 
 export function HODDashboard() {
+  const [selectedGapOffering, setSelectedGapOffering] = useState<string>('');
+
   // Primary dashboard data
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['hod-dashboard'],
@@ -30,6 +35,16 @@ export function HODDashboard() {
   // Merge Phase 3 insights
   const healthData = deptHealth?.data || {};
   const healthStatus = healthData.health_status || 'LOADING';
+  const subjectStats = healthData.subject_stats || [];
+
+  // Set default offering for gap analysis
+  useEffect(() => {
+    if (subjectStats.length > 0 && !selectedGapOffering) {
+        // Find first offering with valid ID
+        const first = subjectStats.find((s: any) => s.offering_id);
+        if (first) setSelectedGapOffering(first.offering_id);
+    }
+  }, [subjectStats, selectedGapOffering]);
 
   const deptStudents = dashboardData?.department_students || 0;
   const deptTeachers = dashboardData?.department_teachers || 0;
@@ -94,6 +109,60 @@ export function HODDashboard() {
         })) : []} title="Department CO Attainment" />
         <BloomTaxonomyChart data={bloomData} />
       </div>
+
+      {/* Gap Analysis Section */}
+      {subjectStats.length > 0 && (
+          <div className="grid grid-cols-1 gap-6">
+              <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Curriculum Gap Analysis</h3>
+                  <Select value={selectedGapOffering} onValueChange={setSelectedGapOffering}>
+                      <SelectTrigger className="w-[250px]">
+                          <SelectValue placeholder="Select Subject" />
+                      </SelectTrigger>
+                      <SelectContent>
+                          {subjectStats.filter((s: any) => s.offering_id).map((s: any) => (
+                              <SelectItem key={s.offering_id} value={s.offering_id}>
+                                  {s.subject_code} - {s.subject_name}
+                              </SelectItem>
+                          ))}
+                      </SelectContent>
+                  </Select>
+              </div>
+              {selectedGapOffering && (
+                   <CourseAttainmentGapChart 
+                        offeringId={selectedGapOffering} 
+                        subjectName={subjectStats.find((s: any) => s.offering_id === selectedGapOffering)?.subject_name}
+                   />
+              )}
+          </div>
+      )}
+
+      {/* Gap Analysis Section */}
+      {subjectStats.length > 0 && (
+          <div className="grid grid-cols-1 gap-6">
+              <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Curriculum Gap Analysis</h3>
+                  <Select value={selectedGapOffering} onValueChange={setSelectedGapOffering}>
+                      <SelectTrigger className="w-[250px] bg-background">
+                          <SelectValue placeholder="Select Subject" />
+                      </SelectTrigger>
+                      <SelectContent>
+                          {subjectStats.filter((s: any) => s.offering_id).map((s: any) => (
+                              <SelectItem key={s.offering_id} value={s.offering_id}>
+                                  {s.subject_code} - {s.subject_name}
+                              </SelectItem>
+                          ))}
+                      </SelectContent>
+                  </Select>
+              </div>
+              {selectedGapOffering && (
+                   <CourseAttainmentGapChart 
+                        offeringId={selectedGapOffering} 
+                        subjectName={subjectStats.find((s: any) => s.offering_id === selectedGapOffering)?.subject_name}
+                   />
+              )}
+          </div>
+      )}
 
       {/* Subject Performance Table */}
       <Card>

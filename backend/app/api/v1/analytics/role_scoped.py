@@ -16,7 +16,7 @@ from app.database import get_db
 from app.api.deps import (
     require_authenticated, PermissionChecker, Permission
 )
-from app.models import Profile, Student, Department, UserRole
+from app.models import Profile, Student, Department, UserRole, TeacherAssignment, SubjectOffering, Program, Exam
 from app.services.analytics.schemas import AnalyticsResponse
 from app.services.analytics.role_scoped import (
     StudentAnalyticsService,
@@ -24,6 +24,7 @@ from app.services.analytics.role_scoped import (
     HODAnalyticsService,
     PrincipalAnalyticsService
 )
+from app.services.analytics.advanced_analytics import AdvancedAnalyticsService
 
 
 router = APIRouter(prefix="/analytics/role", tags=["Analytics - Role-Scoped"])
@@ -312,7 +313,7 @@ async def get_faculty_question_analysis(
     """
     from app.services.analytics.question_analysis import get_exam_question_analysis
     
-    analysis = await get_exam_question_analysis(db, exam_id)
+    analysis = await get_exam_question_analysis(db, exam_id, current_user.user_id)
     
     return {
         "success": True,
@@ -342,6 +343,15 @@ async def get_faculty_topic_coverage(
     """
     from app.services.analytics.topic_coverage import get_topic_coverage
     
+    # Verify assignment
+    assignment = db.query(TeacherAssignment).filter(
+        TeacherAssignment.teacher_id == current_user.user_id,
+        TeacherAssignment.offering_id == offering_id
+    ).first()
+    
+    if not assignment:
+        raise HTTPException(status_code=403, detail="Access denied: Not assigned to this subject")
+        
     try:
         coverage = await get_topic_coverage(db, offering_id)
         
@@ -385,6 +395,72 @@ async def get_faculty_at_risk_students(
         teacher_id=current_user.user_id,
         threshold=threshold
     )
+
+
+@router.get(
+    "/faculty/qpqi/{exam_id}",
+    response_model=AnalyticsResponse,
+    summary="Question Paper Quality Index",
+    description="Get QPQI score based on Bloom's taxonomy. RBAC: DASHBOARD_TEACHER.",
+    dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_TEACHER))]
+)
+async def get_faculty_qpqi(
+    exam_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """Get QPQI score for an exam."""
+    # Verify assignment
+    exam = db.query(Exam).get(exam_id)
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+        
+    assignment_query = db.query(TeacherAssignment).filter(
+        TeacherAssignment.teacher_id == current_user.user_id
+    )
+    if exam.offering_id:
+        assignment_query = assignment_query.filter(TeacherAssignment.offering_id == exam.offering_id)
+    else:
+        # Fallback for complex mapping
+        offering = db.query(SubjectOffering).filter(
+            SubjectOffering.subject_id == exam.subject_id,
+            SubjectOffering.cohort_id == exam.cohort_id
+        ).first()
+        if offering:
+             assignment_query = assignment_query.filter(TeacherAssignment.offering_id == offering.id)
+        else:
+             raise HTTPException(status_code=403, detail="Context incomplete")
+             
+    if not assignment_query.first():
+        raise HTTPException(status_code=403, detail="Access denied: Not assigned to this subject")
+
+    return await AdvancedAnalyticsService.get_qpqi(db, exam_id)
+
+
+@router.get(
+    "/faculty/consistency/{offering_id}/{student_id}",
+    response_model=AnalyticsResponse,
+    summary="Student Consistency Score",
+    description="Get student consistency score. RBAC: DASHBOARD_TEACHER.",
+    dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_TEACHER))]
+)
+async def get_faculty_student_consistency(
+    offering_id: UUID,
+    student_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """Get consistency score for a student."""
+    # Verify assignment
+    assignment = db.query(TeacherAssignment).filter(
+        TeacherAssignment.teacher_id == current_user.user_id,
+        TeacherAssignment.offering_id == offering_id
+    ).first()
+    
+    if not assignment:
+        raise HTTPException(status_code=403, detail="Access denied: Not assigned to this subject")
+        
+    return await AdvancedAnalyticsService.get_student_consistency(db, student_id, offering_id)
 
 
 
@@ -474,6 +550,37 @@ async def get_hod_teacher_effectiveness(
         department_id=dept.id
     )
 
+
+@router.get(
+    "/hod/course-gap/{offering_id}",
+    response_model=AnalyticsResponse,
+    summary="Course Attainment Gap",
+    description="Get CO attainment gap analysis. RBAC: DASHBOARD_HOD.",
+    dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_HOD))]
+)
+async def get_hod_course_gap(
+    offering_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """Get course attainment gap."""
+    dept = db.query(Department).filter(
+        Department.hod_id == current_user.user_id
+    ).first()
+    
+    if not dept:
+        raise HTTPException(status_code=404, detail="No department assigned")
+        
+    # Verify offering belongs to dept
+    offering = db.query(SubjectOffering).options(joinedload(SubjectOffering.program)).get(offering_id)
+    if not offering or not offering.program:
+        raise HTTPException(status_code=404, detail="Offering not found")
+        
+    if offering.program.department_id != dept.id:
+        raise HTTPException(status_code=403, detail="Access denied: Offering not in your department")
+        
+    return await AdvancedAnalyticsService.get_course_attainment_gap(db, offering_id)
+
 # ============================================================================
 # PRINCIPAL ANALYTICS (Institution-wide)
 # ============================================================================
@@ -551,7 +658,7 @@ async def get_principal_accreditation_readiness(
     - Recommendations
     - Status (READY/NEEDS_ATTENTION/NOT_READY)
     """
-    return await PrincipalAnalyticsService.get_accreditation_readiness(db=db)
+    return await AdvancedAnalyticsService.get_accreditation_readiness(db=db)
 
 
 @router.get(

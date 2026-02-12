@@ -72,3 +72,33 @@ class GradingRule(Base):
     
     def __repr__(self):
         return f"<GradingRule {self.grade}: {self.min_percentage}-{self.max_percentage}%>"
+
+
+class PassCriteria(Base):
+    """
+    Pass criteria for a grade scale (regulation).
+    Defines minimum marks required to pass.
+    """
+    __tablename__ = "pass_criteria"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Parent Scale
+    grade_scale_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("grade_scales.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True
+    )
+    
+    min_internal = Column(Numeric(5, 2), default=0)
+    min_external = Column(Numeric(5, 2), default=0)
+    min_total = Column(Numeric(5, 2), default=0)
+    
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    grade_scale = relationship("GradeScale", backref="pass_criteria")
+    
+    def __repr__(self):
+        return f"<PassCriteria I:{self.min_internal} E:{self.min_external} T:{self.min_total}>"

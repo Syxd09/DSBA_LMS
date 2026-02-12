@@ -23,6 +23,7 @@ class WarningCode(str, Enum):
     # External exam warnings
     NO_EXTERNAL_MARKS = "NO_EXTERNAL_MARKS"
     EXTERNAL_NOT_CONDUCTED = "EXTERNAL_NOT_CONDUCTED"
+    EXAM_NOT_FOUND = "EXAM_NOT_FOUND"
     
     # Component warnings
     MISSING_ASSIGNMENT_1 = "MISSING_ASSIGNMENT_1"

@@ -26,7 +26,7 @@ from app.models import (
     Profile, UserRole, Department, Program, Cohort, Subject, Student,
     TeacherAssignment, Exam,
     FinalMarks, SemesterResult, CourseOutcome, StudentQuestionMark, SubQuestion, Question, ExamSection,
-    SubjectOffering
+    SubjectOffering, Bloom
 )
 from app.core.permissions import AppRole
 from app.schemas import (
@@ -316,6 +316,10 @@ async def get_hod_dashboard(
     bloom_levels = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create']
     bloom_stats = {level: {"scored": 0.0, "max": 0.0, "count": 0} for level in bloom_levels}
     
+    # Pre-fetch Bloom levels for resolution
+    all_blooms = db.query(Bloom).all()
+    bloom_id_map = {b.id: b.level_name for b in all_blooms}
+
     if cohort_ids:
         # Fetch exams
         exams = db.query(Exam).filter(
@@ -326,7 +330,15 @@ async def get_hod_dashboard(
         subject_stats = {}
         for exam in exams:
             # 1. Subject Stats
-            subject = db.query(Subject).filter(Subject.id == exam.subject_id).first()
+            subject = None
+            if exam.subject_id:
+                subject = db.query(Subject).filter(Subject.id == exam.subject_id).first()
+            elif exam.offering_id:
+                  # Fallback: Resolve via Offering
+                 offering = db.query(SubjectOffering).filter(SubjectOffering.id == exam.offering_id).first()
+                 if offering:
+                     subject = db.query(Subject).filter(Subject.id == offering.subject_id).first()
+            
             if subject:
                 marks_list = _get_exam_computed_totals(db, exam.id, exam.max_marks)
                 if marks_list:
@@ -350,11 +362,17 @@ async def get_hod_dashboard(
                 for mark in exam_marks:
                     sq = sq_map.get(mark.sub_question_id)
                     if sq:
+                        # Improved Bloom Resolution: Legacy string -> Bloom ID
                         bloom = sq.bloom_level
+                        if not bloom and sq.bloom_id:
+                            bloom = bloom_id_map.get(sq.bloom_id)
+                        
                         if not bloom and sq.question_id:
                             parent = q_map.get(sq.question_id)
                             if parent:
                                 bloom = parent.bloom_level
+                                if not bloom and parent.bloom_id:
+                                    bloom = bloom_id_map.get(parent.bloom_id)
                         
                         if bloom and bloom in bloom_stats:
                             bloom_stats[bloom]["scored"] += float(mark.marks)
@@ -537,21 +555,50 @@ async def get_teacher_dashboard(
     # Get subject details with exam stats and averages
     subjects_data = []
     for assignment in assignments:
-        subject = db.query(Subject).filter(Subject.id == assignment.subject_id).first()
+        subject = None
+        if assignment.subject_id:
+            subject = db.query(Subject).filter(Subject.id == assignment.subject_id).first()
+        elif assignment.offering_id:
+             # Fallback: Resolve via Offering
+             offering = db.query(SubjectOffering).filter(SubjectOffering.id == assignment.offering_id).first()
+             if offering:
+                 subject = db.query(Subject).filter(Subject.id == offering.subject_id).first()
+        
         if subject:
-            exams = db.query(Exam).filter(
-                Exam.subject_id == subject.id,
-                Exam.cohort_id == assignment.cohort_id
-            ).all()
+            # Use offering_id from assignment, or derive from existing Offering if needed
+            offering_id = assignment.offering_id
+            
+            # Filter exams by offering if available (more precise), else subject+cohort
+            if offering_id:
+                 exams = db.query(Exam).filter(
+                    Exam.offering_id == offering_id,
+                    Exam.status.in_(["published", "locked"])
+                ).all()
+            else:
+                exams = db.query(Exam).filter(
+                    Exam.subject_id == subject.id,
+                    Exam.cohort_id == assignment.cohort_id,
+                     Exam.status.in_(["published", "locked"])
+                ).all()
             
             # Calculate subject average
             subject_avg = 0.0
+            # ... (rest of logic same) ...
             for exam in exams:
                 percentages = _get_exam_computed_totals(db, exam.id, exam.max_marks)
                 if percentages:
                     subject_avg = round(sum(percentages) / len(percentages), 1)
-                    break  # Use latest exam
+                    # Don't break, average across ALL exams for this subject
             
+            # Correct average calculation if multiple exams exist
+            if exams:
+                 # Re-calculate average across all exams
+                 all_subject_pcts = []
+                 for exam in exams:
+                     all_subject_pcts.extend(_get_exam_computed_totals(db, exam.id, exam.max_marks))
+                 if all_subject_pcts:
+                     subject_avg = round(sum(all_subject_pcts) / len(all_subject_pcts), 1)
+
             subjects_data.append({
                 "id": str(subject.id),
                 "name": subject.name,
@@ -559,7 +606,7 @@ async def get_teacher_dashboard(
                 "cohort_id": str(assignment.cohort_id),
                 "exams_count": len(exams),
                 "average": subject_avg,
-                "offering_id": str(assignment.offering_id) if assignment.offering_id else None
+                "offering_id": str(offering_id) if offering_id else None
             })
     
     return TeacherDashboardData(
@@ -617,7 +664,15 @@ async def get_student_dashboard(
     exam_map = {e.id: e for e in exams}
     
     for exam in exams:
-        if not exam.subject_id:
+        subject_id = exam.subject_id
+        
+        if not subject_id and exam.offering_id:
+             # Fallback: Resolve via Offering
+             offering = db.query(SubjectOffering).filter(SubjectOffering.id == exam.offering_id).first()
+             if offering:
+                 subject_id = offering.subject_id
+
+        if not subject_id:
             continue
             
         total, _ = marks_service.compute_exam_marks(db, exam.id, usn)
@@ -626,15 +681,15 @@ async def get_student_dashboard(
         # marks_service returns 0 if no marks found.
 
         
-        if exam.subject_id not in subject_results:
-            subject_results[exam.subject_id] = {
+        if subject_id not in subject_results:
+            subject_results[subject_id] = {
                 "exam_totals": [],
                 "exam_max": [],
                 "exam_types": []
             }
-        subject_results[exam.subject_id]["exam_totals"].append(float(total))
-        subject_results[exam.subject_id]["exam_max"].append(float(exam.max_marks))
-        subject_results[exam.subject_id]["exam_types"].append(exam.exam_type)
+        subject_results[subject_id]["exam_totals"].append(float(total))
+        subject_results[subject_id]["exam_max"].append(float(exam.max_marks))
+        subject_results[subject_id]["exam_types"].append(exam.exam_type)
     
     # Build results list
     results = []
@@ -686,6 +741,10 @@ async def get_student_dashboard(
     bloom_performance = []
     bloom_levels = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create']
     
+    # Pre-fetch Bloom levels for resolution
+    all_blooms = db.query(Bloom).all()
+    bloom_id_map = {b.id: b.level_name for b in all_blooms}
+    
     if student_marks:
         sq_ids = [m.sub_question_id for m in student_marks]
         sub_questions = db.query(SubQuestion).filter(SubQuestion.id.in_(sq_ids)).all()
@@ -701,12 +760,17 @@ async def get_student_dashboard(
         for mark in student_marks:
             sq = sq_map.get(mark.sub_question_id)
             if sq:
-                # Get bloom level from sub-question or parent question
+                # Improved Bloom Resolution: Legacy string -> Bloom ID
                 bloom = sq.bloom_level
+                if not bloom and sq.bloom_id:
+                     bloom = bloom_id_map.get(sq.bloom_id)
+
                 if not bloom and sq.question_id:
                     parent = q_map.get(sq.question_id)
                     if parent:
                         bloom = parent.bloom_level
+                        if not bloom and parent.bloom_id:
+                            bloom = bloom_id_map.get(parent.bloom_id)
                 
                 if bloom and bloom in bloom_stats:
                     bloom_stats[bloom]["scored"] += float(mark.marks)

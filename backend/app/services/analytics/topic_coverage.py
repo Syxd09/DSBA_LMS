@@ -12,7 +12,7 @@ from typing import List, Dict, Optional
 from uuid import UUID
 from decimal import Decimal
 from dataclasses import dataclass
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import select, and_, or_, func, case
 
 from app.models import (
@@ -92,7 +92,7 @@ class TopicCoverageService:
         Returns coverage of topics defined vs assessed, with performance.
         """
         # Get offering details
-        offering = self.db.query(SubjectOffering).filter(
+        offering = self.db.query(SubjectOffering).options(joinedload(SubjectOffering.subject)).filter(
             SubjectOffering.id == offering_id
         ).first()
         

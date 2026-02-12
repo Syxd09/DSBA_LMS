@@ -449,7 +449,7 @@ def get_assignment_marks(
     Returns dict: {assignment_number: marks}
     """
     result = db.execute(
-        select(Assignment.assignment_number, AssignmentMark.marks)
+        select(Assignment.assignment_no, AssignmentMark.marks)
         .join(AssignmentMark, AssignmentMark.assignment_id == Assignment.id)
         .where(and_(
             Assignment.offering_id == offering_id,
@@ -646,19 +646,42 @@ def get_grading_rules(
     Fetch grading rules for a regulation.
     
     Returns list of dicts with min_marks, max_marks, grade, grade_point.
+    MAPPING: min_percentage -> min_marks (Assumes 100 marks scale for now)
     """
-    from app.models.grading import GradingRule
+    from app.models.grading import GradingRule, GradeScale
+    
+    # Try to find scale by name (e.g. "R-2021")
+    scale_name = f"R-{regulation_year}"
     
     result = db.execute(
         select(
-            GradingRule.min_marks,
-            GradingRule.max_marks,
+            GradingRule.min_percentage,
+            GradingRule.max_percentage,
             GradingRule.grade,
             GradingRule.grade_point
         )
-        .where(GradingRule.regulation_year == regulation_year)
-        .order_by(GradingRule.min_marks.desc())
+        .join(GradeScale, GradeScale.id == GradingRule.grade_scale_id)
+        .where(GradeScale.name.contains(str(regulation_year)))
+        .order_by(GradingRule.min_percentage.desc())
     )
+    
+    rows = result.fetchall()
+    
+    # Fallback: If no specific scale found, try finding ANY scale (e.g. "Absolute")
+    if not rows:
+        result = db.execute(
+            select(
+                GradingRule.min_percentage,
+                GradingRule.max_percentage,
+                GradingRule.grade,
+                GradingRule.grade_point
+            )
+            .join(GradeScale, GradeScale.id == GradingRule.grade_scale_id)
+            # No filter, just take the first scale found (likely Absolute)
+            .order_by(GradingRule.min_percentage.desc())
+        )
+        rows = result.fetchall()
+
     return [
         {
             "min_marks": row[0],
@@ -666,7 +689,7 @@ def get_grading_rules(
             "grade": row[2],
             "grade_point": row[3]
         }
-        for row in result.fetchall()
+        for row in rows
     ]
 
 
@@ -679,7 +702,9 @@ def get_pass_criteria(
     
     Returns dict with min_internal, min_external, min_total.
     """
-    from app.models.grading import PassCriteria
+    from app.models.grading import PassCriteria, GradeScale
+    
+    # Try to find scale by name (e.g. "R-2021")
     
     result = db.execute(
         select(
@@ -687,9 +712,23 @@ def get_pass_criteria(
             PassCriteria.min_external,
             PassCriteria.min_total
         )
-        .where(PassCriteria.regulation_year == regulation_year)
+        .join(GradeScale, GradeScale.id == PassCriteria.grade_scale_id)
+        .where(GradeScale.name.contains(str(regulation_year)))
     )
+    
     row = result.fetchone()
+    
+    if not row:
+        # Fallback: find any pass criteria
+        result = db.execute(
+            select(
+                PassCriteria.min_internal,
+                PassCriteria.min_external,
+                PassCriteria.min_total
+            )
+        )
+        row = result.fetchone()
+        
     if row:
         return {
             "min_internal": row[0],
@@ -752,7 +791,6 @@ def get_student_attempts(
     result = db.execute(
         select(
             FinalMarks.attempt_number,
-            FinalMarks.internal_marks,
             FinalMarks.external_marks,
             FinalMarks.is_backlog
         )
@@ -765,9 +803,9 @@ def get_student_attempts(
     return [
         {
             "attempt_number": row[0],
-            "internal": row[1],
-            "external": row[2],
-            "is_backlog": row[3]
+            "internal": None, # Computed on demand, not stored
+            "external": row[1],
+            "is_backlog": row[2]
         }
         for row in result.fetchall()
     ]
@@ -786,7 +824,6 @@ def get_student_backlogs(
         select(
             FinalMarks.offering_id,
             FinalMarks.attempt_number,
-            FinalMarks.internal_marks,
             FinalMarks.external_marks,
             SubjectOffering.subject_code
         )
@@ -801,9 +838,9 @@ def get_student_backlogs(
         {
             "offering_id": row[0],
             "attempt_number": row[1],
-            "internal": row[2],
-            "external": row[3],
-            "subject_code": row[4]
+            "internal": None, # Computed on demand
+            "external": row[2],
+            "subject_code": row[3]
         }
         for row in result.fetchall()
     ]

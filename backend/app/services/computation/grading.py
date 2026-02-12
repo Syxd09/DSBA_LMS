@@ -26,6 +26,7 @@ class GradeResult:
     grade_point: Decimal
     passed: bool
     warnings: List[ComputationWarning] = field(default_factory=list)
+    is_complete: bool = True
 
 
 @dataclass

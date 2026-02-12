@@ -81,7 +81,15 @@ async def get_subject_performance(
     subject_stats = {}
     
     for exam in exams:
-        subject = db.query(Subject).filter(Subject.id == exam.subject_id).first()
+        subject = None
+        if exam.subject_id:
+             subject = db.query(Subject).filter(Subject.id == exam.subject_id).first()
+        elif exam.offering_id:
+             # Fallback: Resolve via Offering
+             offering = db.query(SubjectOffering).filter(SubjectOffering.id == exam.offering_id).first()
+             if offering:
+                 subject = db.query(Subject).filter(Subject.id == offering.subject_id).first()
+
         if not subject:
             continue
         

@@ -61,6 +61,13 @@ export const roleAnalyticsApi = {
     getTopicCoverage: (offeringId: string) =>
         apiClient.get(`/analytics/role/faculty/topic-coverage/${offeringId}`).then(r => r.data),
 
+    // Advanced Metrics - Teacher
+    getQPQI: (examId: string) =>
+        apiClient.get(`/analytics/role/faculty/qpqi/${examId}`).then(r => r.data),
+
+    getStudentConsistency: (offeringId: string, studentId: string) =>
+        apiClient.get(`/analytics/role/faculty/consistency/${offeringId}/${studentId}`).then(r => r.data),
+
     // HOD analytics (department-scoped)
     getDepartmentHealth: () =>
         apiClient.get('/analytics/role/hod/department-health').then(r => r.data),
@@ -76,6 +83,9 @@ export const roleAnalyticsApi = {
 
     getDepartmentComparison: () =>
         apiClient.get('/analytics/role/principal/department-comparison').then(r => r.data),
+
+    getCourseAttainmentGap: (offeringId: string) =>
+        apiClient.get(`/analytics/role/hod/course-gap/${offeringId}`).then(r => r.data),
 
     // Principal comprehensive analytics
     getComprehensiveAnalytics: () =>

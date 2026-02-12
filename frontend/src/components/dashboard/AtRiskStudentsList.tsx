@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { roleAnalyticsApi } from '@/lib/api';
 import { ExportButton } from '@/components/ui/export-button';
 import { RemedialActionModal } from '@/components/remedial/RemedialActionModal';
+import { StudentConsistencyWidget } from './StudentConsistencyWidget';
 
 interface AtRiskStudentsListProps {
   subjects: Array<{
@@ -24,6 +25,15 @@ export function AtRiskStudentsList({ subjects }: AtRiskStudentsListProps) {
   const [expanded, setExpanded] = useState(true);
   const [threshold, setThreshold] = useState(50);
   const [isRemedialModalOpen, setIsRemedialModalOpen] = useState(false);
+  const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
+
+  const toggleStudent = (studentId: string) => {
+    if (expandedStudent === studentId) {
+      setExpandedStudent(null);
+    } else {
+      setExpandedStudent(studentId);
+    }
+  };
 
   // Get at-risk students for selected offering
   const { data: atRiskData, isLoading } = useQuery({
@@ -163,37 +173,54 @@ export function AtRiskStudentsList({ subjects }: AtRiskStudentsListProps) {
               {/* Student List */}
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {atRiskStudents.slice(0, 10).map((student: any) => (
-                  <div
-                    key={student.usn}
-                    className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg hover:bg-secondary/50 transition-colors"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{student.name}</span>
-                        {getStatusBadge(student.status, student.percentage)}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {student.usn} • {student.reason}
-                      </p>
+                  <div key={student.usn} className="bg-secondary/30 rounded-lg overflow-hidden transition-all border border-transparent hover:border-border">
+                    <div
+                        className="flex items-center justify-between p-3 cursor-pointer hover:bg-secondary/50"
+                        onClick={() => toggleStudent(student.student_id)}
+                    >
+                        <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">{student.name}</span>
+                            {getStatusBadge(student.status, student.percentage)}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            {student.usn} • {student.reason}
+                        </p>
+                        </div>
+                        <div className="text-right flex items-center gap-3">
+                        <div>
+                            <p className="font-mono text-sm font-medium">
+                                {(Number(student.percentage) || 0).toFixed(1)}%
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                {student.marks_obtained}/{student.max_marks}
+                            </p>
+                        </div>
+                         {expandedStudent === student.student_id ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
+                        </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-mono text-sm font-medium">
-                        {(Number(student.percentage) || 0).toFixed(1)}%
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {student.marks_obtained}/{student.max_marks}
-                      </p>
-                    </div>
-                    {student.email && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="ml-2"
-                        onClick={() => window.open(`mailto:${student.email}?subject=Academic Support - ${atRiskData?.data?.subject_code}`, '_blank')}
-                        title="Send email"
-                      >
-                        <Mail className="w-4 h-4" />
-                      </Button>
+                    
+                    {expandedStudent === student.student_id && (
+                        <div className="p-3 border-t border-border bg-background/50">
+                            <div className="h-40">
+                                <StudentConsistencyWidget offeringId={selectedOffering} studentId={student.student_id} />
+                            </div>
+                            {student.email && (
+                                <div className="mt-3 flex justify-end">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            window.open(`mailto:${student.email}?subject=Academic Support - ${atRiskData?.data?.subject_code}`, '_blank');
+                                        }}
+                                    >
+                                        <Mail className="w-4 h-4 mr-2" />
+                                        Contact Student
+                                    </Button>
+                                </div>
+                            )}
+                        </div>
                     )}
                   </div>
                 ))}

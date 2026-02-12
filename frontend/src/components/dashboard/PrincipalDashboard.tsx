@@ -1,7 +1,8 @@
 import { StatsCard } from './StatsCard';
 import { DepartmentTable } from './DepartmentTable';
 import { PerformanceTrendChart } from './PerformanceTrendChart';
-import { BloomTaxonomyChart } from './BloomTaxonomyChart'; 
+import { BloomTaxonomyChart } from './BloomTaxonomyChart';
+import { AccreditationReadinessCard } from './AccreditationReadinessCard';
 import { Users, GraduationCap, BookOpen, AlertTriangle, CheckCircle, Building2, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +37,6 @@ export function PrincipalDashboard() {
   const summary = institutionOverview?.data?.institution_summary || {};
   const alerts = institutionOverview?.data?.alerts || {};
   const compData = deptComparison?.data?.comparison || [];
-  const readiness = accreditation?.data || {};
 
   // Stats for cards
   const studentCount = summary.total_students || 0;
@@ -54,10 +54,6 @@ export function PrincipalDashboard() {
     status: (dept.pass_percentage || 0) >= AcademicConfig.DEPARTMENT_HEALTH_THRESHOLD ? "Active" : "Review Needed", 
   }));
 
-  // Accreditation logic
-  const readinessScore = Number(readiness.overall_readiness_score || 0);
-  const readinessStatus = readiness.status || "UNKNOWN";
-  const recommendations = readiness.recommendations || [];
 
   if (loadingOverview || loadingComparison) {
     return (
@@ -107,45 +103,9 @@ export function PrincipalDashboard() {
       {/* Accreditation & Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Readiness Card */}
-        <Card className="lg:col-span-1 border-primary/20 bg-primary/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-primary" />
-                NBA/NAAC Readiness
-              </span>
-              <Badge variant={readinessStatus === "READY" ? "default" : "destructive"}>
-                {readinessScore}%
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-               <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>Overall Compliance</span>
-                    <span className="font-medium">{readinessScore}%</span>
-                  </div>
-                  <div className="h-2 w-full bg-background rounded-full overflow-hidden border">
-                    <div 
-                      className={`h-full ${readinessScore >= AcademicConfig.ACCREDITATION_READINESS_THRESHOLD ? 'bg-green-500' : 'bg-yellow-500'}`} 
-                      style={{ width: `${readinessScore}%` }} 
-                    />
-                  </div>
-               </div>
-               {recommendations.length > 0 && (
-                 <div className="space-y-2">
-                   {recommendations.slice(0, 2).map((rec: any, idx: number) => (
-                     <div key={idx} className="text-xs flex items-start gap-2 text-muted-foreground bg-background/50 p-2 rounded">
-                       <AlertTriangle className="w-3 h-3 mt-0.5 text-yellow-600 shrink-0" />
-                       <span>{rec.action}</span>
-                     </div>
-                   ))}
-                 </div>
-               )}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-1">
+            <AccreditationReadinessCard />
+        </div>
 
         {/* Department Comparison Chart (Using Bar Chart logic potentially, utilizing PerformanceTrendChart as a placeholder for now or create a new one?) 
             Actually, let's use the DepartmentTable for detailed comparison and maybe a simple aggregate chart later.

@@ -11,13 +11,13 @@ from typing import Dict, List, Optional, Any
 from uuid import UUID
 from datetime import datetime
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_, or_
 
 from app.models import (
     Profile, Department, Program, Cohort, Subject, Student,
     TeacherAssignment, CourseOutcome, ProgramOutcome,
-    SubjectOffering, Exam, ExamSection, Question, SubQuestion, StudentQuestionMark, FinalMarks
+    SubjectOffering, Exam, ExamSection, Question, SubQuestion, StudentQuestionMark, FinalMarks, Bloom
 )
 from app.services.analytics.schemas import AnalyticsResponse, WarningDTO
 
@@ -64,31 +64,30 @@ class StudentAnalyticsService:
             )
         
         # Get offerings for this student's cohort
-        offerings = db.query(SubjectOffering).filter(
+        offerings = db.query(SubjectOffering).options(joinedload(SubjectOffering.subject)).filter(
             SubjectOffering.cohort_id == student.cohort_id
         ).all()
         
         subjects_performance = []
         for offering in offerings:
             try:
-                marks_response = await get_student_marks_for_offering(
+                marks_response = get_student_marks_for_offering(
                     db=db,
                     usn=student.usn,
                     offering_id=offering.id,
                     regulation_year=regulation_year
                 )
-                if marks_response.data:
-                    subjects_performance.append({
-                        "offering_id": str(offering.id),
-                        "subject_code": offering.subject.code if offering.subject else "",
-                        "subject_name": offering.subject.name if offering.subject else "",
-                        "internal_marks": marks_response.data.get("internal_total"),
-                        "external_marks": marks_response.data.get("external_total"),
-                        "total": marks_response.data.get("total"),
-                        "percentage": marks_response.data.get("percentage"),
-                        "grade": marks_response.data.get("grade"),
-                        "is_pass": marks_response.data.get("is_pass", False)
-                    })
+                subjects_performance.append({
+                    "offering_id": str(offering.id),
+                    "subject_code": offering.subject.code if offering.subject else "",
+                    "subject_name": offering.subject.name if offering.subject else "",
+                    "internal_marks": marks_response.data.internal.total,
+                    "external_marks": marks_response.data.external.total,
+                    "total": marks_response.data.total.total,
+                    "percentage": marks_response.data.total.percentage,
+                    "grade": marks_response.data.grade.grade,
+                    "is_pass": marks_response.data.grade.passed
+                })
                 warnings.extend(marks_response.warnings)
             except Exception as e:
                 warnings.append(WarningDTO(
@@ -167,6 +166,7 @@ class StudentAnalyticsService:
                         "co_code": f"CO{co.co_number}",
                         "co_statement": co.description,
                         "attainment_percentage": float(student_data.percentage) if student_data.percentage is not None else 0.0,
+                        "target_threshold": float(co.threshold) if co.threshold else 60.0,
                         "threshold_met": student_data.meets_threshold,
                         "questions_attempted": len(student_data.question_breakdown)
                     })
@@ -251,11 +251,13 @@ class FacultyAnalyticsService:
     @staticmethod
     async def get_question_analysis(
         db: Session,
-        exam_id: UUID
+        exam_id: UUID,
+        teacher_id: UUID
     ) -> AnalyticsResponse:
         """
         Get question-level analysis for an exam.
         Shows attempt rate, average marks, difficulty.
+        Strictly scoped to assigned teacher.
         """
         warnings = []
         
@@ -267,7 +269,50 @@ class FacultyAnalyticsService:
                 is_complete=False,
                 computed_at=datetime.utcnow()
             )
+            
+        # Verify teacher assignment (RBAC)
+        # Exam is linked to offering directly or via subject/cohort
+        assignment_query = db.query(TeacherAssignment).filter(
+            TeacherAssignment.teacher_id == teacher_id
+        )
         
+        if exam.offering_id:
+            assignment_query = assignment_query.filter(TeacherAssignment.offering_id == exam.offering_id)
+        else:
+            # Legacy or complex mapping: check subject + cohort
+            # We need to find the offering ID for this subject/cohort to check assignment safely
+            # Or just check if there is an assignment for this subject/cohort pair?
+            # Assignments are usually by Offering ID now.
+            # If exam lacks offering_id, we must find it.
+            offering = db.query(SubjectOffering).filter(
+                SubjectOffering.subject_id == exam.subject_id,
+                SubjectOffering.cohort_id == exam.cohort_id
+            ).first()
+            if offering:
+                 assignment_query = assignment_query.filter(TeacherAssignment.offering_id == offering.id)
+            else:
+                 # No offering found for this exam's context -> Deny
+                 return AnalyticsResponse(
+                    data={"error": "Context incomplete"},
+                    warnings=[WarningDTO(code="DATA_ERR", message="Exam context missing")],
+                    is_complete=False,
+                    computed_at=datetime.utcnow()
+                )
+
+        assignment = assignment_query.first()
+        
+        if not assignment:
+            return AnalyticsResponse(
+                data={"error": "Not assigned to this subject"},
+                warnings=[WarningDTO(code="NOT_ASSIGNED", message="You are not authorized to view this exam")],
+                is_complete=False,
+                computed_at=datetime.utcnow()
+            )
+        
+        # Pre-fetch Bloom levels
+        all_blooms = db.query(Bloom).all()
+        bloom_id_map = {b.id: b.level_name for b in all_blooms}
+
         # Get all questions and student marks
         questions = db.query(Question).join(ExamSection, Question.section_id == ExamSection.id).filter(ExamSection.exam_id == exam_id).all()
         
@@ -292,15 +337,32 @@ class FacultyAnalyticsService:
             attempt_rate = (attempted / (total_students or 1)) * 100
             difficulty = "HARD" if avg_marks < 40 else "MEDIUM" if avg_marks < 70 else "EASY"
             
+            # Resolve Bloom
+            bloom_name = None
+            if sub_questions:
+                sq = sub_questions[0]
+                bloom_name = sq.bloom_level
+                if not bloom_name and sq.bloom_id:
+                    bloom_name = bloom_id_map.get(sq.bloom_id)
+                # Fallback to parent question bloom if sq level missing
+                if not bloom_name and question.bloom_level:
+                     bloom_name = question.bloom_level
+                if not bloom_name and question.bloom_id:
+                     bloom_name = bloom_id_map.get(question.bloom_id)
+
+            co_code = None
+            if sub_questions and sub_questions[0].course_outcome:
+                 co_code = f"CO{sub_questions[0].course_outcome.co_number}"
+
             question_analysis.append({
                 "question_id": str(question.id),
-                "question_number": question.question_number,
-                "total_marks": float(question.total_marks),
+                "question_number": question.sequence,
+                "total_marks": float(question.max_marks),
                 "avg_marks": round(avg_marks, 2),
                 "attempt_rate": round(attempt_rate, 1),
                 "difficulty": difficulty,
-                "bloom_level": sub_questions[0].bloom_level.value if sub_questions and sub_questions[0].bloom_level else None,
-                "co_code": f"CO{sub_questions[0].course_outcome.co_number}" if sub_questions and sub_questions[0].course_outcome else None
+                "bloom_level": bloom_name,
+                "co_code": co_code
             })
         
         return AnalyticsResponse(
@@ -561,9 +623,11 @@ class HODAnalyticsService:
         # Calculate Subject Stats for Backlog Analysis
         subject_stats = []
         
-        all_offerings = db.query(SubjectOffering).filter(
+        all_offerings = db.query(SubjectOffering).options(joinedload(SubjectOffering.subject)).filter(
             SubjectOffering.cohort_id.in_([c.id for c in cohorts])
         ).all() if cohorts else []
+        
+        total_offerings = len(all_offerings)
         
         for offering in all_offerings:
              # Get marks for this offering
@@ -632,6 +696,7 @@ class HODAnalyticsService:
                         external_fails += 0.5
 
             subject_stats.append({
+                "offering_id": str(offering.id),
                 "subject_code": offering.subject.code if offering.subject else "",
                 "subject_name": offering.subject.name if offering.subject else "",
                 "student_count": student_count,
@@ -678,7 +743,7 @@ class HODAnalyticsService:
         for year in batch_years:
             cohorts = db.query(Cohort).filter(
                 Cohort.program_id.in_(program_ids),
-                Cohort.admission_year == year
+                Cohort.year == year
             ).all() if program_ids else []
             
             if cohorts:
