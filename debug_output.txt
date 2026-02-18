@@ -1,0 +1,74 @@
+Traceback (most recent call last):
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.UndefinedColumn: column subjects_1.is_active does not exist
+LINE 1: ...m_version_id AS subjects_1_curriculum_version_id, subjects_1...
+                                                             ^
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/deepstacker/WorkSpace/outcome-master/scripts/debug_offerings_query.py", line 31, in debug_query
+    results = query.all()
+              ^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2693, in all
+    return self._iter().all()  # type: ignore
+           ^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/orm/query.py", line 2847, in _iter
+    result: Union[ScalarResult[_T], Result[_T]] = self.session.execute(
+                                                  ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2308, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2190, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/orm/context.py", line 293, in orm_execute_statement
+    result = conn.execute(
+             ^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1416, in execute
+    return meth(
+           ^^^^^
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/sql/elements.py", line 517, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1639, in _execute_clauseelement
+    ret = self._execute_context(
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1848, in _execute_context
+    return self._exec_single_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1988, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 2344, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/engine/base.py", line 1969, in _exec_single_context
+    self.dialect.do_execute(
+  File "/opt/homebrew/lib/python3.11/site-packages/sqlalchemy/engine/default.py", line 922, in do_execute
+    cursor.execute(statement, parameters)
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column subjects_1.is_active does not exist
+LINE 1: ...m_version_id AS subjects_1_curriculum_version_id, subjects_1...
+                                                             ^
+
+[SQL: SELECT subject_offerings.id AS subject_offerings_id, subject_offerings.subject_id AS subject_offerings_subject_id, subject_offerings.program_id AS subject_offerings_program_id, subject_offerings.cohort_id AS subject_offerings_cohort_id, subject_offerings.semester_no AS subject_offerings_semester_no, subject_offerings.is_elective AS subject_offerings_is_elective, subject_offerings.regulation_year AS subject_offerings_regulation_year, subject_offerings.is_active AS subject_offerings_is_active, subject_offerings.created_at AS subject_offerings_created_at, subjects_1.id AS subjects_1_id, subjects_1.name AS subjects_1_name, subjects_1.code AS subjects_1_code, subjects_1.credits AS subjects_1_credits, subjects_1.subject_type AS subjects_1_subject_type, subjects_1.semester AS subjects_1_semester, subjects_1.curriculum_version_id AS subjects_1_curriculum_version_id, subjects_1.is_active AS subjects_1_is_active, subjects_1.created_at AS subjects_1_created_at, cohorts_1.id AS cohorts_1_id, cohorts_1.program_id AS cohorts_1_program_id, cohorts_1.regulation_id AS cohorts_1_regulation_id, cohorts_1.year AS cohorts_1_year, cohorts_1.name AS cohorts_1_name, cohorts_1.current_semester AS cohorts_1_current_semester, cohorts_1.status AS cohorts_1_status, cohorts_1.created_at AS cohorts_1_created_at 
+FROM subject_offerings LEFT OUTER JOIN subjects AS subjects_1 ON subjects_1.id = subject_offerings.subject_id LEFT OUTER JOIN cohorts AS cohorts_1 ON cohorts_1.id = subject_offerings.cohort_id 
+WHERE subject_offerings.cohort_id = %(cohort_id_1)s::UUID]
+[parameters: {'cohort_id_1': UUID('d3720d0c-9c67-49c2-b757-fbf6fae8a63f')}]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+Compiling query...
+SELECT subject_offerings.id, subject_offerings.subject_id, subject_offerings.program_id, subject_offerings.cohort_id, subject_offerings.semester_no, subject_offerings.is_elective, subject_offerings.regulation_year, subject_offerings.is_active, subject_offerings.created_at, subjects_1.id AS id_1, subjects_1.name, subjects_1.code, subjects_1.credits, subjects_1.subject_type, subjects_1.semester, subjects_1.curriculum_version_id, subjects_1.is_active AS is_active_1, subjects_1.created_at AS created_at_1, cohorts_1.id AS id_2, cohorts_1.program_id AS program_id_1, cohorts_1.regulation_id, cohorts_1.year, cohorts_1.name AS name_1, cohorts_1.current_semester, cohorts_1.status, cohorts_1.created_at AS created_at_2 
+FROM subject_offerings LEFT OUTER JOIN subjects AS subjects_1 ON subjects_1.id = subject_offerings.subject_id LEFT OUTER JOIN cohorts AS cohorts_1 ON cohorts_1.id = subject_offerings.cohort_id 
+WHERE subject_offerings.cohort_id = 'd3720d0c9c6749c2b757fbf6fae8a63f'
+Executing query...
+Error: (psycopg2.errors.UndefinedColumn) column subjects_1.is_active does not exist
+LINE 1: ...m_version_id AS subjects_1_curriculum_version_id, subjects_1...
+                                                             ^
+
+[SQL: SELECT subject_offerings.id AS subject_offerings_id, subject_offerings.subject_id AS subject_offerings_subject_id, subject_offerings.program_id AS subject_offerings_program_id, subject_offerings.cohort_id AS subject_offerings_cohort_id, subject_offerings.semester_no AS subject_offerings_semester_no, subject_offerings.is_elective AS subject_offerings_is_elective, subject_offerings.regulation_year AS subject_offerings_regulation_year, subject_offerings.is_active AS subject_offerings_is_active, subject_offerings.created_at AS subject_offerings_created_at, subjects_1.id AS subjects_1_id, subjects_1.name AS subjects_1_name, subjects_1.code AS subjects_1_code, subjects_1.credits AS subjects_1_credits, subjects_1.subject_type AS subjects_1_subject_type, subjects_1.semester AS subjects_1_semester, subjects_1.curriculum_version_id AS subjects_1_curriculum_version_id, subjects_1.is_active AS subjects_1_is_active, subjects_1.created_at AS subjects_1_created_at, cohorts_1.id AS cohorts_1_id, cohorts_1.program_id AS cohorts_1_program_id, cohorts_1.regulation_id AS cohorts_1_regulation_id, cohorts_1.year AS cohorts_1_year, cohorts_1.name AS cohorts_1_name, cohorts_1.current_semester AS cohorts_1_current_semester, cohorts_1.status AS cohorts_1_status, cohorts_1.created_at AS cohorts_1_created_at 
+FROM subject_offerings LEFT OUTER JOIN subjects AS subjects_1 ON subjects_1.id = subject_offerings.subject_id LEFT OUTER JOIN cohorts AS cohorts_1 ON cohorts_1.id = subject_offerings.cohort_id 
+WHERE subject_offerings.cohort_id = %(cohort_id_1)s::UUID]
+[parameters: {'cohort_id_1': UUID('d3720d0c-9c67-49c2-b757-fbf6fae8a63f')}]
+(Background on this error at: https://sqlalche.me/e/20/f405)

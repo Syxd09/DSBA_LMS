@@ -16,11 +16,16 @@ from app.models import Profile, UserRole
 from app.core.permissions import AppRole
 from app.schemas import Token, LoginRequest, SignupRequest, ProfileResponse
 
+from app.core.limiter import limiter
+from fastapi import Request
+
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/login", response_model=Token)
+@limiter.limit("5/minute")
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):

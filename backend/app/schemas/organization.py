@@ -6,6 +6,7 @@ from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel
 from uuid import UUID
+from app.schemas.regulation import RegulationResponse
 
 
 # Department schemas
@@ -99,6 +100,7 @@ class SectionResponse(SectionBase):
 class CohortBase(BaseModel):
     """Base cohort schema."""
     program_id: UUID
+    regulation_id: Optional[UUID] = None  # NEW
     year: int
     name: str
     current_semester: int = 1
@@ -120,6 +122,7 @@ class CohortResponse(CohortBase):
     id: UUID
     created_at: datetime
     program: Optional[ProgramResponse] = None
+    regulation: Optional[RegulationResponse] = None  # NEW
     sections: List[SectionResponse] = []  # Added sections list
     student_count: int = 0
     exam_count: int = 0

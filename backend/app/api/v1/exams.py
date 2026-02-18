@@ -4,6 +4,7 @@ Exam management endpoints
 """
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from sqlalchemy import or_, and_
 from sqlalchemy.orm import Session, joinedload
 from uuid import UUID
 import uuid as uuid_lib
@@ -18,6 +19,83 @@ from app.schemas import (
 )
 
 router = APIRouter(prefix="/exams", tags=["Exams"])
+
+
+def verify_exam_access(db: Session, user: Profile, exam: Exam):
+    """Verify if user can access this exam based on HOD=Dept, Teacher=Subject."""
+    from app.models import UserRole
+    from app.core.permissions import AppRole
+    
+    role_entry = db.query(UserRole).filter(UserRole.user_id == user.user_id).first()
+    if role_entry and role_entry.role == AppRole.ADMIN:
+        return True
+    if role_entry and role_entry.role == AppRole.PRINCIPAL:
+        return True
+        
+    # [NEW] Creator always has access (Teacher or HOD who created it)
+    if exam.teacher_id == user.user_id:
+        return True
+        
+    if role_entry and role_entry.role == AppRole.HOD:
+        from app.models import Department, Subject, Program
+        from app.models.subject_offering import SubjectOffering
+        dept = db.query(Department).filter(Department.hod_id == user.user_id).first()
+        if not dept:
+            raise HTTPException(status_code=403, detail="HOD record not found for this user")
+        
+        # Visibility Rule: HOD can only see Teacher-created exams if NOT draft
+        if exam.status == "draft":
+             raise HTTPException(status_code=403, detail="HOD cannot access draft exams created by others")
+
+        # Get offering/program to check department
+        offering = None
+        if exam.offering_id:
+            offering = db.query(SubjectOffering).filter(SubjectOffering.id == exam.offering_id).first()
+        
+        program_id = None
+        if offering:
+            program_id = offering.program_id
+        elif exam.subject_id:
+            # Fallback to subject -> curriculum -> program
+            from app.models.academic import CurriculumVersion
+            subject = db.query(Subject).filter(Subject.id == exam.subject_id).first()
+            if subject and subject.curriculum_version_id:
+                cv = db.query(CurriculumVersion).filter(CurriculumVersion.id == subject.curriculum_version_id).first()
+                if cv:
+                    program_id = cv.program_id
+        
+        if not program_id:
+             # If we still can't find a program, but the exam exists, 
+             # and the user is an HOD, we should be cautious but allow 
+             # access if we can't prove it DOESN'T belong to them (or 404 if orphaned)
+             raise HTTPException(status_code=404, detail="Exam metadata (offering/subject) is missing or orphaned")
+             
+        program = db.query(Program).filter(Program.id == program_id).first()
+        if not program:
+             raise HTTPException(status_code=404, detail="Program not found for exam")
+             
+        if program.department_id != dept.id:
+            raise HTTPException(
+                status_code=403, 
+                detail=f"HOD access denied. Exam belongs to dept {program.department_id}, but user is HOD of {dept.id}"
+            )
+        return True
+        
+    # [NEW] Teacher Visibility Rule: Can see HOD-created exams for their subjects IF approved
+    if role_entry and role_entry.role == AppRole.TEACHER:
+         from app.models.academic import TeacherAssignment
+         assignment = db.query(TeacherAssignment).filter(
+             TeacherAssignment.teacher_id == user.user_id,
+             TeacherAssignment.offering_id == exam.offering_id
+         ).first()
+         if assignment:
+             if exam.status in ["approved", "published", "locked"]:
+                 return True
+             else:
+                 raise HTTPException(status_code=403, detail="Teachers can only view HOD-created exams after approval")
+
+    raise HTTPException(status_code=403, detail="Not authorized to access this exam")
+
 
 
 @router.get("", response_model=List[ExamResponse])
@@ -36,9 +114,47 @@ async def list_exams(
         joinedload(Exam.cohort)
     )
     
-    # Filter by teacher's own exams if teacher
+    # Filter by scope
     if role == "teacher":
-        query = query.filter(Exam.teacher_id == current_user.user_id)
+        from app.models.academic import TeacherAssignment
+        # Get all offerings assigned to this teacher
+        assigned_offerings = db.query(TeacherAssignment.offering_id).filter(
+            TeacherAssignment.teacher_id == current_user.user_id
+        ).all()
+        offering_ids = [row[0] for row in assigned_offerings if row[0]]
+        
+        query = query.filter(
+            or_(
+                Exam.teacher_id == current_user.user_id,
+                and_(
+                    Exam.offering_id.in_(offering_ids),
+                    Exam.status.in_(["approved", "published", "locked"])
+                )
+            )
+        )
+    elif role == "hod":
+        from app.models import Department, Program
+        from app.models.subject_offering import SubjectOffering
+        dept = db.query(Department).filter(Department.hod_id == current_user.user_id).first()
+        if dept:
+             # Find all offerings in department
+             dept_offering_ids = db.query(SubjectOffering.id).join(Program).filter(
+                 Program.department_id == dept.id
+             ).all()
+             offering_ids = [row[0] for row in dept_offering_ids if row[0]]
+             
+             query = query.filter(
+                 or_(
+                     Exam.teacher_id == current_user.user_id,
+                     and_(
+                         Exam.offering_id.in_(offering_ids),
+                         Exam.status != "draft"
+                     )
+                 )
+             )
+        else:
+             # If HOD has no dept, they see only their own exams
+             query = query.filter(Exam.teacher_id == current_user.user_id)
     
     if subject_id:
         query = query.filter(Exam.subject_id == subject_id)
@@ -95,8 +211,8 @@ async def create_exam(
         table_name="exams",
         record_id=new_exam.id,
         action="EXAM_CREATE",
-        old_values=None,
-        new_values={"subject_id": str(exam.subject_id), "type": exam.exam_type},
+        old_data=None,
+        new_data={"subject_id": str(exam.subject_id), "type": exam.exam_type},
         user_id=current_user.user_id,
         reason="Exam created"
     )
@@ -118,6 +234,9 @@ async def get_exam(
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+    
+    # [RBAC] Verify access
+    verify_exam_access(db, current_user, exam)
     
     # Get subject and cohort info
     subject = db.query(Subject).filter(Subject.id == exam.subject_id).first()
@@ -175,19 +294,13 @@ async def update_exam(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
-    # Only creator can update (unless HOD/Principal override)
-    # Actually, enforcing creator check might block HOD if creator is different.
-    # User requirement: "HOD can make any changes".
-    # So if HOD, skip creator check?
-    # Creator check logic: if exam.teacher_id != current_user.user_id: raise 403.
-    # We should allow HOD even if not creator.
+    # [RBAC] Verify access (HOD=Dept, Teacher=Subject)
+    verify_exam_access(db, current_user, exam)
     
     is_hod_or_principal = False
-    if current_user.user_role and current_user.user_role.role in [AppRole.HOD, AppRole.PRINCIPAL]:
+    role_entry = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
+    if role_entry and role_entry.role in [AppRole.HOD, AppRole.PRINCIPAL]:
         is_hod_or_principal = True
-        
-    if exam.teacher_id != current_user.user_id and not is_hod_or_principal:
-        raise HTTPException(status_code=403, detail="Not authorized to update this exam")
         
     if exam.status == "submitted":
         if not is_hod_or_principal:
@@ -209,8 +322,8 @@ async def update_exam(
         table_name="exams",
         record_id=exam_id,
         action="EXAM_UPDATE",
-        old_values=None, # TBD: Capture old values if critical
-        new_values=exam_update.dict(exclude_unset=True),
+        old_data=None, # TBD: Capture old values if critical
+        new_data=exam_update.dict(exclude_unset=True),
         user_id=current_user.user_id,
         reason="Exam metadata updated"
     )
@@ -233,6 +346,9 @@ async def update_exam_structure(
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+    
+    # [RBAC] Verify access
+    verify_exam_access(db, current_user, exam)
     
     is_hod_or_principal = False
     if current_user.user_role and current_user.user_role.role in [AppRole.HOD, AppRole.PRINCIPAL]:
@@ -359,8 +475,8 @@ async def update_exam_structure(
             table_name="exams",
             record_id=exam_id,
             action="EXAM_STRUCTURE_UPDATE",
-            old_values=None,
-            new_values={"sections_count": len(structure.sections)},
+            old_data=None,
+            new_data={"sections_count": len(structure.sections)},
             user_id=current_user.user_id,
             reason="Exam structure definition updated"
         )
@@ -417,6 +533,9 @@ async def delete_exam(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
+    # [RBAC] Verify access
+    verify_exam_access(db, current_user, exam)
+    
     # Only allow deletion before approval
     if exam.status not in ["draft", "submitted"]:
         raise HTTPException(
@@ -451,8 +570,8 @@ async def delete_exam(
         table_name="exams",
         record_id=exam_id,
         action="EXAM_DELETE",
-        old_values={"status": exam.status},
-        new_values=None,
+        old_data={"status": exam.status},
+        new_data=None,
         user_id=current_user.user_id,
         reason="Exam deleted"
     )
@@ -742,9 +861,11 @@ async def lock_exam(
     """
     from app.models import AuditLog
     
-    exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+    
+    # [RBAC] Verify access
+    verify_exam_access(db, current_user, exam)
     
     # Validate status transition
     if exam.status != "approved":
@@ -812,6 +933,9 @@ async def unlock_exam(
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+        
+    # [RBAC] Verify access
+    verify_exam_access(db, current_user, exam)
     
     if exam.status != "locked":
         raise HTTPException(

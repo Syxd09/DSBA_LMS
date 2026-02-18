@@ -52,9 +52,9 @@ class StudentQuestionMark(Base):
     __tablename__ = "student_question_marks"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    exam_id = Column(UUID(as_uuid=True), ForeignKey("exams.id"), nullable=False)
+    exam_id = Column(UUID(as_uuid=True), ForeignKey("exams.id"), nullable=False, index=True)
     usn = Column(String, ForeignKey("students.usn"), nullable=False, index=True)
-    sub_question_id = Column(UUID(as_uuid=True), ForeignKey("sub_questions.id"), nullable=False)
+    sub_question_id = Column(UUID(as_uuid=True), ForeignKey("sub_questions.id"), nullable=False, index=True)
     marks = Column(Numeric(5, 2), nullable=False)
     entered_by = Column(UUID(as_uuid=True), nullable=True)
     entered_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -89,9 +89,9 @@ class FinalMarks(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     usn = Column(String, ForeignKey("students.usn"), nullable=True, index=True)  # NEW: USN-based
     student_id = Column(UUID(as_uuid=True), nullable=True, index=True)  # Legacy
-    offering_id = Column(UUID(as_uuid=True), ForeignKey("subject_offerings.id"), nullable=True)  # NEW
-    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)  # Legacy
-    cohort_id = Column(UUID(as_uuid=True), ForeignKey("cohorts.id"), nullable=False)
+    offering_id = Column(UUID(as_uuid=True), ForeignKey("subject_offerings.id"), nullable=True, index=True)  # NEW
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True, index=True)  # Legacy
+    cohort_id = Column(UUID(as_uuid=True), ForeignKey("cohorts.id"), nullable=False, index=True)
     
     # RAW INPUT MARKS ONLY - no computed values
     internal_1 = Column(Numeric(5, 2), nullable=True)  # Raw scaled internal 1

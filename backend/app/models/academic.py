@@ -20,6 +20,7 @@ class CurriculumVersion(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     program_id = Column(UUID(as_uuid=True), ForeignKey("programs.id"), nullable=False)
+    regulation_id = Column(UUID(as_uuid=True), ForeignKey("regulations.id"), nullable=True)  # NEW
     version_name = Column(String, nullable=False)  # e.g., "2021 Regulation"
     effective_from = Column(Integer, nullable=False)  # Year
     is_active = Column(Boolean, default=True, nullable=False)
@@ -27,6 +28,7 @@ class CurriculumVersion(Base):
     
     # Relationships
     program = relationship("Program", back_populates="curriculum_versions")
+    regulation = relationship("Regulation")  # NEW
     subjects = relationship("Subject", back_populates="curriculum_version")
     
     def __repr__(self):
@@ -52,6 +54,7 @@ class Subject(Base):
     subject_type = Column(String, default="core", nullable=False)  # core, elective, lab
     semester = Column(Integer, nullable=True)  # Default semester (can vary by offering)
     curriculum_version_id = Column(UUID(as_uuid=True), ForeignKey("curriculum_versions.id"), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships

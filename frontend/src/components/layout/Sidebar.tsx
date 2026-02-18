@@ -19,6 +19,10 @@ import {
   History,
   Grid3X3,
   PenTool,
+  ScrollText,
+  ArrowUpCircle,
+  Clock,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -57,8 +61,10 @@ const navigationConfig: Record<AppRole, NavSection[]> = {
       title: 'Academic Structure',
       items: [
         { name: 'Departments', href: '/departments', icon: Building2 },
+        { name: 'Regulations', href: '/regulations', icon: ScrollText },
         { name: 'Programs', href: '/programs', icon: GraduationCap },
         { name: 'Cohorts', href: '/cohorts', icon: Users },
+        { name: 'Semester Promotions', href: '/semester-promotions', icon: ArrowUpCircle },
         { name: 'Subjects', href: '/subjects', icon: BookOpen },
       ],
     },
@@ -81,8 +87,17 @@ const navigationConfig: Record<AppRole, NavSection[]> = {
       title: 'Grades & Analytics',
       items: [
         { name: 'Grades & SGPA', href: '/grade-management', icon: Award },
+        { name: 'Backlog Management', href: '/backlog-management', icon: Clock },
         { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
         { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+        { name: 'Institution Pulse', href: '/analytics/department-pulse', icon: TrendingUp },
+        { name: 'Accreditation', href: '/analytics/accreditation', icon: ShieldCheck },
+      ],
+    },
+    {
+      title: 'Reports',
+      items: [
+        { name: 'Official Reports', href: '/reports', icon: FileText },
       ],
     },
     {
@@ -103,8 +118,10 @@ const navigationConfig: Record<AppRole, NavSection[]> = {
     {
       title: 'Academic Structure',
       items: [
+        { name: 'Regulations', href: '/regulations', icon: ScrollText },
         { name: 'Programs', href: '/programs', icon: GraduationCap },
         { name: 'Cohorts', href: '/cohorts', icon: Users },
+        { name: 'Semester Promotions', href: '/semester-promotions', icon: ArrowUpCircle },
         { name: 'Subjects', href: '/subjects', icon: BookOpen },
       ],
     },
@@ -133,8 +150,16 @@ const navigationConfig: Record<AppRole, NavSection[]> = {
       title: 'Grades & Analytics',
       items: [
         { name: 'Grades & SGPA', href: '/grade-management', icon: Award },
+        { name: 'Backlog Management', href: '/backlog-management', icon: Clock },
         { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
         { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+        { name: 'Department Pulse', href: '/analytics/department-pulse', icon: TrendingUp },
+      ],
+    },
+    {
+      title: 'Reports',
+      items: [
+        { name: 'Official Reports', href: '/reports', icon: FileText },
       ],
     },
   ],

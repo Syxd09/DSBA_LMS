@@ -11,6 +11,7 @@ Production-hardened application with:
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware  # NEW: Compression
 from starlette_csrf import CSRFMiddleware
 
 from app.config import settings
@@ -43,9 +44,21 @@ app = FastAPI(
 register_exception_handlers(app)
 
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from app.core.limiter import limiter
+
 # Add middleware (order matters - first added = outermost)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
 app.add_middleware(AuditLoggingMiddleware)
 app.add_middleware(RequestIdMiddleware)
+
+# GZip Compression (minimum size 1000 bytes)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # CSRF Protection - exempt GET, HEAD, OPTIONS and health/docs endpoints
 app.add_middleware(

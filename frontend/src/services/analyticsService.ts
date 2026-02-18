@@ -69,8 +69,8 @@ export const roleAnalyticsApi = {
         apiClient.get(`/analytics/role/faculty/consistency/${offeringId}/${studentId}`).then(r => r.data),
 
     // HOD analytics (department-scoped)
-    getDepartmentHealth: () =>
-        apiClient.get('/analytics/role/hod/department-health').then(r => r.data),
+    getDepartmentHealth: (params?: { cohort_id?: string; semester?: number }) =>
+        apiClient.get('/analytics/role/hod/department-health', { params }).then(r => r.data),
 
     getBatchComparison: (batchYears: number[]) =>
         apiClient.get('/analytics/role/hod/batch-comparison', {
@@ -95,8 +95,8 @@ export const roleAnalyticsApi = {
         apiClient.get('/analytics/role/principal/accreditation-readiness').then(r => r.data),
 
     // HOD teacher effectiveness
-    getTeacherEffectiveness: () =>
-        apiClient.get('/analytics/role/hod/teacher-effectiveness').then(r => r.data),
+    getTeacherEffectiveness: (params?: { cohort_id?: string; semester?: number }) =>
+        apiClient.get('/analytics/role/hod/teacher-effectiveness', { params }).then(r => r.data),
 
     // Principal year-on-year trend
     getYearOnYearTrend: (years?: number[]) =>
@@ -107,17 +107,20 @@ export const roleAnalyticsApi = {
 
 // Dashboard API
 export const dashboardApi = {
-    getPrincipalDashboard: () =>
-        apiClient.get('/dashboard/principal').then(r => r.data),
+    getPrincipalDashboard: (params?: { department_id?: string; cohort_id?: string; semester?: number }) =>
+        apiClient.get('/dashboard/principal', { params }).then(r => r.data),
 
-    getHODDashboard: () =>
-        apiClient.get('/dashboard/hod').then(r => r.data),
+    getHODDashboard: (params?: { cohort_id?: string; semester?: number }) =>
+        apiClient.get('/dashboard/hod', { params }).then(r => r.data),
 
     getTeacherDashboard: () =>
         apiClient.get('/dashboard/teacher').then(r => r.data),
 
-    getStudentDashboard: () =>
-        apiClient.get('/dashboard/student').then(r => r.data),
+    getStudentDashboard: (semester?: number) =>
+        apiClient.get('/dashboard/student', { params: { semester } }).then(r => r.data),
+
+    getStudentDashboardById: (studentId: string, semester?: number) =>
+        apiClient.get(`/dashboard/student/${studentId}`, { params: { semester } }).then(r => r.data),
 };
 
 // Export API

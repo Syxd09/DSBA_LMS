@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { usersApi } from '@/lib/api';
+import { usersApi, configApi } from '@/lib/api';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Palette, Bell } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar, Palette, Bell, ShieldCheck, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/components/theme-provider';
@@ -21,6 +22,13 @@ export default function Settings() {
     queryKey: ['profile', user?.user_id],
     queryFn: () => usersApi.get(user?.user_id || ''),
     enabled: !!user?.user_id,
+  });
+
+  // Institutional Settings (Principal Only)
+  const { data: systemSettings, isLoading: loadingSettings } = useQuery({
+    queryKey: ['system-settings'],
+    queryFn: () => configApi.listSystemSettings(),
+    enabled: user?.role === 'principal',
   });
 
   const [notifications, setNotifications] = useState(true);
@@ -43,10 +51,22 @@ export default function Settings() {
       toast({ title: 'Profile updated' });
       // Sync global auth state
       updateUser(updatedProfile);
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      queryClient.invalidateQueries({ queryKey: ['profile', user?.user_id] });
     },
     onError: () => {
       toast({ title: 'Failed to save preferences', variant: 'destructive' });
+    }
+  });
+
+  const updateSettingMutation = useMutation({
+    mutationFn: ({ key, value }: { key: string; value: string }) =>
+      configApi.updateSystemSetting(key, value),
+    onSuccess: () => {
+      toast({ title: 'System setting updated' });
+      queryClient.invalidateQueries({ queryKey: ['system-settings'] });
+    },
+    onError: () => {
+      toast({ title: 'Failed to update system setting', variant: 'destructive' });
     }
   });
 
@@ -59,6 +79,9 @@ export default function Settings() {
       })
     } as any);
   };
+
+  const activeYear = systemSettings?.find(s => s.key === 'active_academic_year')?.value || '2023-24';
+  const activeSemType = systemSettings?.find(s => s.key === 'active_semester_type')?.value || 'Odd';
 
   return (
     <AuthenticatedLayout allowedRoles={['principal', 'hod', 'teacher', 'student']}>
@@ -91,6 +114,68 @@ export default function Settings() {
           </CardContent>
         </Card>
 
+        {/* Institutional Settings - Principal Only */}
+        {user?.role === 'principal' && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2 text-primary">
+                <ShieldCheck className="w-4 h-4" />
+                Institutional Governance
+              </CardTitle>
+              <CardDescription>Global defaults for all university dashboards</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {loadingSettings ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Active Academic Year */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-semibold">Active Academic Year</Label>
+                    <Select 
+                      value={activeYear} 
+                      onValueChange={(val) => updateSettingMutation.mutate({ key: 'active_academic_year', value: val })}
+                      disabled={updateSettingMutation.isPending}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Select Year" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="2022-23">2022-23</SelectItem>
+                        <SelectItem value="2023-24">2023-24</SelectItem>
+                        <SelectItem value="2024-25">2024-25</SelectItem>
+                        <SelectItem value="2025-26">2025-26</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground italic">Affects default data scoping institution-wide</p>
+                  </div>
+
+                  {/* Active Semester type */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-semibold">Active Semester Cycle</Label>
+                    <Select 
+                      value={activeSemType} 
+                      onValueChange={(val) => updateSettingMutation.mutate({ key: 'active_semester_type', value: val })}
+                      disabled={updateSettingMutation.isPending}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Select Cycle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Odd">Odd Semester (Aug - Jan)</SelectItem>
+                        <SelectItem value="Even">Even Semester (Feb - July)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground italic">Controls current assessment visibility</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Notifications */}
         <Card>
           <CardHeader>
@@ -114,28 +199,6 @@ export default function Settings() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Academic Years - Placeholder */}
-        {user?.role === 'principal' && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Academic Years
-            </CardTitle>
-            <CardDescription>Manage academic sessions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between p-3 border rounded-lg opacity-50 cursor-not-allowed">
-              <div>
-                <p className="font-medium">2023-2024</p>
-                <p className="text-sm text-muted-foreground">Current Session</p>
-              </div>
-              <Badge>Active</Badge>
-            </div>
-          </CardContent>
-        </Card>
-        )}
       </div>
     </AuthenticatedLayout>
   );

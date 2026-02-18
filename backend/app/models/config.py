@@ -3,7 +3,7 @@ EduMetrics Backend - Configuration Models
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, Integer, Numeric, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, Numeric, DateTime, ForeignKey, Boolean, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -36,3 +36,19 @@ class AttainmentConfig(Base):
     
     def __repr__(self):
         return f"<AttainmentConfig {self.program_id} ({self.effective_year})>"
+
+
+class SystemSetting(Base):
+    """
+    Global system settings for institutional governance.
+    Example keys: 'active_academic_year', 'active_semester_type'
+    """
+    __tablename__ = "system_settings"
+    
+    key = Column(String, primary_key=True)
+    value = Column(String, nullable=False)
+    category = Column(String, default="general")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<SystemSetting {self.key}={self.value}>"

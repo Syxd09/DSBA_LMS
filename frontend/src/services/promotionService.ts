@@ -6,6 +6,14 @@
 import { apiClient } from '@/lib/client';
 
 export const promotionsApi = {
+    // List promotions
+    list: (params?: { cohort_id?: string; academic_year?: string; limit?: number }) =>
+        apiClient.get('/promotions', { params }).then(r => r.data),
+
+    // Check eligibility (Preview)
+    getEligibility: (cohortId: string) =>
+        apiClient.get(`/promotions/preview/${cohortId}`).then(r => r.data),
+
     // Preview promotion eligibility
     preview: (cohortId: string) =>
         apiClient.get(`/promotions/preview/${cohortId}`).then(r => r.data),

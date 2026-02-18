@@ -8,12 +8,16 @@ import { AlertTriangle, CheckCircle, XCircle, Loader2, BookOpen } from 'lucide-r
 
 interface BacklogRootCauseAnalysisProps {
   departmentId?: string;
+  filters: {
+    cohort_id?: string;
+    semester?: number;
+  };
 }
 
-export function BacklogRootCauseAnalysis({ departmentId }: BacklogRootCauseAnalysisProps) {
+export function BacklogRootCauseAnalysis({ departmentId, filters }: BacklogRootCauseAnalysisProps) {
   const { data, isLoading } = useQuery({
-    queryKey: ['backlog-analysis', departmentId],
-    queryFn: () => roleAnalyticsApi.getDepartmentHealth(),
+    queryKey: ['backlog-analysis', departmentId, filters],
+    queryFn: () => roleAnalyticsApi.getDepartmentHealth(filters),
     enabled: !!departmentId,
     staleTime: 60000,
   });

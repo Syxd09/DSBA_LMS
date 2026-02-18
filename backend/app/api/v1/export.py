@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.api.deps import require_authenticated, PermissionChecker, Permission
-from app.models import Profile, Student, Department
+from app.models import Profile, Student, Department, Exam, ExamSection, Question, SubQuestion, SubjectOffering
 from app.services.export import export_analytics, ExportFormat
 
 
@@ -277,3 +277,5 @@ async def export_department_comparison(
         title="Department Comparison Report",
         flatten_key="comparison"
     )
+
+

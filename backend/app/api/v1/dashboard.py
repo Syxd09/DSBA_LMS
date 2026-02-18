@@ -10,11 +10,11 @@ PHASE 3: Analytics & Reporting Engine (Role-Scoped)
 
 RBAC: DASHBOARD_* permissions required per role.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from decimal import Decimal
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from app.database import get_db
@@ -26,14 +26,16 @@ from app.models import (
     Profile, UserRole, Department, Program, Cohort, Subject, Student,
     TeacherAssignment, Exam,
     FinalMarks, SemesterResult, CourseOutcome, StudentQuestionMark, SubQuestion, Question, ExamSection,
-    SubjectOffering, Bloom
+    SubjectOffering, Bloom, SystemSetting
 )
 from app.core.permissions import AppRole
+from app.core.limiter import limiter
+# from fastapi import Request (Moved to top)
 from app.schemas import (
     PrincipalDashboardData, HODDashboardData, 
     TeacherDashboardData, StudentDashboardData,
     DepartmentStats, COAttainmentData, BloomPerformance,
-    PerformanceTrend, BloomDistribution
+    PerformanceTrend, BloomDistribution, TopStudent, AtRiskStudent
 )
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
@@ -41,8 +43,13 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 from app.services.analytics import marks_service
 
-# _compute_exam_total_for_student REPLACED by marks_service.compute_exam_marks
 # Wrappers below use the service function directly.
+
+
+def _get_active_academic_year(db: Session) -> str:
+    """Retrieve global active academic year with fallback."""
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "active_academic_year").first()
+    return setting.value if setting else "2023-24" # Central institutional fallback
 
 
 def _get_exam_computed_totals(db: Session, exam_id: UUID, exam_max_marks: Decimal) -> List[float]:
@@ -68,13 +75,10 @@ def _get_exam_computed_totals(db: Session, exam_id: UUID, exam_max_marks: Decima
     return percentages
 
 
-def _get_student_exam_averages(db: Session, cohort_ids: List = None) -> dict:
+def _get_student_exam_averages(db: Session, cohort_ids: List = None, semester: Optional[int] = None, academic_year: Optional[str] = None) -> dict:
     """
     Compute per-student average percentage across all published/locked exams.
     Returns dict: {student_id: average_percentage}
-    
-    This replaces the broken FinalMarks-based approach by computing directly
-    from StudentMarks (the table that actually gets populated during marks entry).
     """
     # Find all published/locked exams, optionally filtered by cohort
     exam_query = db.query(Exam).filter(
@@ -83,6 +87,30 @@ def _get_student_exam_averages(db: Session, cohort_ids: List = None) -> dict:
     if cohort_ids:
         exam_query = exam_query.filter(Exam.cohort_id.in_(cohort_ids))
     
+    # Filter by Academic Year or Semester
+    if academic_year or semester:
+        exam_query = exam_query.outerjoin(SubjectOffering, Exam.offering_id == SubjectOffering.id)\
+                               .outerjoin(Subject, Exam.subject_id == Subject.id)\
+                               .outerjoin(Cohort, Exam.cohort_id == Cohort.id)
+        
+        conditions = []
+        if semester:
+            conditions.append(or_(SubjectOffering.semester_no == semester, Subject.semester == semester))
+            
+        if academic_year:
+            try:
+                # Academic Year mapping: Admission Year + (Sem - 1) // 2
+                year_part = int(academic_year.split('-')[0])
+                # We filter by the calculated academic year
+                conditions.append(
+                    Cohort.year + (func.coalesce(SubjectOffering.semester_no, Subject.semester) - 1) // 2 == year_part
+                )
+            except (ValueError, IndexError):
+                pass
+        
+        if conditions:
+            exam_query = exam_query.filter(*conditions)
+
     exams = exam_query.all()
     if not exams:
         return {}
@@ -110,6 +138,8 @@ def _get_student_exam_averages(db: Session, cohort_ids: List = None) -> dict:
             # Total defaults to 0 if no marks, but we know student has marks
             # due to the query above.
             
+            if not exam.max_marks or float(exam.max_marks) <= 0:
+                continue
             pct = float(total) / float(exam.max_marks) * 100
             if student_id not in student_percentages:
                 student_percentages[student_id] = []
@@ -119,27 +149,27 @@ def _get_student_exam_averages(db: Session, cohort_ids: List = None) -> dict:
     return {
         sid: sum(pcts) / len(pcts) 
         for sid, pcts in student_percentages.items() 
-        if pcts
+        if pcts and len(pcts) > 0
     }
 
 
-def calculate_at_risk_students(db: Session, cohort_ids: List = None) -> int:
+def calculate_at_risk_students(db: Session, cohort_ids: List = None, semester: Optional[int] = None) -> int:
     """Calculate at-risk students (those with avg < 40%).
     
     Now computes from actual StudentMarks via exam totals instead of
     the empty FinalMarks table.
     """
-    averages = _get_student_exam_averages(db, cohort_ids)
+    averages = _get_student_exam_averages(db, cohort_ids, semester)
     return sum(1 for avg in averages.values() if avg < 40)
 
 
-def calculate_pass_rate(db: Session, cohort_ids: List = None) -> float:
+def calculate_pass_rate(db: Session, cohort_ids: List = None, semester: Optional[int] = None) -> float:
     """Calculate pass rate (percentage of students with avg >= 40%).
     
     Now computes from actual StudentMarks via exam totals instead of
     the empty FinalMarks table.
     """
-    averages = _get_student_exam_averages(db, cohort_ids)
+    averages = _get_student_exam_averages(db, cohort_ids, semester)
     if not averages:
         return 0.0
     
@@ -147,30 +177,123 @@ def calculate_pass_rate(db: Session, cohort_ids: List = None) -> float:
     return round(passed / len(averages) * 100, 1)
 
 
+def _get_student_performance_lists(db: Session, cohort_ids: List = None, semester: Optional[int] = None, academic_year: Optional[str] = None):
+    """Helper to get top and at-risk students."""
+    averages_map = _get_student_exam_averages(db, cohort_ids, semester, academic_year)
+    if not averages_map:
+        return [], []
+        
+    student_user_ids = list(averages_map.keys())
+    students = db.query(Student).filter(Student.user_id.in_(student_user_ids)).all()
+    student_map = {s.user_id: s for s in students}
+    
+    performance_data = []
+    for user_id, avg in averages_map.items():
+        student = student_map.get(user_id)
+        if student:
+            performance_data.append({
+                "student_id": student.user_id,
+                "student_name": student.name,
+                "usn": student.usn,
+                "average_percentage": round(avg, 1)
+            })
+            
+    # Sort for top students
+    sorted_perf = sorted(performance_data, key=lambda x: x["average_percentage"], reverse=True)
+    top_students = [
+        TopStudent(rank=i+1, student_id=s["student_id"], student_name=s["student_name"], usn=s["usn"], average_percentage=s["average_percentage"]) 
+        for i, s in enumerate(sorted_perf[:5])
+    ]
+    
+    # Filter for at-risk
+    at_risk_list = [
+        AtRiskStudent(
+            student_id=s["student_id"],
+            student_name=s["student_name"],
+            roll_number=s["usn"],
+            average_percentage=s["average_percentage"],
+            subjects_at_risk=0,
+            total_subjects=0
+        )
+        for s in performance_data if s["average_percentage"] < 40
+    ]
+    
+    return top_students, at_risk_list
+
+
 @router.get(
     "/principal",
     response_model=PrincipalDashboardData,
     dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_PRINCIPAL))]
 )
+@limiter.limit("20/minute")
 async def get_principal_dashboard(
+    request: Request,
+    department_id: Optional[UUID] = Query(None, description="Filter by Department"),
+    cohort_id: Optional[UUID] = Query(None, description="Filter by Cohort"),
+    semester: Optional[int] = Query(None, description="Filter by Semester"),
+    academic_year: Optional[str] = Query(None, description="Filter by Academic Year (e.g. 2023-24)"),
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_authenticated)
 ):
     """Get principal dashboard data. RBAC: DASHBOARD_PRINCIPAL."""
-    # Total counts
-    total_students = db.query(Student).filter(Student.status == "active").count()
-    total_teachers = db.query(UserRole).filter(UserRole.role == AppRole.TEACHER).count()
-    total_subjects = db.query(Subject).count()
-    total_departments = db.query(Department).count()
+    # Use global active year if none provided
+    if not academic_year:
+        academic_year = _get_active_academic_year(db)
+
+    # Try cache first - Filter aware
+    cache_key = f"dashboard:principal:{department_id}:{cohort_id}:{semester}:{academic_year}"
+    from app.core.cache import cache_manager
+    cached_data = await cache_manager.get(cache_key)
+    if cached_data:
+        return cached_data
+
+    # 1. Determine Target Cohorts & Depts based on filters
+    target_cohort_ids = None
+    if cohort_id:
+        target_cohort_ids = [cohort_id]
+        
+    # Filter Departments
+    if department_id:
+        departments = db.query(Department).filter(Department.id == department_id).all()
+        # If cohort was not set, strict scope to dept cohorts
+        if not cohort_id:
+            programs = db.query(Program).filter(Program.department_id == department_id).all()
+            p_ids = [p.id for p in programs]
+            dept_cohorts = db.query(Cohort).filter(Cohort.program_id.in_(p_ids)).all() if p_ids else []
+            target_cohort_ids = [c.id for c in dept_cohorts]
+    else:
+        departments = db.query(Department).all()
+
+    # Total counts (Apply filters if present)
+    # Students
+    student_q = db.query(Student).filter(Student.status == "active")
+    if target_cohort_ids:
+        student_q = student_q.filter(Student.cohort_id.in_(target_cohort_ids))
+    total_students = student_q.count()
+
+    # Teachers (Approx by active assignments in scope)
+    # Since teachers are assigned to cohorts, we filter by target cohorts
+    teacher_q = db.query(TeacherAssignment).distinct(TeacherAssignment.teacher_id)
+    if target_cohort_ids:
+        teacher_q = teacher_q.filter(TeacherAssignment.cohort_id.in_(target_cohort_ids))
+    total_teachers = teacher_q.count()
     
-    # Calculate at-risk students
-    at_risk_count = calculate_at_risk_students(db)
+    # Global metrics ignore semester filter for counts usually, but let's respect scope
+    total_subjects = db.query(Subject).count() # Global for now
+    total_departments = len(departments) # Filtered count
     
-    # Calculate average pass rate
-    avg_pass_rate = calculate_pass_rate(db)
+    # Calculate at-risk students (Scoped)
+    at_risk_count = calculate_at_risk_students(db, target_cohort_ids, semester)
+    
+    # Calculate average pass rate (Scoped)
+    avg_pass_rate = calculate_pass_rate(db, target_cohort_ids, semester)
+    
+    # Drill-down lists
+    # Get performance lists (top/at-risk)
+    top_students, at_risk_list = _get_student_performance_lists(db, target_cohort_ids, semester, academic_year)
     
     # Department stats with real data
-    departments = db.query(Department).all()
     dept_stats = []
     
     for dept in departments:
@@ -178,38 +301,36 @@ async def get_principal_dashboard(
         programs = db.query(Program).filter(Program.department_id == dept.id).all()
         program_ids = [p.id for p in programs]
         
-        cohorts = db.query(Cohort).filter(Cohort.program_id.in_(program_ids)).all() if program_ids else []
-        cohort_ids = [c.id for c in cohorts]
+        cohort_query = db.query(Cohort).filter(Cohort.program_id.in_(program_ids))
+        if cohort_id:
+            cohort_query = cohort_query.filter(Cohort.id == cohort_id)
+            
+        cohorts = cohort_query.all() if program_ids else []
+        current_cohort_ids = [c.id for c in cohorts]
         
         # Count students
         dept_students = db.query(Student).filter(
-            Student.cohort_id.in_(cohort_ids),
+            Student.cohort_id.in_(current_cohort_ids),
             Student.status == "active"
-        ).count() if cohort_ids else 0
+        ).count() if current_cohort_ids else 0
         
         # Count teachers
         dept_teachers = db.query(TeacherAssignment).filter(
-            TeacherAssignment.cohort_id.in_(cohort_ids)
-        ).distinct(TeacherAssignment.teacher_id).count() if cohort_ids else 0
+            TeacherAssignment.cohort_id.in_(current_cohort_ids)
+        ).distinct(TeacherAssignment.teacher_id).count() if current_cohort_ids else 0
         
         # Calculate stats
-        pass_rate = calculate_pass_rate(db, cohort_ids) if cohort_ids else 0.0
-        at_risk = calculate_at_risk_students(db, cohort_ids) if cohort_ids else 0
+        pass_rate = calculate_pass_rate(db, current_cohort_ids, semester) if current_cohort_ids else 0.0
+        at_risk = calculate_at_risk_students(db, current_cohort_ids, semester) if current_cohort_ids else 0
         
         # Calculate average score across all exams in department
         dept_avg = 0.0
-        if cohort_ids:
-            dept_exams = db.query(Exam).filter(
-                Exam.cohort_id.in_(cohort_ids),
-                Exam.status.in_(["published", "locked"])
-            ).all()
-            
-            all_pcts = []
-            for exam in dept_exams:
-                all_pcts.extend(_get_exam_computed_totals(db, exam.id, exam.max_marks))
-            
-            if all_pcts:
-                dept_avg = sum(all_pcts) / len(all_pcts)
+        if current_cohort_ids:
+            # Replaced manual calculation with Helper (reuse logic)
+            # Get student averages for this department
+            averages = _get_student_exam_averages(db, current_cohort_ids, semester, academic_year)
+            if averages:
+                dept_avg = sum(averages.values()) / len(averages)
         
         dept_stats.append(DepartmentStats(
             id=str(dept.id),
@@ -224,26 +345,53 @@ async def get_principal_dashboard(
         ))
     
     # Calculate overall CO attainment
+    # Note: Filtering CO attainment by semester is complex as COs span everything.
+    # For now, we return Global/Filtered CO attainment based on exams in scope.
     co_data = []
     all_cos = db.query(CourseOutcome).order_by(CourseOutcome.co_number).limit(10).all()
+    
+    # Pre-fetch relevant exams IDs to filter marks
+    relevant_exam_ids = []
+    if target_cohort_ids or semester:
+        e_q = db.query(Exam.id).filter(Exam.status.in_(["published", "locked"]))
+        if target_cohort_ids:
+            e_q = e_q.filter(Exam.cohort_id.in_(target_cohort_ids))
+        if semester:
+             e_q = e_q.outerjoin(SubjectOffering, Exam.offering_id == SubjectOffering.id)\
+                      .outerjoin(Subject, Exam.subject_id == Subject.id)\
+                      .filter(or_(SubjectOffering.semester_no == semester, Subject.semester == semester))
+        relevant_exam_ids = [e[0] for e in e_q.all()]
+
     for co in all_cos:
         sub_questions = db.query(SubQuestion).filter(SubQuestion.co_id == co.id).all()
         sq_ids = [sq.id for sq in sub_questions]
         
         if sq_ids:
-            marks = db.query(StudentQuestionMark).filter(StudentQuestionMark.sub_question_id.in_(sq_ids)).all()
-            total_marks = sum(float(m.marks) for m in marks) if marks else 0
-            # Calculate max marks based on number of students who attempted
-            # Simplification: assuming all marks entries correspond to valid attempts
-            # A better approach would be to count unique students per sub-question result
+            marks_q = db.query(StudentQuestionMark).filter(StudentQuestionMark.sub_question_id.in_(sq_ids))
+            # Apply Filter if enabled
+            if (target_cohort_ids or semester) and relevant_exam_ids:
+                marks_q = marks_q.filter(StudentQuestionMark.exam_id.in_(relevant_exam_ids))
+            elif (target_cohort_ids or semester) and not relevant_exam_ids:
+                # Filter active but no exams found -> 0 marks
+                marks_q = marks_q.filter(StudentQuestionMark.id == None) # Force empty
+
+            marks = marks_q.all()
+            total_marks = sum(float(m.marks or 0) for m in marks) if marks else 0
             
-            # Correct calculation: max_marks_per_sq * number_of_students_who_attempted
+            # Max Marks Calculation (Simplified)
             current_max = 0
             for sq in sub_questions:
-                attempt_count = db.query(StudentQuestionMark).filter(StudentQuestionMark.sub_question_id == sq.id).count()
+                # Count attempts in scope
+                att_q = db.query(StudentQuestionMark).filter(StudentQuestionMark.sub_question_id == sq.id)
+                if (target_cohort_ids or semester) and relevant_exam_ids:
+                    att_q = att_q.filter(StudentQuestionMark.exam_id.in_(relevant_exam_ids))
+                elif (target_cohort_ids or semester) and not relevant_exam_ids:
+                    att_q = att_q.filter(StudentQuestionMark.id == None)
+
+                attempt_count = att_q.count()
                 current_max += float(sq.max_marks) * attempt_count
             
-            attainment = (total_marks / current_max * 100) if current_max > 0 else 0
+            attainment = (total_marks / current_max * 100) if current_max and current_max > 0 else 0
             
             co_data.append(COAttainmentData(
                 co=f"CO{co.co_number}",
@@ -256,11 +404,11 @@ async def get_principal_dashboard(
             
     # Simple performance trend (mocked for pilot as we lack historical data)
     performance_trend = [
-        PerformanceTrend(name="Previous Sem", average=0.0), # Placeholder
-        PerformanceTrend(name="Current Sem", average=avg_pass_rate)
+        PerformanceTrend(name="Previous Period", average=0.0), # Placeholder
+        PerformanceTrend(name="Selected Period", average=avg_pass_rate)
     ]
     
-    return PrincipalDashboardData(
+    result = PrincipalDashboardData(
         total_students=total_students,
         total_teachers=total_teachers,
         total_subjects=total_subjects,
@@ -269,8 +417,15 @@ async def get_principal_dashboard(
         avg_pass_rate=avg_pass_rate,
         co_attainment=co_data,
         department_stats=dept_stats,
-        performance_trend=performance_trend
+        performance_trend=performance_trend,
+        top_students=top_students,
+        at_risk_list=at_risk_list
     )
+
+    # Store in cache (5 minutes)
+    await cache_manager.set(cache_key, result.model_dump(), ttl=300)
+    
+    return result
 
 
 @router.get(
@@ -278,22 +433,43 @@ async def get_principal_dashboard(
     response_model=HODDashboardData,
     dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_HOD))]
 )
+@limiter.limit("20/minute")
 async def get_hod_dashboard(
+    request: Request,
+    cohort_id: Optional[UUID] = Query(None, description="Filter by Cohort"),
+    semester: Optional[int] = Query(None, description="Filter by Semester"),
+    academic_year: Optional[str] = Query(None, description="Filter by Academic Year"),
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_authenticated)
 ):
     """Get HOD dashboard data. RBAC: DASHBOARD_HOD."""
+    # Use global active year if none provided
+    if not academic_year:
+        academic_year = _get_active_academic_year(db)
+
+    # Try cache first - Filter aware
+    cache_key = f"dashboard:hod:{current_user.user_id}:{cohort_id}:{semester}:{academic_year}"
+    from app.core.cache import cache_manager
+    cached_data = await cache_manager.get(cache_key)
+    if cached_data:
+        return cached_data
+
     # Get HOD's department - lookup via Department.hod_id
     dept = db.query(Department).filter(
         Department.hod_id == current_user.user_id
     ).first()
     
-    # Get cohort IDs for the department
+    # Get cohort IDs for the department (Filtered by cohort_id if provided)
     cohort_ids = []
     if dept:
         programs = db.query(Program).filter(Program.department_id == dept.id).all()
         program_ids = [p.id for p in programs]
-        cohorts = db.query(Cohort).filter(Cohort.program_id.in_(program_ids)).all() if program_ids else []
+        
+        cohort_query = db.query(Cohort).filter(Cohort.program_id.in_(program_ids))
+        if cohort_id:
+            cohort_query = cohort_query.filter(Cohort.id == cohort_id)
+            
+        cohorts = cohort_query.all() if program_ids else []
         cohort_ids = [c.id for c in cohorts]
     
     # Department students and teachers
@@ -306,9 +482,13 @@ async def get_hod_dashboard(
         TeacherAssignment.cohort_id.in_(cohort_ids)
     ).distinct(TeacherAssignment.teacher_id).count() if cohort_ids else 0
     
-    # Calculate pass rate and at-risk for department
-    pass_rate = calculate_pass_rate(db, cohort_ids) if cohort_ids else 0
-    at_risk = calculate_at_risk_students(db, cohort_ids) if cohort_ids else 0
+    # Calculate pass rate and at-risk for department (Scoped)
+    pass_rate = calculate_pass_rate(db, cohort_ids, semester) if cohort_ids else 0
+    at_risk = calculate_at_risk_students(db, cohort_ids, semester) if cohort_ids else 0
+    
+    # Drill-down lists
+    # Top/At-Risk performance lists (HOD scoped)
+    top_students, at_risk_list = _get_student_performance_lists(db, cohort_ids, semester, academic_year)
     
     # Subject performance
     subject_performance = []
@@ -321,11 +501,18 @@ async def get_hod_dashboard(
     bloom_id_map = {b.id: b.level_name for b in all_blooms}
 
     if cohort_ids:
-        # Fetch exams
-        exams = db.query(Exam).filter(
+        # Fetch exams (Scoped by cohort and semester)
+        exam_query = db.query(Exam).filter(
             Exam.cohort_id.in_(cohort_ids),
             Exam.status.in_(["published", "locked"])
-        ).all()
+        )
+        if semester:
+            # Join logic for semester filtering
+            exam_query = exam_query.outerjoin(SubjectOffering, Exam.offering_id == SubjectOffering.id)\
+                                   .outerjoin(Subject, Exam.subject_id == Subject.id)\
+                                   .filter(or_(SubjectOffering.semester_no == semester, Subject.semester == semester))
+        
+        exams = exam_query.all()
         
         subject_stats = {}
         for exam in exams:
@@ -383,7 +570,7 @@ async def get_hod_dashboard(
             marks = data["marks"]
             subject = data["subject"]
             if marks:
-                avg = sum(marks) / len(marks)
+                avg = (sum(marks) / len(marks)) if marks else 0
                 passed = len([m for m in marks if m >= 40])
                 subject_performance.append({
                     "subject_id": str(subject.id),
@@ -392,7 +579,7 @@ async def get_hod_dashboard(
                     "average": round(avg, 1),
                     "highest": round(max(marks), 1),
                     "lowest": round(min(marks), 1),
-                    "pass_rate": round(passed / len(marks) * 100, 1),
+                    "pass_rate": round((passed / len(marks) * 100) if marks else 0, 1),
                     "total_students": len(marks)
                 })
     
@@ -439,7 +626,8 @@ async def get_hod_dashboard(
             # 3. Bulk fetch marks for these sub-questions
             if sq_ids:
                 all_marks = db.query(StudentQuestionMark).filter(
-                    StudentQuestionMark.sub_question_id.in_(sq_ids)
+                    StudentQuestionMark.sub_question_id.in_(sq_ids),
+                    StudentQuestionMark.exam_id.in_(exam_ids)
                 ).all()
                 
                 # 4. Aggregate by CO
@@ -488,7 +676,8 @@ async def get_hod_dashboard(
                 # Sort by CO Number
                 co_attainment.sort(key=lambda x: x.co_number)
     
-    return HODDashboardData(
+    result = HODDashboardData(
+        department_id=dept.id if dept else None,
         department_students=dept_students,
         department_teachers=dept_teachers,
         pass_rate=pass_rate,
@@ -500,8 +689,15 @@ async def get_hod_dashboard(
             "id": str(p.id),
             "name": p.name,
             "code": p.code
-        } for p in (programs if dept and 'programs' in locals() else [])]
+        } for p in (programs if dept and 'programs' in locals() else [])],
+        top_students=top_students,
+        at_risk_list=at_risk_list
     )
+
+    # Store in cache (5 minutes)
+    await cache_manager.set(cache_key, result.model_dump(), ttl=300)
+    
+    return result
 
 
 @router.get(
@@ -624,31 +820,108 @@ async def get_teacher_dashboard(
     dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_STUDENT))]
 )
 async def get_student_dashboard(
+    semester: int = None,
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_authenticated)
 ):
-    """Get student dashboard data. RBAC: DASHBOARD_STUDENT."""
+    """Get student dashboard data for current user. RBAC: DASHBOARD_STUDENT."""
+    return await _get_student_dashboard_data(db, current_user.user_id, semester)
+
+
+@router.get(
+    "/student/{student_user_id}",
+    response_model=StudentDashboardData,
+    dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_STUDENT))] # Actually Principals/HODs have this or we add dedicated
+)
+async def get_student_dashboard_by_id(
+    student_user_id: UUID,
+    semester: int = None,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(require_authenticated)
+):
+    """Get student dashboard data by ID. RBAC: Principal/HOD/Teacher."""
+    # 1. Self-view is always allowed
+    if student_user_id == current_user.user_id:
+        return await _get_student_dashboard_data(db, student_user_id, semester)
+
+    # 2. Get student details for scope checking
+    student = db.query(Student).filter(Student.user_id == student_user_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student record not found")
+
+    # 3. Principal: Global access
+    if current_user.role == UserRole.PRINCIPAL:
+        return await _get_student_dashboard_data(db, student_user_id, semester)
+
+    # 4. HOD: Department-level access
+    if current_user.role == UserRole.HOD:
+        # Resolve student department
+        student_dept_id = db.query(Program.department_id).join(Cohort).filter(Cohort.id == student.cohort_id).scalar()
+        if student_dept_id != current_user.department_id:
+             raise HTTPException(status_code=403, detail="Forbidden: Student is not in your department")
+        return await _get_student_dashboard_data(db, student_user_id, semester)
+
+    # 5. Teacher: Cohort-level access
+    if current_user.role == UserRole.TEACHER:
+        is_assigned = db.query(TeacherAssignment).filter(
+            TeacherAssignment.teacher_id == current_user.user_id,
+            TeacherAssignment.cohort_id == student.cohort_id
+        ).first()
+        if not is_assigned:
+             raise HTTPException(status_code=403, detail="Forbidden: You are not assigned to this student's cohort")
+        return await _get_student_dashboard_data(db, student_user_id, semester)
+
+    # Default: Forbidden
+    raise HTTPException(status_code=403, detail="Forbidden: Insufficient permissions to view student profile")
+
+
+async def _get_student_dashboard_data(
+    db: Session,
+    student_user_id: UUID,
+    semester: int = None
+) -> StudentDashboardData:
+    """Helper to fetch student dashboard data."""
     # Get student details (USN and cohort)
-    student = db.query(Student).filter(Student.user_id == current_user.user_id).first()
-    usn = student.usn if student else ""
-    cohort_id = student.cohort_id if student else None
+    student = db.query(Student).filter(Student.user_id == student_user_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Student record not found")
+        
+    usn = student.usn
+    cohort_id = student.cohort_id
 
     effective_cohort_id = cohort_id
     
     # Count subjects enrolled via SubjectOffering for this cohort
-    subjects_enrolled = 0
-    if effective_cohort_id:
-        subjects_enrolled = db.query(SubjectOffering).filter(
-            SubjectOffering.cohort_id == effective_cohort_id
-        ).count()
+    # If semester is provided, filter enrolling by semester
+    subjects_query = db.query(SubjectOffering).filter(
+        SubjectOffering.cohort_id == effective_cohort_id
+    )
+    if semester:
+        subjects_query = subjects_query.filter(SubjectOffering.semester_no == semester)
+    
+    subjects_enrolled = subjects_query.count() if effective_cohort_id else 0
     
     # ---- COMPUTE RESULTS FROM StudentQuestionMark (the table that IS populated) ----
     # Get all marks for this student using USN
     student_marks = []
     if usn:
-        student_marks = db.query(StudentQuestionMark).filter(
-            StudentQuestionMark.usn == usn
-        ).all()
+        query = db.query(StudentQuestionMark).filter(StudentQuestionMark.usn == usn)
+        
+        if semester:
+            # Join to filter by semester
+            # StudentQuestionMark -> Exam -> SubjectOffering/Subject
+            from sqlalchemy import or_
+            query = query.join(Exam, StudentQuestionMark.exam_id == Exam.id)\
+                         .outerjoin(SubjectOffering, Exam.offering_id == SubjectOffering.id)\
+                         .outerjoin(Subject, Exam.subject_id == Subject.id)\
+                         .filter(
+                             or_(
+                                 SubjectOffering.semester_no == semester,
+                                 Subject.semester == semester
+                             )
+                         )
+        
+        student_marks = query.all()
     
     # Group marks by exam_id to compute per-exam totals
     exam_ids = list(set(m.exam_id for m in student_marks))

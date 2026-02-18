@@ -83,11 +83,13 @@ export default function SemesterPromotions() {
   });
 
   const promoteMutation = useMutation({
-    mutationFn: () => promotionsApi.execute({
-      cohort_id: selectedCohortForPromotion,
-      academic_year: academicYear,
-      approval_notes: approvalNotes || undefined,
-    }),
+    mutationFn: () => promotionsApi.execute(
+      selectedCohortForPromotion,
+      {
+        confirm: true,
+        approval_notes: approvalNotes || undefined,
+      }
+    ),
     onSuccess: () => {
       toast({ title: 'Semester promotion executed successfully' });
       setIsPromoteDialogOpen(false);

@@ -78,12 +78,21 @@ class DepartmentStats(BaseModel):
 
 class AtRiskStudent(BaseModel):
     """At-risk student data."""
-    student_id: str
+    student_id: UUID
     student_name: str
     roll_number: str
     average_percentage: float
     subjects_at_risk: int
     total_subjects: int
+
+
+class TopStudent(BaseModel):
+    """Top performing student data."""
+    student_id: UUID
+    student_name: str
+    usn: str
+    average_percentage: float
+    rank: int
 
 
 # Dashboard data schemas
@@ -98,10 +107,13 @@ class PrincipalDashboardData(BaseModel):
     co_attainment: List[COAttainmentData]
     department_stats: List[DepartmentStats]
     performance_trend: List[PerformanceTrend] = []
+    top_students: List[TopStudent] = []
+    at_risk_list: List[AtRiskStudent] = []
 
 
 class HODDashboardData(BaseModel):
     """HOD dashboard aggregated data."""
+    department_id: Optional[UUID] = None
     department_students: int
     department_teachers: int
     pass_rate: float
@@ -110,6 +122,8 @@ class HODDashboardData(BaseModel):
     co_attainment: List[COAttainmentData]
     bloom_distribution: List[BloomDistribution] = []
     programs: List[dict] = []
+    top_students: List[TopStudent] = []
+    at_risk_list: List[AtRiskStudent] = []
 
 
 class TeacherDashboardData(BaseModel):

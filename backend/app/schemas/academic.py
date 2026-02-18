@@ -50,7 +50,8 @@ class SubjectWithOutcomes(SubjectResponse):
 # Curriculum schemas
 class CurriculumVersionBase(BaseModel):
     """Base curriculum version schema."""
-    program_id: UUID
+    program_id: Optional[UUID] = None
+    regulation_id: Optional[UUID] = None  # NEW
     version_name: str
     effective_from: int
     is_active: bool = True
@@ -64,6 +65,8 @@ class CurriculumVersionCreate(CurriculumVersionBase):
 class CurriculumVersionResponse(CurriculumVersionBase):
     """Curriculum version response schema."""
     id: UUID
+    program_id: UUID  # Required in response
+    regulation_id: UUID  # Required in response
     created_at: datetime
     
     class Config:

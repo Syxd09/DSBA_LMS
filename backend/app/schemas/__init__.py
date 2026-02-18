@@ -10,6 +10,9 @@ from app.schemas.organization import (
     CohortCreate, CohortUpdate, CohortResponse,
     SectionCreate, SectionUpdate, SectionResponse
 )
+from app.schemas.regulation import (
+    RegulationCreate, RegulationUpdate, RegulationResponse, RegulationInDB
+)
 from app.schemas.academic import (
     SubjectCreate, SubjectUpdate, SubjectResponse, SubjectWithOutcomes,
     CurriculumVersionCreate, CurriculumVersionResponse,
@@ -45,7 +48,8 @@ from app.schemas.analytics import (
     SubjectPerformance, DepartmentStats, AtRiskStudent,
     PrincipalDashboardData, HODDashboardData,
     TeacherDashboardData, StudentDashboardData,
-    COAttainmentResponse, POContribution, PerformanceTrend
+    COAttainmentResponse, POContribution, PerformanceTrend,
+    TopStudent
 )
 
 from app.schemas.student import StudentCreate, StudentUpdate, StudentResponse
@@ -54,6 +58,7 @@ from app.schemas.unit_topic import (
     TopicCreate, TopicUpdate, TopicResponse,
     UnitReorderRequest, BulkTopicCreate
 )
+from app.schemas.config import SystemSettingResponse, SystemSettingUpdate
 
 __all__ = [
     # Common
@@ -66,6 +71,8 @@ __all__ = [
     "ProgramCreate", "ProgramUpdate", "ProgramResponse",
     "CohortCreate", "CohortUpdate", "CohortResponse",
     "SectionCreate", "SectionUpdate", "SectionResponse",
+    # Regulation
+    "RegulationCreate", "RegulationUpdate", "RegulationResponse", "RegulationInDB",
     # Academic
     "SubjectCreate", "SubjectUpdate", "SubjectResponse", "SubjectWithOutcomes",
     "CurriculumVersionCreate", "CurriculumVersionResponse",
@@ -94,12 +101,13 @@ __all__ = [
     "SubjectPerformance", "DepartmentStats", "AtRiskStudent",
     "PrincipalDashboardData", "HODDashboardData",
     "TeacherDashboardData", "StudentDashboardData",
-    "COAttainmentResponse", "POContribution", "PerformanceTrend",
+    "COAttainmentResponse", "POContribution", "PerformanceTrend", "TopStudent",
     # Student
     "StudentCreate", "StudentUpdate", "StudentResponse",
     # Unit & Topic
     "UnitCreate", "UnitUpdate", "UnitResponse", "UnitWithTopicsResponse",
     "TopicCreate", "TopicUpdate", "TopicResponse",
     "UnitReorderRequest", "BulkTopicCreate",
+    "SystemSettingResponse", "SystemSettingUpdate",
 ]
 

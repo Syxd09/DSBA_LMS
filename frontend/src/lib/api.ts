@@ -22,6 +22,8 @@ export * from '@/services/sectionService';
 export * from '@/services/backlogService';
 export * from '@/services/unitService';
 export * from '@/services/externalExamService';
+export * from '@/services/regulationsService';  // Phase 6
+export * from '@/services/configService';
 
 // Default export for backward compatibility
 import { apiClient } from './client';

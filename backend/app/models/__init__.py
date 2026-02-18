@@ -31,7 +31,7 @@ from app.models.unit_topic import Unit, Topic
 from app.models.bloom import Bloom, BLOOM_SEED_DATA
 
 # Student
-from app.models.student import Student
+from app.models.student import Student, StudentSemesterEnrollment
 
 # Outcomes
 from app.models.outcomes import CourseOutcome, ProgramOutcome, COPOMapping, ProgramSpecificOutcome, COPSOMapping
@@ -67,7 +67,7 @@ from app.models.audit import AuditLog
 from app.models.notification import Notification
 
 # Config
-from app.models.config import AttainmentConfig
+from app.models.config import AttainmentConfig, SystemSetting
 
 # Semester
 from app.models.semester import Semester, SemesterType, SemesterStatus, SemesterService
@@ -92,6 +92,7 @@ __all__ = [
     "TeacherAssignment",
     # Student
     "Student",
+    "StudentSemesterEnrollment",
     # Outcomes
     "CourseOutcome",
     "ProgramOutcome",
@@ -133,6 +134,7 @@ __all__ = [
     "Notification",
     # Config
     "AttainmentConfig",
+    "SystemSetting",
 ]
 
 

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Loader2, FileDown, Upload } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { ApprovalWorkflowCard } from '@/components/workflow/ApprovalWorkflowCard';
 import { EditRequestModal } from '@/components/modals/EditRequestModal';
@@ -297,6 +297,72 @@ export default function MarksEntry() {
                 </div>
               ) : (
                 <div className="space-y-6">
+                  {/* Operations Bar */}
+                  <div className="flex justify-between items-center p-4 border rounded-lg bg-muted/30">
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-semibold">Offline Operations</h3>
+                      <p className="text-xs text-muted-foreground">Download template for bulk entry or offline recording</p>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      onClick={async () => {
+                        try {
+                          const blob = await marksApi.downloadMarksTemplate(selectedExamId!);
+                          const url = window.URL.createObjectURL(blob);
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.setAttribute('download', `Marks_Template_${examDetails.exam_type}_${selectedExamId?.slice(0, 8)}.xlsx`);
+                          document.body.appendChild(link);
+                          link.click();
+                          link.remove();
+                          toast({ title: 'Template downloaded' });
+                        } catch (e) {
+                          toast({ title: 'Download failed', variant: 'destructive' });
+                        }
+                      }}
+                    >
+                      <FileDown className="w-4 h-4 mr-2" />
+                      Download Excel Template
+                    </Button>
+                    <div className="relative">
+                        <input
+                            type="file"
+                            accept=".xlsx, .csv"
+                            className="hidden"
+                            id="import-marks-file"
+                            onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                
+                                try {
+                                    const res = await marksApi.importMarks(selectedExamId!, file);
+                                    if (res.success) {
+                                        toast({ 
+                                            title: 'Import Successful', 
+                                            description: `Imported ${res.imported_marks} marks. Errors: ${res.errors.length}` 
+                                        });
+                                        queryClient.invalidateQueries({ queryKey: ['exam-marks', selectedExamId] });
+                                    }
+                                } catch (error: any) {
+                                    toast({
+                                        title: 'Import Failed',
+                                        description: error.response?.data?.detail || 'Failed to import marks',
+                                        variant: 'destructive',
+                                    });
+                                }
+                                // Reset input
+                                e.target.value = '';
+                            }}
+                        />
+                        <Button 
+                            onClick={() => document.getElementById('import-marks-file')?.click()}
+                        >
+                            <Upload className="w-4 h-4 mr-2" />
+                            Import Marks
+                        </Button>
+                    </div>
+                  </div>
+
                   <MarksEntryGrid
                     students={students}
                     subQuestions={subQuestions}

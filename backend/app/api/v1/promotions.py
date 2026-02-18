@@ -4,18 +4,20 @@ EduMetrics Backend - Semester Promotion API
 API endpoints for semester promotion workflow with HOD approval.
 """
 import logging
+import uuid as uuid_lib
 from datetime import datetime
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models import (
     SemesterPromotion, StudentSemesterStatus, Student, Cohort,
-    BacklogAttempt, AuditLog, Profile
+    BacklogAttempt, AuditLog, Profile, StudentSemesterEnrollment,
+    SubjectOffering, Subject, CurriculumVersion
 )
 from app.schemas.promotion import (
     PromotionPreview, PromotionStudentStatus, PromotionRequest,
@@ -25,10 +27,42 @@ from app.schemas.promotion import (
 from app.core.authorization import get_authorization_context, AuthorizationContext
 from app.core.policies import Permission
 from app.api.deps import get_current_user, require_hod_or_above
+from app.core.limiter import limiter
+from fastapi import Request, BackgroundTasks
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/promotions", tags=["Semester Promotions"])
+
+
+# ============================================================================
+# DASHBOARD SUMMARY
+# ============================================================================
+
+@router.get("", response_model=List[SemesterPromotionInDB])
+async def list_promotions(
+    cohort_id: Optional[UUID] = None,
+    academic_year: Optional[str] = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: Profile = Depends(get_current_user)
+):
+    """
+    List semester promotions with filters.
+    
+    Accessible by: HOD, Principal
+    """
+    query = db.query(SemesterPromotion)
+    
+    if cohort_id:
+        query = query.filter(SemesterPromotion.cohort_id == cohort_id)
+        
+    if academic_year:
+        query = query.filter(SemesterPromotion.academic_year == academic_year)
+        
+    proomotions = query.order_by(SemesterPromotion.approved_at.desc()).limit(limit).all()
+    return proomotions
 
 
 # ============================================================================
@@ -184,64 +218,185 @@ async def preview_promotion(
 
 
 # ============================================================================
+# BACKGROUND TASK
+# ============================================================================
+
+def execute_promotion_bg(
+    promotion_id: UUID,
+    cohort_id: UUID,
+    current_user_id: UUID,
+    override_detained: List[str],
+    preview_data_dict: dict
+):
+    """
+    Background task to execute student-level promotion logic.
+    Handles large cohorts without blocking the API response.
+    """
+    db = SessionLocal()
+    try:
+        promotion = db.query(SemesterPromotion).filter(SemesterPromotion.id == promotion_id).first()
+        cohort = db.query(Cohort).filter(Cohort.id == cohort_id).first()
+        current_user = db.query(Profile).filter(Profile.id == current_user_id).first()
+        
+        if not all([promotion, cohort, current_user]):
+            logger.error(f"Promotion task failed: Missing context for promotion {promotion_id}")
+            return
+
+        # 1. Individual Student Status Records & Snapshots
+        all_students_usn = [s['student_usn'] for s in preview_data_dict['students']]
+        student_objs = db.query(Student).filter(Student.usn.in_(all_students_usn)).all()
+        student_map = {s.usn: s for s in student_objs}
+        
+        academic_year = promotion.academic_year
+        from_sem = promotion.from_semester
+        to_sem = promotion.to_semester
+
+        for student_data in preview_data_dict['students']:
+            usn = student_data['student_usn']
+            student = student_map.get(usn)
+            if not student: continue
+
+            # Determine final status (Eligible/Detained/Overridden)
+            final_status = student_data['status']
+            if override_detained and usn in override_detained:
+                final_status = "PROMOTED"
+            
+            # Create Status Record
+            status_record = StudentSemesterStatus(
+                promotion_id=promotion.id,
+                student_usn=usn,
+                status=final_status,
+                reason=student_data.get('reason'),
+                backlog_count=student_data.get('backlog_count', 0)
+            )
+            db.add(status_record)
+
+            # Create Enrollment Snapshot for the semester they just finished
+            snapshot = StudentSemesterEnrollment(
+                student_usn=usn,
+                cohort_id=cohort_id,
+                section_id=student.section_id,
+                semester=from_sem,
+                academic_year=academic_year,
+                status=student.status
+            )
+            db.add(snapshot)
+
+            # Update Student for NEW semester
+            if final_status in ["ELIGIBLE", "PROMOTED"]:
+                student.current_semester = to_sem
+            elif final_status == "DETAINED":
+                student.status = "detained"
+
+        # 2. Initialize SubjectOfferings for NEW semester
+        curriculum = db.query(CurriculumVersion).filter(
+            CurriculumVersion.program_id == cohort.program_id,
+            CurriculumVersion.regulation_id == cohort.regulation_id,
+            CurriculumVersion.is_active == True
+        ).first()
+
+        if curriculum:
+            next_sem_subjects = db.query(Subject).filter(
+                Subject.curriculum_version_id == curriculum.id,
+                Subject.semester == to_sem
+            ).all()
+            
+            for subject in next_sem_subjects:
+                existing_offering = db.query(SubjectOffering).filter(
+                    SubjectOffering.subject_id == subject.id,
+                    SubjectOffering.cohort_id == cohort_id,
+                    SubjectOffering.semester_no == to_sem
+                ).first()
+                
+                if not existing_offering:
+                    new_off = SubjectOffering(
+                        id=uuid_lib.uuid4() if hasattr(uuid_lib, 'uuid4') else uuid.uuid4(),
+                        subject_id=subject.id,
+                        program_id=cohort.program_id,
+                        cohort_id=cohort_id,
+                        semester_no=to_sem,
+                        is_elective=(subject.subject_type == 'elective'),
+                        regulation_year=cohort.regulation.year if cohort.regulation else cohort.year,
+                        is_active=True
+                    )
+                    db.add(new_off)
+
+        # 3. Update Cohort & Promotion Status
+        cohort.current_semester = to_sem
+        promotion.status = "completed"
+        
+        # Audit
+        audit = AuditLog(
+            user_id=current_user.id,
+            user_role=current_user.user_role.role.value if current_user.user_role else "hod",
+            action="PROMOTE",
+            entity_type="cohort",
+            entity_id=str(cohort_id),
+            old_value=str(from_sem),
+            new_value=str(to_sem),
+            reason=f"Asynchronous Promotion: {promotion.students_promoted} promoted"
+        )
+        db.add(audit)
+        db.commit()
+        logger.info(f"Background promotion {promotion_id} completed successfully.")
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Background promotion {promotion_id} failed: {str(e)}")
+        # Try to mark as failed
+        try:
+            p = db.query(SemesterPromotion).filter(SemesterPromotion.id == promotion_id).first()
+            if p:
+                p.status = "failed"
+                db.commit()
+        except: pass
+    finally:
+        db.close()
+
+
+# ============================================================================
 # EXECUTE PROMOTION
 # ============================================================================
 
 @router.post("/promote/{cohort_id}", response_model=PromotionExecuteResponse)
+@limiter.limit("5/minute")
 async def promote_cohort(
+    request: Request,
     cohort_id: UUID,
     data: PromotionRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_hod_or_above)
 ):
     """
-    Execute semester promotion for cohort.
+    Execute semester promotion for cohort (Asynchronous).
     
-    Accessible by: HOD, Principal
-    
-    This will:
-    1. Update cohort current_semester
-    2. Mark detained students
-    3. Create promotion record
-    4. Create individual student status records
+    Returns 202 Accepted. The actual work happens in a background task.
     """
     if not data.confirm:
-        raise HTTPException(
-            status_code=400,
-            detail="Must confirm promotion by setting confirm=True"
-        )
+        raise HTTPException(status_code=400, detail="Must confirm promotion")
     
-    # Get preview first
+    # 1. Preview & Basic Validation
     preview = await preview_promotion(cohort_id, db, current_user)
-    
-    # Get cohort
     cohort = db.query(Cohort).filter(Cohort.id == cohort_id).first()
     if not cohort:
         raise HTTPException(status_code=404, detail="Cohort not found")
-    
-    # Create promotion record
+        
+    # 2. Prepare Counts
     promoted_student_ids = []
     detained_student_ids = []
     detention_reasons = {}
     
     for student_status in preview.students:
-        if student_status.status == "ELIGIBLE":
+        if student_status.status == "ELIGIBLE" or (data.override_detained and student_status.student_usn in data.override_detained):
             promoted_student_ids.append(student_status.student_usn)
-        elif student_status.status == "DETAINED":
+        else:
             detained_student_ids.append(student_status.student_usn)
             detention_reasons[student_status.student_usn] = student_status.reason
     
-    # Handle overrides
-    if data.override_detained:
-        for usn in data.override_detained:
-            if usn in detained_student_ids:
-                detained_student_ids.remove(usn)
-                promoted_student_ids.append(usn)
-                # Log override
-                logger.warning(f"Override: Student {usn} force-promoted by {current_user.email}")
-    
-    # Create promotion record
+    # 3. Create Promotion Record (status=processing)
     promotion = SemesterPromotion(
+        id=uuid.uuid4(),
         cohort_id=cohort_id,
         from_semester=preview.from_semester,
         to_semester=preview.to_semester,
@@ -255,56 +410,22 @@ async def promote_cohort(
         promoted_student_ids=promoted_student_ids,
         detained_student_ids=detained_student_ids,
         detention_reasons=detention_reasons,
-        status="completed"
+        status="processing"
     )
     db.add(promotion)
-    db.flush()  # Get promotion ID
-    
-    # Create individual student status records
-    for student_status in preview.students:
-        final_status = student_status.status
-        if student_status.student_usn in data.override_detained:
-            final_status = "PROMOTED"
-        
-        status_record = StudentSemesterStatus(
-            promotion_id=promotion.id,
-            student_usn=student_status.student_usn,
-            status=final_status,
-            reason=student_status.reason,
-            backlog_count=student_status.backlog_count
-        )
-        # Note: We're using USN directly, need to lookup student UUID
-        student = db.query(Student).filter(Student.usn == student_status.student_usn).first()
-        if student:
-            # Update student status if detained
-            if final_status == "DETAINED":
-                student.status = "detained"
-        
-        db.add(status_record)
-    
-    # Update cohort semester
-    cohort.current_semester = preview.to_semester
-    
-    # Audit log
-    audit = AuditLog(
-        user_id=current_user.id,
-        user_role=current_user.user_role.role.value if current_user.user_role else "unknown",
-        action="PROMOTE",
-        entity_type="cohort",
-        entity_id=str(cohort_id),
-        old_value=str(preview.from_semester),
-        new_value=str(preview.to_semester),
-        reason=data.approval_notes or f"Semester promotion: {len(promoted_student_ids)} promoted, {len(detained_student_ids)} detained"
-    )
-    db.add(audit)
-    
     db.commit()
+    db.refresh(promotion)
     
-    logger.info(
-        f"Cohort {cohort_id} promoted: {preview.from_semester} → {preview.to_semester}, "
-        f"{len(promoted_student_ids)} promoted, {len(detained_student_ids)} detained"
+    # 4. Enqueue Background Task
+    preview_dict = preview.model_dump()
+    background_tasks.add_task(
+        execute_promotion_bg,
+        promotion.id,
+        cohort_id,
+        current_user.id,
+        data.override_detained,
+        preview_dict
     )
-    
     return PromotionExecuteResponse(
         promotion_id=promotion.id,
         cohort_id=cohort_id,

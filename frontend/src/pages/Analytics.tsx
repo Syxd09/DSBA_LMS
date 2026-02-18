@@ -7,6 +7,9 @@ import { useQuery } from '@tanstack/react-query';
 import { analyticsApi, cohortsApi, offeringsApi, examsApi } from '@/lib/api';
 import { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { ShieldCheck, ArrowRight, LayoutDashboard } from 'lucide-react';
 
 // Analytics Page - Viewing CO Attainment & Stats
 export default function Analytics() {
@@ -111,6 +114,46 @@ export default function Analytics() {
               </SelectContent>
             </Select>
           </div>
+
+        </div>
+
+        {/* Quick Access Dashboards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+             <Link to="/analytics/department-pulse" className="block">
+                <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Department Pulse</CardTitle>
+                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">Health Check</div>
+                        <p className="text-xs text-muted-foreground">Department-wide performance metrics</p>
+                    </CardContent>
+                </Card>
+             </Link>
+             
+             <Link to="/analytics/accreditation" className="block">
+                <Card className="hover:bg-muted/50 transition-colors cursor-pointer h-full">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-sm font-medium">Accreditation</CardTitle>
+                        <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">NBA / NAAC</div>
+                        <p className="text-xs text-muted-foreground">Compliance and readiness tracking</p>
+                    </CardContent>
+                </Card>
+             </Link>
+        </div>
+
+        <div className="flex justify-end">
+            {selectedOffering && (
+                <Button variant="default" asChild>
+                    <Link to={`/analytics/subject/${selectedOffering}`}>
+                        View Deep Dive Analysis <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                </Button>
+            )}
         </div>
 
         {/* CO Attainment */}

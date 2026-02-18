@@ -10,6 +10,7 @@ from fastapi import HTTPException, status
 
 class AppRole(str, Enum):
     """User roles in the application."""
+    ADMIN = "admin"  # Added
     PRINCIPAL = "principal"
     HOD = "hod"
     TEACHER = "teacher"
@@ -18,6 +19,7 @@ class AppRole(str, Enum):
 
 # Role hierarchy for permission checks
 ROLE_HIERARCHY = {
+    AppRole.ADMIN: 5,  # Added
     AppRole.PRINCIPAL: 4,
     AppRole.HOD: 3,
     AppRole.TEACHER: 2,

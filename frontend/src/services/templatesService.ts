@@ -3,8 +3,7 @@ import { apiClient } from '@/lib/client';
 export const templatesApi = {
     // CO Attainment Report
     getCOAttainmentReport: (offeringId: string, format: 'pdf' | 'json' = 'pdf') =>
-        apiClient.get(`/templates/co-attainment/${offeringId}`, {
-            params: { format },
+        apiClient.get(`/reports/course-file/${offeringId}`, {
             responseType: 'blob'
         }).then(r => r.data),
 

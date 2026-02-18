@@ -55,7 +55,7 @@ export const cohortsApi = {
     list: (params?: { program_id?: string }) =>
         apiClient.get<Cohort[]>('/cohorts', { params }).then(r => r.data),
 
-    create: (data: { program_id: string; year: number; name: string; current_semester?: number }) =>
+    create: (data: { program_id: string; regulation_id?: string; year: number; name: string; current_semester?: number }) =>
         apiClient.post<Cohort>('/cohorts', data).then(r => r.data),
 
     get: (id: string) => apiClient.get<Cohort>(`/cohorts/${id}`).then(r => r.data),
@@ -131,7 +131,7 @@ export const offeringsApi = {
 
 // Enrollments API
 export const enrollmentsApi = {
-    list: (params?: { cohort_id?: string; usn?: string }) =>
+    list: (params?: { cohort_id?: string; usn?: string; search?: string }) =>
         apiClient.get('/enrollments', { params }).then(r => r.data),
 
     create: (data: { usn: string; name: string; cohort_id: string; email?: string; section_id?: string; admission_semester?: number; status?: string }) =>

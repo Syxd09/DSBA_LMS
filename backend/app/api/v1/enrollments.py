@@ -25,7 +25,8 @@ async def list_enrollments(
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_authenticated),
     cohort_id: Optional[UUID] = None,
-    usn: Optional[str] = None
+    usn: Optional[str] = None,
+    search: Optional[str] = None
 ):
     """List student enrollments (Students)."""
     query = db.query(Student).options(
@@ -62,6 +63,11 @@ async def list_enrollments(
         query = query.filter(Student.cohort_id == cohort_id)
     if usn:
         query = query.filter(Student.usn == usn)
+    if search:
+        query = query.filter(or_(
+            Student.name.ilike(f"%{search}%"),
+            Student.usn.ilike(f"%{search}%")
+        ))
     
     # Sort by USN
     students = query.order_by(Student.usn).all()

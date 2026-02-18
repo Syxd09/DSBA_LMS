@@ -28,10 +28,17 @@ interface TeacherEffectivenessData {
   };
 }
 
-export function FacultyComparisonTable() {
+interface FacultyComparisonTableProps {
+  filters: {
+    cohort_id?: string;
+    semester?: number;
+  };
+}
+
+export function FacultyComparisonTable({ filters }: FacultyComparisonTableProps) {
   const { data, isLoading, error } = useQuery<TeacherEffectivenessData>({
-    queryKey: ['hod-teacher-effectiveness'],
-    queryFn: () => roleAnalyticsApi.getTeacherEffectiveness(),
+    queryKey: ['hod-teacher-effectiveness', filters],
+    queryFn: () => roleAnalyticsApi.getTeacherEffectiveness(filters),
     staleTime: 120000, // 2 minutes
   });
 

@@ -5,41 +5,56 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { RoleProvider } from "@/components/auth/RoleContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import MarksEntry from "./pages/MarksEntry";
-import Analytics from "./pages/Analytics";
-import Users from "./pages/Users";
-import Departments from "./pages/Departments";
-import Subjects from "./pages/Subjects";
-import Results from "./pages/Results";
-import Performance from "./pages/Performance";
-import Programs from "./pages/Programs";
-import Cohorts from "./pages/Cohorts";
-import Exams from "./pages/Exams";
-import CourseOutcomes from "./pages/CourseOutcomes";
-import StudentEnrollments from "./pages/StudentEnrollments";
-import TeacherAssignments from "./pages/TeacherAssignments";
-import GradeManagement from "./pages/GradeManagement";
-import COPOAnalytics from "./pages/COPOAnalytics";
-import Reports from "./pages/Reports";  // NEW: NAAC/NBA Reports
-import AuditLogs from "./pages/AuditLogs";
-import UserSeeder from "./pages/UserSeeder";
-import Profile from "./pages/Profile";
-import Settings from "./pages/Settings";
-import BacklogManagement from "./pages/BacklogManagement";
-import SemesterPromotions from "./pages/SemesterPromotions";
-import ExternalResults from "./pages/ExternalResults";
-import Units from "./pages/Units";
-import AssessmentComponents from "./pages/AssessmentComponents";
-import Colleges from "./pages/Colleges";
-import Notifications from "./pages/Notifications";
-import NotFound from "./pages/NotFound";
-import ProgramOutcomes from "./pages/ProgramOutcomes";
-import COPOMapping from "./pages/COPOMapping";
+import Index from "@/pages/Index";
+import Auth from "@/pages/Auth";
+import Dashboard from "@/pages/Dashboard";
+import MarksEntry from "@/pages/MarksEntry";
+import Analytics from "@/pages/Analytics";
+import Users from "@/pages/Users";
+import Departments from "@/pages/Departments";
+import Subjects from "@/pages/Subjects";
+import Results from "@/pages/Results";
+import Performance from "@/pages/Performance";
+import Programs from "@/pages/Programs";
+import Cohorts from "@/pages/Cohorts";
+import Exams from "@/pages/Exams";
+import CourseOutcomes from "@/pages/CourseOutcomes";
+import StudentEnrollments from "@/pages/StudentEnrollments";
+import TeacherAssignments from "@/pages/TeacherAssignments";
+import GradeManagement from "@/pages/GradeManagement";
+import COPOAnalytics from "@/pages/COPOAnalytics";
+import Reports from "@/pages/Reports";  // NEW: NAAC/NBA Reports
+import AuditLogs from "@/pages/AuditLogs";
+import UserSeeder from "@/pages/UserSeeder";
+import Profile from "@/pages/Profile";
+import Settings from "@/pages/Settings";
+import BacklogManagement from "@/pages/BacklogManagement";
+import SemesterPromotions from "@/pages/SemesterPromotions";
+import ExternalResults from "@/pages/ExternalResults";
+import Units from "@/pages/Units";
+import AssessmentComponents from "@/pages/AssessmentComponents";
+import Colleges from "@/pages/Colleges";
+import Notifications from "@/pages/Notifications";
+import NotFound from "@/pages/NotFound";
+import ProgramOutcomes from "@/pages/ProgramOutcomes";
+import COPOMapping from "@/pages/COPOMapping";
+import Regulations from "@/pages/Regulations"; // Phase 6: Regulations
+import Curriculum from "@/pages/Curriculum"; // Phase 6: Curriculum
+import StudentProfile360 from "@/pages/StudentProfile360";
+import SubjectAnalytics from "@/pages/analytics/SubjectAnalytics";
+import DepartmentPulse from "@/pages/analytics/DepartmentPulse";
+import AccreditationDashboard from "@/pages/analytics/AccreditationDashboard";
 
-const queryClient = new QueryClient();
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000, // 1 minute default stale time
+      refetchOnWindowFocus: false, // Prevent aggressive refetching
+      retry: 1,
+    },
+  },
+});
 
 import { ThemeProvider } from "@/components/theme-provider";
 
@@ -104,6 +119,21 @@ const App = () => (
                 <Analytics />
               </ProtectedRoute>
             } />
+            <Route path="/analytics/subject/:offeringId" element={
+              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
+                <SubjectAnalytics />
+              </ProtectedRoute>
+            } />
+            <Route path="/analytics/department-pulse" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <DepartmentPulse />
+              </ProtectedRoute>
+            } />
+            <Route path="/analytics/accreditation" element={
+              <ProtectedRoute allowedRoles={['principal']}>
+                <AccreditationDashboard />
+              </ProtectedRoute>
+            } />
             <Route path="/co-po-analytics" element={
               <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
                 <COPOAnalytics />
@@ -122,6 +152,11 @@ const App = () => (
             <Route path="/performance" element={
               <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal', 'student']}>
                 <Performance />
+              </ProtectedRoute>
+            } />
+            <Route path="/student-360/:id" element={
+              <ProtectedRoute allowedRoles={['teacher', 'hod', 'principal']}>
+                <StudentProfile360 />
               </ProtectedRoute>
             } />
             
@@ -184,6 +219,16 @@ const App = () => (
             <Route path="/external-results" element={
               <ProtectedRoute allowedRoles={['hod', 'principal']}>
                 <ExternalResults />
+              </ProtectedRoute>
+            } />
+            <Route path="/regulations" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <Regulations />
+              </ProtectedRoute>
+            } />
+            <Route path="/regulations/:id" element={
+              <ProtectedRoute allowedRoles={['hod', 'principal']}>
+                <Curriculum />
               </ProtectedRoute>
             } />
             

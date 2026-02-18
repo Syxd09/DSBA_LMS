@@ -55,6 +55,21 @@ export const marksApi = {
 
     getStudentMarks: (studentId: string) =>
         apiClient.get(`/marks/student/${studentId}`).then(r => r.data),
+
+    downloadMarksTemplate: (examId: string) =>
+        apiClient.get(`/marks/template/${examId}`, {
+            responseType: 'blob'
+        }).then(r => r.data),
+
+    importMarks: (examId: string, file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return apiClient.post<{ success: boolean; imported_marks: number; errors: string[] }>(
+            `/marks/import/${examId}`,
+            formData,
+            { headers: { 'Content-Type': 'multipart/form-data' } }
+        ).then(r => r.data);
+    },
 };
 
 // Grading API

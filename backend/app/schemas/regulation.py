@@ -34,7 +34,7 @@ class RegulationBase(BaseModel):
 
 class RegulationCreate(RegulationBase):
     """Schema for creating a regulation."""
-    college_id: UUID
+    college_id: Optional[UUID] = None
     
     # Internal component weightages
     internal_exam_weightage: Optional[Decimal] = 15.0

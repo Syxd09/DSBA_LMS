@@ -33,6 +33,8 @@ from app.api.v1.units import router as units_router
 from app.api.v1.export import router as export_router
 # Phase J: Notifications
 from app.api.v1.notifications import router as notifications_router
+from app.api.v1.regulations import router as regulations_router  # Phase 6: Regulations
+from app.api.v1.config import router as config_router
 
 from app.api.v1.sections import router as sections_router
 
@@ -67,6 +69,8 @@ router.include_router(units_router)
 # Phase I: Export endpoints
 router.include_router(export_router, prefix="/export", tags=["Export"])
 router.include_router(notifications_router, prefix="/notifications", tags=["Notifications"])
+router.include_router(regulations_router, prefix="/regulations", tags=["Regulations"])  # Phase 6
+router.include_router(config_router)
 
 # CO-PO Mapping (NBA Compliance)
 from app.api.v1.co_po_mapping import router as co_po_mapping_router
@@ -77,6 +81,11 @@ router.include_router(co_po_mapping_router)
 from app.api.v1.remedial import router as remedial_router
 router.include_router(remedial_router)
 
+
 # Survey (Indirect Attainment)
 from app.api.v1.surveys import router as surveys_router
 router.include_router(surveys_router)
+
+# Reporting Engine (NBA Compliance)
+from app.api.v1.reporting import router as reporting_router
+router.include_router(reporting_router)

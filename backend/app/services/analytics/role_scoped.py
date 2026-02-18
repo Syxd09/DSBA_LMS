@@ -329,9 +329,10 @@ class FacultyAnalyticsService:
             
             # Calculate metrics
             total_students = len(set(m.usn for m in marks)) if marks else 0
-            attempted = len([m for m in marks if m.marks and float(m.marks) > 0])
-            max_possible = sum(float(sq.max_marks) for sq in sub_questions) * total_students
-            actual_total = sum(float(m.marks) for m in marks) if marks else 0
+            # Guard against None marks
+            attempted = len([m for m in marks if m.marks is not None and float(m.marks) > 0])
+            max_possible = sum(float(sq.max_marks or 0) for sq in sub_questions) * total_students
+            actual_total = sum(float(m.marks or 0) for m in marks) if marks else 0
             
             avg_marks = (actual_total / total_students) if total_students > 0 else 0
             attempt_rate = (attempted / (total_students or 1)) * 100
@@ -526,8 +527,8 @@ class FacultyAnalyticsService:
                 continue
             
             # Calculate total obtained
-            obtained = sum(float(m.marks) if m.marks else 0 for m in marks)
-            percentage = (obtained / total_max_marks * 100) if total_max_marks > 0 else 0
+            obtained = sum(float(m.marks or 0) for m in marks)
+            percentage = (obtained / total_max_marks * 100) if total_max_marks and total_max_marks > 0 else 0
             
             # 2. Check Overall Threshold
             if percentage < threshold:
@@ -590,7 +591,9 @@ class HODAnalyticsService:
     @staticmethod
     async def get_department_health(
         db: Session,
-        department_id: UUID
+        department_id: UUID,
+        cohort_id: Optional[UUID] = None,
+        semester: Optional[int] = None
     ) -> AnalyticsResponse:
         """
         Get department-wide health summary.
@@ -610,22 +613,29 @@ class HODAnalyticsService:
         programs = db.query(Program).filter(Program.department_id == department_id).all()
         program_ids = [p.id for p in programs]
         
-        cohorts = db.query(Cohort).filter(
-            Cohort.program_id.in_(program_ids)
-        ).all() if program_ids else []
+        cohort_query = db.query(Cohort).filter(Cohort.program_id.in_(program_ids))
+        if cohort_id:
+            cohort_query = cohort_query.filter(Cohort.id == cohort_id)
+        
+        cohorts = cohort_query.all() if program_ids else []
+        cohort_ids_list = [c.id for c in cohorts]
         
         # Count metrics
         total_students = db.query(Student).filter(
-            Student.cohort_id.in_([c.id for c in cohorts]),
+            Student.cohort_id.in_(cohort_ids_list),
             Student.status == "active"
-        ).count() if cohorts else 0
+        ).count() if cohort_ids_list else 0
         
         # Calculate Subject Stats for Backlog Analysis
         subject_stats = []
         
-        all_offerings = db.query(SubjectOffering).options(joinedload(SubjectOffering.subject)).filter(
-            SubjectOffering.cohort_id.in_([c.id for c in cohorts])
-        ).all() if cohorts else []
+        offering_query = db.query(SubjectOffering).options(joinedload(SubjectOffering.subject)).filter(
+            SubjectOffering.cohort_id.in_(cohort_ids_list)
+        )
+        if semester:
+            offering_query = offering_query.filter(SubjectOffering.semester_no == semester)
+            
+        all_offerings = offering_query.all() if cohort_ids_list else []
         
         total_offerings = len(all_offerings)
         
@@ -679,7 +689,7 @@ class HODAnalyticsService:
             for m in marks:
                 if m.usn not in student_scores:
                     student_scores[m.usn] = 0
-                student_scores[m.usn] += float(m.marks) if m.marks else 0
+                student_scores[m.usn] += float(m.marks or 0)
                 
             # Max possible marks
             total_max = sum(float(sq.max_marks) for sq in sub_questions)
@@ -772,7 +782,9 @@ class HODAnalyticsService:
     @staticmethod
     async def get_teacher_effectiveness(
         db: Session,
-        department_id: UUID
+        department_id: UUID,
+        cohort_id: Optional[UUID] = None,
+        semester: Optional[int] = None
     ) -> AnalyticsResponse:
         """
         Get teacher effectiveness metrics for HOD view.
@@ -803,12 +815,18 @@ class HODAnalyticsService:
         cohorts = db.query(Cohort).filter(
             Cohort.program_id.in_(program_ids)
         ).all() if program_ids else []
-        cohort_ids = [c.id for c in cohorts]
+        cohort_ids_list = [c.id for c in cohorts]
+        if cohort_id:
+            cohort_ids_list = [cohort_id] if cohort_id in cohort_ids_list else []
         
-        # Get all offerings in department
-        offerings = db.query(SubjectOffering).filter(
-            SubjectOffering.cohort_id.in_(cohort_ids)
-        ).all() if cohort_ids else []
+        # Get all offerings in department (Filtered by semester if provided)
+        offering_query = db.query(SubjectOffering).filter(
+            SubjectOffering.cohort_id.in_(cohort_ids_list)
+        )
+        if semester:
+            offering_query = offering_query.filter(SubjectOffering.semester_no == semester)
+            
+        offerings = offering_query.all() if cohort_ids_list else []
         offering_ids = [o.id for o in offerings]
         
         # Get teacher assignments

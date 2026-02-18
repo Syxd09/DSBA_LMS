@@ -60,11 +60,53 @@ def verify_marks_entry_access(db: Session, user: Profile, exam: Exam):
     from app.core.permissions import AppRole
     
     role_entry = db.query(UserRole).filter(UserRole.user_id == user.user_id).first()
-    if role_entry and role_entry.role in [AppRole.HOD, AppRole.PRINCIPAL, AppRole.ADMIN]:
+    if role_entry and role_entry.role == AppRole.ADMIN:
         return True
-        
-    # 2. Check Creator
+    
+    if role_entry and role_entry.role == AppRole.PRINCIPAL:
+        return True
+
+    # [NEW] Creator always has access
     if exam.teacher_id == user.user_id:
+        return True
+
+    if role_entry and role_entry.role == AppRole.HOD:
+        from app.models import Department, Program, Subject
+        from app.models.subject_offering import SubjectOffering
+        # Get HOD's department
+        dept = db.query(Department).filter(Department.hod_id == user.user_id).first()
+        if not dept:
+            raise HTTPException(status_code=403, detail="HOD record not found for this user")
+            
+        # Get Exam's department
+        offering = None
+        if exam.offering_id:
+            offering = db.query(SubjectOffering).filter(SubjectOffering.id == exam.offering_id).first()
+        
+        program_id = None
+        if offering:
+            program_id = offering.program_id
+        elif exam.subject_id:
+            # Fallback to subject -> curriculum -> program
+            from app.models.academic import CurriculumVersion
+            subject = db.query(Subject).filter(Subject.id == exam.subject_id).first()
+            if subject and subject.curriculum_version_id:
+                cv = db.query(CurriculumVersion).filter(CurriculumVersion.id == subject.curriculum_version_id).first()
+                if cv:
+                    program_id = cv.program_id
+        
+        if not program_id:
+             raise HTTPException(status_code=404, detail="Exam metadata (offering/subject) is missing or orphaned")
+        
+        program = db.query(Program).filter(Program.id == program_id).first()
+        if not program:
+             raise HTTPException(status_code=404, detail="Program not found for exam")
+
+        if program.department_id != dept.id:
+            raise HTTPException(
+                status_code=403, 
+                detail=f"HOD access denied. Exam belongs to department {program.department_id}, but user is HOD of {dept.id}"
+            )
         return True
         
     # 3. Check Assignment
@@ -90,8 +132,13 @@ def get_exam_marks(
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_teacher_or_above)
 ):
-    """Get all marks for an exam."""
-    # simple USN-based fetch
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+        
+    # [RBAC] Verify access
+    verify_marks_entry_access(db, current_user, exam)
+    
     marks = db.query(StudentQuestionMark).filter(StudentQuestionMark.exam_id == exam_id).all()
     
     return [
@@ -201,7 +248,7 @@ def save_marks(
         ).first()
         
         if existing:
-            old_value = float(existing.marks)
+            old_value = float(existing.marks or 0)
             existing.marks = Decimal(str(entry.marks))
             existing.entered_by = current_user.user_id
             existing.entered_at = datetime.utcnow()
@@ -288,6 +335,9 @@ def compute_marks(
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
+    
+    # [RBAC] Verify access
+    verify_marks_entry_access(db, current_user, exam)
     
     # Get all sections with their selection modes
     sections = db.query(ExamSection).filter(ExamSection.exam_id == exam_id).all()
@@ -429,6 +479,9 @@ def submit_for_approval(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
+    # [RBAC] Verify access
+    verify_marks_entry_access(db, current_user, exam)
+    
     if exam.status not in ["draft", "rejected"]:
         raise HTTPException(
             status_code=400, 
@@ -450,8 +503,8 @@ def submit_for_approval(
         table_name="exams",
         record_id=exam_id,
         action="SUBMIT",
-        old_values={"status": "draft"},
-        new_values={"status": "submitted"},
+        old_data={"status": "draft"},
+        new_data={"status": "submitted"},
         user_id=current_user.user_id,
         reason="Exam submitted for approval"
     )
@@ -479,16 +532,19 @@ def approve_marks(
     Only HOD/Principal can approve marks.
     RBAC: HOD/Principal (approver).
     """
-    # Verify HOD or above
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    
+    # [RBAC] Verify access (HOD=Dept logic included here)
+    verify_marks_entry_access(db, current_user, exam)
+    
+    # Verify HOD or above for approval
     from app.models import UserRole
     from app.core.permissions import AppRole
     role_record = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
     if not role_record or role_record.role not in [AppRole.HOD, AppRole.PRINCIPAL]:
         raise HTTPException(status_code=403, detail="Only HOD or Principal can approve marks")
-    
-    exam = db.query(Exam).filter(Exam.id == exam_id).first()
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
     
     if exam.status != "submitted":
         raise HTTPException(
@@ -506,8 +562,8 @@ def approve_marks(
         table_name="exams",
         record_id=exam_id,
         action="APPROVE",
-        old_values={"status": "submitted"},
-        new_values={"status": "approved"},
+        old_data={"status": "submitted"},
+        new_data={"status": "approved"},
         user_id=current_user.user_id,
         reason="Exam marks approved"
     )
@@ -542,16 +598,19 @@ def reject_marks(
     Only HOD/Principal can reject marks.
     RBAC: HOD/Principal (rejector).
     """
-    # Verify HOD or above
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+        
+    # [RBAC] Verify access (HOD=Dept logic included here)
+    verify_marks_entry_access(db, current_user, exam)
+    
+    # Verify HOD or above for rejection
     from app.models import UserRole
     from app.core.permissions import AppRole
     role_record = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
     if not role_record or role_record.role not in [AppRole.HOD, AppRole.PRINCIPAL]:
         raise HTTPException(status_code=403, detail="Only HOD or Principal can reject marks")
-    
-    exam = db.query(Exam).filter(Exam.id == exam_id).first()
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
     
     if exam.status != "submitted":
         raise HTTPException(
@@ -569,8 +628,8 @@ def reject_marks(
         table_name="exams",
         record_id=exam_id,
         action="REJECT",
-        old_values=None,
-        new_values={"status": "rejected", "reason": data.reason},
+        old_data=None,
+        new_data={"status": "rejected", "reason": data.reason},
         user_id=current_user.user_id
     )
     db.add(audit)
@@ -596,16 +655,19 @@ def lock_marks(
     Only HOD/Principal can lock after approval.
     RBAC: HOD/Principal.
     """
-    # Verify HOD or above
+    exam = db.query(Exam).filter(Exam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+        
+    # [RBAC] Verify access (HOD=Dept logic included here)
+    verify_marks_entry_access(db, current_user, exam)
+    
+    # Verify HOD or above for locking
     from app.models import UserRole
     from app.core.permissions import AppRole
     role_record = db.query(UserRole).filter(UserRole.user_id == current_user.user_id).first()
     if not role_record or role_record.role not in [AppRole.HOD, AppRole.PRINCIPAL]:
         raise HTTPException(status_code=403, detail="Only HOD or Principal can lock marks")
-    
-    exam = db.query(Exam).filter(Exam.id == exam_id).first()
-    if not exam:
-        raise HTTPException(status_code=404, detail="Exam not found")
     
     if exam.status != "approved":
         raise HTTPException(
@@ -622,8 +684,8 @@ def lock_marks(
         table_name="exams",
         record_id=exam_id,
         action="LOCK",
-        old_values={"status": "approved"},
-        new_values={"status": "locked"},
+        old_data={"status": "approved"},
+        new_data={"status": "locked"},
         user_id=current_user.user_id,
         reason="Exam locked (immutable)"
     )
@@ -661,6 +723,9 @@ def get_marks_template(
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
     
+    # [RBAC] Verify access
+    verify_marks_entry_access(db, current_user, exam)
+    
     # Get all sections, questions, sub-questions
     sections = db.query(ExamSection).filter(ExamSection.exam_id == exam_id).order_by(ExamSection.sequence).all()
     
@@ -682,29 +747,54 @@ def get_marks_template(
         Student.cohort_id == exam.cohort_id,
         Student.status == "active"
     ).order_by(Student.usn).all()
+
+    # [NEW] Fetch existing marks to pre-fill
+    existing_marks = db.query(StudentQuestionMark).filter(
+        StudentQuestionMark.exam_id == exam_id
+    ).all()
     
-    # Create CSV
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(headers)
+    # Map (usn, sq_id) -> marks
+    marks_map = {}
+    for mark in existing_marks:
+        marks_map[(mark.usn, str(mark.sub_question_id))] = float(mark.marks or 0)
     
+    # [v2] Create XLSX
+    from openpyxl import Workbook
+    from io import BytesIO
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Marks Template"
+    
+    # Header
+    ws.append(headers)
+    
+    # Rows
     for student in students:
-        row = [student.usn, student.name] + ["" for _ in sq_mapping]
-        writer.writerow(row)
+        row = [student.usn, student.name]
+        for sq_id, _, _ in sq_mapping:
+            # Pre-fill mark if exists, else empty
+            val = marks_map.get((student.usn, sq_id), "")
+            row.append(val)
+        ws.append(row)
+    
+    # Save to BytesIO
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
     
     # Return as downloadable file
-    output.seek(0)
     return StreamingResponse(
-        io.BytesIO(output.getvalue().encode('utf-8')),
-        media_type="text/csv",
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": f"attachment; filename=marks_template_{exam_id}.csv"
+            "Content-Disposition": f"attachment; filename=marks_template_{exam_id}.xlsx"
         }
     )
 
 
 @router.post("/import/{exam_id}")
-def import_marks_csv(
+def import_marks(
     exam_id: UUID,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
@@ -712,122 +802,112 @@ def import_marks_csv(
     current_user: Profile = Depends(require_teacher_or_above)
 ):
     """
-    Import marks from CSV file for an exam.
+    Import marks from Excel (.xlsx) or CSV file for an exam.
     
-    Expected format matches the template downloaded from /template/{exam_id}.
-    Columns after USN and Student Name should be marks for each sub-question.
-    
-    IMMUTABILITY RULES apply - only 'approved' exam status allows marks.
+    Expected format matches the XLSX template from /api/v1/export/assessment/marks-template/{exam_id}.
+    Headers: USN, Name, {Section}_Q{Num}{Label}_Max{Val}
     """
     from app.models import AuditLog
     import uuid as uuid_lib
+    from io import BytesIO
     
-    if not file.filename.endswith('.csv'):
-        raise HTTPException(status_code=400, detail="Please upload a CSV file")
-    
+    # 1. Basic Checks
     exam = db.query(Exam).filter(Exam.id == exam_id).first()
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found")
-    
-    # Check exam status
+        
     if exam.status == "locked":
         raise HTTPException(status_code=400, detail="Exam is locked. Cannot import marks.")
-    if exam.status not in ["approved"]:
+    if exam.status != "approved":
         raise HTTPException(
             status_code=400,
             detail=f"Exam status is '{exam.status}'. Marks entry only allowed after HOD approval."
         )
 
-    # IMP: Enforce RBAC
+    # 2. RBAC
     verify_marks_entry_access(db, current_user, exam)
 
-    # Pre-fetch offering details for cache invalidation (Sync DB access)
-    offering_id = exam.offering_id
-    program_id = None
-    if offering_id:
-        from app.models.subject_offering import SubjectOffering
-        off = db.query(SubjectOffering).filter(SubjectOffering.id == offering_id).first()
-        if off:
-            program_id = off.program_id
+    # 3. Read File Content
+    content = file.file.read()
+    rows = []
     
-    # Read CSV content (async read, need run_in_threadpool? No, file.read() is async)
-    # But we are in Sync function.
-    # calling in sync function is SyntaxError.
-    # UploadFile.read() is async.
-    # We can use file.file.read() (spooled temp file) which is sync?
-    # file.file is a SpooledTemporaryFile.
-    content = file.file.read() 
-    try:
-        decoded = content.decode('utf-8')
-        csv_reader = csv.DictReader(io.StringIO(decoded))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read CSV: {str(e)}")
-    
-    # ... rest of logic ...
-    
-    # Build sub-question mapping from headers
-    # Headers format: "S{section}_Q{qnum}_{label} (Max:{marks})"
-    headers = csv_reader.fieldnames or []
-    
-    # Get all sub-questions for this exam
+    if file.filename.endswith('.xlsx'):
+        try:
+            from openpyxl import load_workbook
+            wb = load_workbook(filename=BytesIO(content), data_only=True)
+            ws = wb.active
+            # Convert worksheet to list of dicts
+            headers = [str(cell.value) for cell in ws[1] if cell.value]
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if not row[0]: continue # Skip empty rows
+                rows.append(dict(zip(headers, row)))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to read Excel: {str(e)}")
+    elif file.filename.endswith('.csv'):
+        try:
+            import csv
+            from io import StringIO
+            decoded = content.decode('utf-8')
+            csv_reader = csv.DictReader(StringIO(decoded))
+            rows = list(csv_reader)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to read CSV: {str(e)}")
+    else:
+        raise HTTPException(status_code=400, detail="Only .xlsx and .csv files are supported.")
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="File is empty or contains no data rows.")
+
+    # 4. Map Sub-Questions
+    # Header format: {Section}_Q{Num}{Label}_Max{Val}
     sections = db.query(ExamSection).filter(ExamSection.exam_id == exam_id).all()
-    all_sub_questions = []
+    sq_map = {} # {header_name: sq_id}
+    sq_max = {} # {sq_id: max_marks}
+    
     for section in sections:
         questions = db.query(Question).filter(Question.section_id == section.id).all()
-        for question in questions:
-            sub_qs = db.query(SubQuestion).filter(SubQuestion.question_id == question.id).all()
+        for q in questions:
+            sub_qs = db.query(SubQuestion).filter(SubQuestion.question_id == q.id).all()
             for sq in sub_qs:
-                col_name = f"S{section.name}_Q{question.sequence}_{sq.label or 'a'} (Max:{sq.max_marks})"
-                all_sub_questions.append((sq.id, str(sq.max_marks), col_name))
-    
-    sq_col_to_id = {sq[2]: sq[0] for sq in all_sub_questions}
-    sq_max_marks = {sq[0]: float(sq[1]) for sq in all_sub_questions}
-    
-    results = {
-        "success_count": 0,
-        "error_count": 0,
-        "errors": []
-    }
-    
+                # MATCH TEMPLATE GEN: f"S{section.name}_Q{question.sequence}_{sq.label or 'a'} (Max:{sq.max_marks})"
+                col_name = f"S{section.name}_Q{q.sequence}_{sq.label or 'a'} (Max:{sq.max_marks})"
+                sq_map[col_name] = sq.id
+                sq_max[sq.id] = float(sq.max_marks)
+
+    # 5. Process Rows
+    results = {"success_count": 0, "error_count": 0, "errors": []}
     marks_to_add = []
-    marks_to_update = []
     audit_entries = []
     
-    for row_idx, row in enumerate(csv_reader, start=2):  # Start at 2 (header is row 1)
-        usn = row.get("USN", "").strip()
-        if not usn:
-            results["errors"].append(f"Row {row_idx}: Missing USN")
-            results["error_count"] += 1
+    for idx, row in enumerate(rows, 2):
+        usn = str(row.get("USN") or "").strip()
+        if not usn or usn == "None":
             continue
-        
-        # Verify student exists
-        student = db.query(Student).filter(Student.usn == usn).first()
+            
+        student = db.query(Student).filter(Student.usn == usn, Student.cohort_id == exam.cohort_id).first()
         if not student:
-            results["errors"].append(f"Row {row_idx}: Student not found ({usn})")
+            results["errors"].append(f"Row {idx}: USN {usn} not found in this cohort.")
             results["error_count"] += 1
             continue
-        
-        # Process each mark column
-        for col_name, sq_id in sq_col_to_id.items():
-            cell_value = row.get(col_name, "").strip()
-            if not cell_value:
-                continue  # Skip empty cells
+
+        for col, sq_id in sq_map.items():
+            val = row.get(col)
+            if val is None or str(val).strip() == "":
+                continue
             
             try:
-                marks_value = float(cell_value)
-            except ValueError:
-                results["errors"].append(f"Row {row_idx}: Invalid marks value for {col_name}")
+                marks_val = float(val)
+            except (ValueError, TypeError):
+                results["errors"].append(f"Row {idx}: Invalid marks '{val}' for {col}")
+                results["error_count"] += 1
+                continue
+                
+            if marks_val < 0 or marks_val > sq_max[sq_id]:
+                results["errors"].append(f"Row {idx}: Marks {marks_val} out of range [0, {sq_max[sq_id]}] for {col}")
                 results["error_count"] += 1
                 continue
             
-            # Validate marks range
-            max_marks = sq_max_marks.get(sq_id, 100)
-            if marks_value < 0 or marks_value > max_marks:
-                results["errors"].append(f"Row {row_idx}: Marks {marks_value} out of range [0, {max_marks}] for {col_name}")
-                results["error_count"] += 1
-                continue
-            
-            # Check if mark already exists
+            # Check existing
             existing = db.query(StudentQuestionMark).filter(
                 StudentQuestionMark.exam_id == exam_id,
                 StudentQuestionMark.usn == usn,
@@ -835,18 +915,16 @@ def import_marks_csv(
             ).first()
             
             if existing:
-                old_value = float(existing.marks)
-                existing.marks = Decimal(str(marks_value))
+                old_val = float(existing.marks or 0)
+                existing.marks = Decimal(str(marks_val))
                 existing.entered_by = current_user.user_id
                 existing.entered_at = datetime.utcnow()
-                marks_to_update.append(existing)
                 
                 audit_entries.append({
                     "action": "MARKS_IMPORT_EDIT",
-                    "entity_type": "student_question_marks",
                     "entity_id": str(existing.id),
-                    "old_value": str(old_value),
-                    "new_value": str(marks_value),
+                    "old_value": str(old_val),
+                    "new_value": str(marks_val),
                     "student_id": usn,
                     "sub_question_id": str(sq_id)
                 })
@@ -856,57 +934,48 @@ def import_marks_csv(
                     exam_id=exam_id,
                     usn=usn,
                     sub_question_id=sq_id,
-                    marks=Decimal(str(marks_value)),
+                    marks=Decimal(str(marks_val)),
                     entered_by=current_user.user_id
                 )
-                marks_to_add.append(new_mark)
+                db.add(new_mark)
                 
                 audit_entries.append({
                     "action": "MARKS_IMPORT_NEW",
-                    "entity_type": "student_question_marks",
                     "entity_id": str(new_mark.id),
                     "old_value": None,
-                    "new_value": str(marks_value),
+                    "new_value": str(marks_val),
                     "student_id": usn,
                     "sub_question_id": str(sq_id)
                 })
-            
             results["success_count"] += 1
-    
-    # Commit all changes
+
+    # 6. Commit & Audit
     try:
-        if marks_to_add:
-            db.add_all(marks_to_add)
-        
-        # Write audit logs
-        for audit_data in audit_entries:
-            audit_log = AuditLog(
+        for a in audit_entries:
+            db.add(AuditLog(
                 id=uuid_lib.uuid4(),
                 user_id=current_user.user_id,
-                action=audit_data["action"],
-                entity_type=audit_data["entity_type"],
-                entity_id=audit_data["entity_id"],
-                old_value=audit_data["old_value"],
-                new_value=audit_data["new_value"],
-                reason=f"CSV Import - student {audit_data['student_id']}"
-            )
-            db.add(audit_log)
-        
+                action=a["action"],
+                entity_type="student_question_marks",
+                entity_id=a["entity_id"],
+                old_value=a["old_value"],
+                new_value=a["new_value"],
+                reason=f"Excel/CSV Import - Student {a['student_id']}"
+            ))
         db.commit()
         
         # Invalidate Cache
-        _invalidate_cache_for_exam(exam_id, db)
-        
+        if exam.offering_id:
+            background_tasks.add_task(invalidate_analytics_cache_bg, exam.offering_id, None)
+            
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    
+        raise HTTPException(status_code=500, detail=f"Database error during import: {str(e)}")
+
     return {
         "success": True,
         "exam_id": str(exam_id),
         "imported_marks": results["success_count"],
-        "new_entries": len(marks_to_add),
-        "updated_entries": len(marks_to_update),
-        "errors": results["errors"][:20],  # Limit errors returned
+        "errors": results["errors"][:10],
         "total_errors": results["error_count"]
     }

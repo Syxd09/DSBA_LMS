@@ -389,6 +389,7 @@ def export_analytics(
     format: ExportFormat,
     filename: str,
     title: str = "",
+    headers: Optional[List[str]] = None,
     flatten_key: Optional[str] = None
 ) -> Response:
     """
@@ -405,5 +406,6 @@ def export_analytics(
         format=format,
         filename=filename,
         title=title,
+        headers=headers,
         flatten_key=flatten_key
     )

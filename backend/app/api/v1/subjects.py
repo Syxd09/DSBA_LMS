@@ -34,6 +34,9 @@ async def list_subjects(
     if semester:
         query = query.filter(Subject.semester == semester)
     
+    # Enforce soft-delete filtering
+    query = query.filter(Subject.is_active == True)
+    
     subjects = query.order_by(Subject.semester, Subject.code).all()
     return subjects
 
@@ -140,10 +143,26 @@ async def delete_subject(
     if not existing:
         raise HTTPException(status_code=404, detail="Subject not found")
     
-    # Delete associated course outcomes first
-    db.query(CourseOutcome).filter(CourseOutcome.subject_id == subject_id).delete()
-    db.delete(existing)
+    from app.models.audit import AuditLog
+    import uuid as uuid_lib
+    
+    # 1. Soft delete
+    existing.is_active = False
+    
+    # 2. Audit Log
+    audit = AuditLog(
+        id=uuid_lib.uuid4(),
+        user_id=current_user.user_id,
+        user_role="hod", # Or dynamic role if available
+        action="DEACTIVATE",
+        entity_type="subject",
+        entity_id=str(subject_id),
+        old_value="active",
+        new_value="inactive",
+        reason="Soft delete (NBA Compliance)"
+    )
+    db.add(audit)
     db.commit()
     
-    return {"message": "Subject deleted successfully"}
+    return {"message": "Subject deactivated successfully"}
 

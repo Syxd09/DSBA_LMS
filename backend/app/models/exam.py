@@ -26,12 +26,12 @@ class Exam(Base):
     __tablename__ = "exams"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    offering_id = Column(UUID(as_uuid=True), ForeignKey("subject_offerings.id"), nullable=True)  # NEW: The anchor
-    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True)  # Legacy
-    cohort_id = Column(UUID(as_uuid=True), ForeignKey("cohorts.id"), nullable=False)
-    exam_type = Column(String, nullable=False)  # INT1, INT2, EXT
+    offering_id = Column(UUID(as_uuid=True), ForeignKey("subject_offerings.id"), nullable=True, index=True)  # NEW: The anchor
+    subject_id = Column(UUID(as_uuid=True), ForeignKey("subjects.id"), nullable=True, index=True)  # Legacy
+    cohort_id = Column(UUID(as_uuid=True), ForeignKey("cohorts.id"), nullable=False, index=True)
+    exam_type = Column(String, nullable=False, index=True)  # INT1, INT2, EXT
     max_marks = Column(Integer, default=40, nullable=False)  # CLARIFICATION #2: 40 for internal, 60 for external
-    status = Column(String, default="draft", nullable=False)  # draft, submitted, approved, locked
+    status = Column(String, default="draft", nullable=False, index=True)  # draft, submitted, approved, locked
     teacher_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     published_at = Column(DateTime, nullable=True)

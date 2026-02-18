@@ -7,10 +7,10 @@ Exposes role-specific analytics views with RBAC protection.
 Consumes Phase-2B APIs via role_scoped.py services.
 """
 from uuid import UUID
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.api.deps import (
@@ -473,6 +473,8 @@ async def get_faculty_student_consistency(
     dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_HOD))]
 )
 async def get_hod_department_health(
+    cohort_id: Optional[UUID] = Query(None, description="Filter by Cohort"),
+    semester: Optional[int] = Query(None, description="Filter by Semester"),
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_authenticated)
 ):
@@ -487,7 +489,9 @@ async def get_hod_department_health(
     
     return await HODAnalyticsService.get_department_health(
         db=db,
-        department_id=dept.id
+        department_id=dept.id,
+        cohort_id=cohort_id,
+        semester=semester
     )
 
 
@@ -526,6 +530,8 @@ async def get_hod_batch_comparison(
     dependencies=[Depends(PermissionChecker(Permission.DASHBOARD_HOD))]
 )
 async def get_hod_teacher_effectiveness(
+    cohort_id: Optional[UUID] = Query(None, description="Filter by Cohort"),
+    semester: Optional[int] = Query(None, description="Filter by Semester"),
     db: Session = Depends(get_db),
     current_user: Profile = Depends(require_authenticated)
 ):
@@ -547,7 +553,9 @@ async def get_hod_teacher_effectiveness(
     
     return await HODAnalyticsService.get_teacher_effectiveness(
         db=db,
-        department_id=dept.id
+        department_id=dept.id,
+        cohort_id=cohort_id,
+        semester=semester
     )
 
 
