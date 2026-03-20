@@ -11,6 +11,8 @@ import { Star, Send, Save, Loader2, ArrowLeft } from 'lucide-react';
 import api from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useLocation } from 'react-router-dom';
 
 interface FeedbackTemplate {
   id: string;
@@ -43,27 +45,52 @@ export default function CreateTeacherFeedback() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const { state } = useLocation();
+  const studentNameFromState = state?.studentName || '';
+  const cohortIdFromState = state?.cohortId || '';
+  const semesterFromState = state?.semester || '';
+  const assignedSubjectsFromState = state?.assignedSubjects || [];
+
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [starRating, setStarRating] = useState<number>(0);
   const [hoveredStar, setHoveredStar] = useState<number>(0);
   const [reviewText, setReviewText] = useState('');
   const [categoryRatings, setCategoryRatings] = useState<Record<string, number>>({});
 
-  // Fetch student details
-  const { data: student } = useQuery<Student>({
+  // Fetch student details if not in state (fallback for page refresh)
+  const { data: student, isLoading: studentLoading } = useQuery<Student>({
     queryKey: ['student', studentId],
     queryFn: async () => {
       const { data } = await api.get(`/users/${studentId}`);
-      return data;
+      return data.user || data;
     },
     enabled: !!studentId,
   });
+
+  // Fetch enrollment context if missing from state
+  const { data: enrollment } = useQuery({
+    queryKey: ['student-enrollment-context', studentId],
+    queryFn: async () => {
+      const { data } = await api.get(`/enrollments?studentId=${studentId}&status=active`);
+      // Return the most recent enrollment
+      return Array.isArray(data) ? data[0] : null;
+    },
+    enabled: !!studentId && (!cohortIdFromState || !semesterFromState),
+  });
+
+  // Derived context
+  const cohortId = cohortIdFromState || enrollment?.cohortId || '';
+  const semester = Number(semesterFromState || enrollment?.semester || 0);
+  const assignedSubjects = assignedSubjectsFromState.length > 0 
+    ? assignedSubjectsFromState 
+    : (enrollment?.cohort?.assignedSubjects || []); // Basic fallback
 
   // Fetch active templates
   const { data: templates = [], isLoading: templatesLoading } = useQuery<FeedbackTemplate[]>({
     queryKey: ['feedback-templates-active'],
     queryFn: async () => {
-      const { data } = await api.get('/feedback/templates?isActive=true');
+      const { data } = await api.get('/feedback-templates?isActive=true');
       return data.templates || [];
     },
   });
@@ -80,6 +107,9 @@ export default function CreateTeacherFeedback() {
 
       const payload = {
         studentId,
+        subjectId: selectedSubject,
+        semester: semester,
+        cohortId: cohortId,
         templateId: selectedTemplate,
         starRating: starRating || null,
         reviewText: reviewText || null,
@@ -90,7 +120,7 @@ export default function CreateTeacherFeedback() {
         status: isDraft ? 'DRAFT' : 'SUBMITTED',
       };
 
-      await api.post('/feedback/feedback', payload);
+      await api.post('/teacher-feedback', payload);
     },
     onSuccess: (_, isDraft) => {
       queryClient.invalidateQueries({ queryKey: ['teacher-feedback'] });
@@ -113,10 +143,28 @@ export default function CreateTeacherFeedback() {
 
   const handleSubmit = (isDraft: boolean = false) => {
     // Validation
+    if (!selectedSubject) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please select a subject',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (!selectedTemplate) {
       toast({
         title: 'Validation Error',
         description: 'Please select a feedback template',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!cohortId || !semester) {
+      toast({
+        title: 'Context Error',
+        description: 'Student enrollment information is missing. Please go back and try again.',
         variant: 'destructive',
       });
       return;
@@ -167,6 +215,47 @@ export default function CreateTeacherFeedback() {
             </div>
           </div>
         </div>
+
+        {/* Student & Subject Info */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Context Information</CardTitle>
+            <CardDescription>
+              Details of the student and subject you are providing feedback for
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-muted-foreground">Student</Label>
+                <div className="font-medium text-lg">{studentNameFromState || student?.fullName || 'Loading...'}</div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-muted-foreground">Semester</Label>
+                <div className="font-medium text-lg">{semester ? `Semester ${semester}` : 'N/A'}</div>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <Label htmlFor="subject-select" className="text-base font-semibold">Select Subject</Label>
+              <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                <SelectTrigger id="subject-select" className="h-12 text-base">
+                  <SelectValue placeholder="Which subject are you teaching this student?" />
+                </SelectTrigger>
+                <SelectContent>
+                  {assignedSubjects.map((subject: any) => (
+                    <SelectItem key={subject.id} value={subject.id}>
+                      {subject.name} ({subject.code})
+                    </SelectItem>
+                  ))}
+                  {assignedSubjects.length === 0 && (
+                     <SelectItem value="none" disabled>No subjects found for this context</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Template Selection */}
         {templatesLoading ? (
@@ -305,7 +394,7 @@ export default function CreateTeacherFeedback() {
                       </CardHeader>
                       <CardContent>
                         <RadioGroup
-                          value={categoryRatings[category.id]?.toString()}
+                          value={categoryRatings[category.id]?.toString() || ""}
                           onValueChange={(value) =>
                             setCategoryRatings({
                               ...categoryRatings,

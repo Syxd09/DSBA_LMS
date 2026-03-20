@@ -42,7 +42,7 @@ export default function ViewFeedbackTemplate() {
   const { data: template, isLoading } = useQuery<FeedbackTemplate>({
     queryKey: ['feedback-template', id],
     queryFn: async () => {
-      const { data } = await api.get(`/feedback/templates/${id}`);
+      const { data } = await api.get(`/feedback-templates/${id}`);
       return data;
     },
     enabled: !!id,
@@ -51,7 +51,7 @@ export default function ViewFeedbackTemplate() {
   // Toggle status mutation
   const toggleStatus = useMutation({
     mutationFn: async (isActive: boolean) => {
-      await api.patch(`/feedback/templates/${id}/status`, { isActive });
+      await api.patch(`/feedback-templates/${id}/status`, { isActive });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feedback-template', id] });

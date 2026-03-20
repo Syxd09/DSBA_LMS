@@ -38,6 +38,49 @@ export function useGradingRules(departmentId?: string) {
   });
 }
 
+export function useCreateGradingRule() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (ruleData: Omit<GradingRule, 'id'>) => {
+      const { data } = await api.post('/grading/rules', ruleData);
+      return data as GradingRule;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gradingRules'] });
+      toast({ title: 'Success', description: 'Grading rule added successfully' });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Error', 
+        description: error.response?.data?.message || 'Failed to create rule', 
+        variant: 'destructive' 
+      });
+    }
+  });
+}
+
+export function useDeleteGradingRule() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/grading/rules/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gradingRules'] });
+      toast({ title: 'Success', description: 'Rule deleted successfully' });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Error', 
+        description: error.response?.data?.message || 'Failed to delete rule', 
+        variant: 'destructive' 
+      });
+    }
+  });
+}
+
 export function useFinalMarks(filters: { student_id?: string; subject_id?: string; cohort_id?: string }) {
   return useQuery({
     queryKey: ['final-marks', filters],

@@ -30,6 +30,15 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
         if (err) {
             return res.status(403).json({ message: 'Invalid or expired token' });
         }
+        
+        // BUG-MIX-01: Ensure both 'id' and 'userId' are available for consistency across controllers
+        // Most controllers use .id (Prisma standard), but the JWT payload currently uses userId
+        if (user && user.userId && !user.id) {
+            user.id = user.userId;
+        } else if (user && user.id && !user.userId) {
+            user.userId = user.id;
+        }
+
         req.user = user;
         next();
     });

@@ -59,19 +59,19 @@ async function validateTeacherAssignment(
  */
 async function validateStudentEnrollment(
     studentId: string,
-    subjectId: string,
-    cohortId: string
+    cohortId: string,
+    semester: number
 ): Promise<boolean> {
     const enrollment = await prisma.studentEnrollment.findFirst({
         where: {
             studentId,
             cohortId,
-            subjectId  // Direct field instead of nested relation
+            semester
         }
     });
 
     if (!enrollment) {
-        throw new Error('BADREQUEST:Student is not enrolled in this subject for this cohort');
+        throw new Error('FORBIDDEN:Student is not enrolled in this cohort for the specified semester');
     }
 
     return true;
@@ -90,19 +90,35 @@ export const createFeedback = async (req: AuthRequest, res: Response) => {
             return res.status(403).json({ message: 'Only teachers can create feedback' });
         }
 
-        const { studentId, subjectId, semester, cohortId, templateId, starRating, reviewText, categoryRatings } = req.body;
+        const { studentId, subjectId, semester, cohortId, templateId, starRating, reviewText, categoryRatings, status } = req.body;
 
-        // Validation
-        if (!studentId || !subjectId || !semester || !cohortId || !templateId || !starRating || !reviewText || !categoryRatings) {
-            return res.status(400).json({ message: 'All fields are required' });
+        // Structured logging for debugging
+        console.log(`[TeacherFeedback] Creating feedback for student ${studentId}, subject ${subjectId}, semester ${semester}, cohort ${cohortId}`);
+
+        // Granular Validation
+        const missingFields = [];
+        if (!studentId) missingFields.push('studentId');
+        if (!subjectId) missingFields.push('subjectId');
+        if (semester === undefined || semester === null) missingFields.push('semester');
+        if (!cohortId) missingFields.push('cohortId');
+        if (!templateId) missingFields.push('templateId');
+        if (!categoryRatings) missingFields.push('categoryRatings');
+
+        if (missingFields.length > 0) {
+            return res.status(400).json({ 
+                message: `Missing required context: ${missingFields.join(', ')}`,
+                missingFields 
+            });
         }
 
-        if (starRating < 1 || starRating > 5) {
-            return res.status(400).json({ message: 'Star rating must be between 1 and 5' });
+        if (starRating !== undefined && starRating !== null) {
+            if (starRating < 1 || starRating > 5) {
+                return res.status(400).json({ message: 'Star rating must be between 1 and 5' });
+            }
         }
 
-        if (!Array.isArray(categoryRatings) || categoryRatings.length === 0) {
-            return res.status(400).json({ message: 'At least one category rating is required' });
+        if (!Array.isArray(categoryRatings)) {
+            return res.status(400).json({ message: 'Category ratings must be an array' });
         }
 
         // Validate all category ratings are 1-5
@@ -116,7 +132,7 @@ export const createFeedback = async (req: AuthRequest, res: Response) => {
         await validateTeacherAssignment(user.id, subjectId, cohortId);
 
         // Validate student enrollment
-        await validateStudentEnrollment(studentId, subjectId, cohortId);
+        await validateStudentEnrollment(studentId, cohortId, Number(semester));
 
         // Check for duplicate feedback (unique constraint)
         const existing = await prisma.teacherStudentFeedback.findFirst({
@@ -652,8 +668,20 @@ export const getStudentFeedback = async (req: AuthRequest, res: Response) => {
             }
         } else if (user.role === 'TEACHER') {
             // Teacher can only see feedback for students they teach
-            // This would require checking teacher assignments, simplified for now
-            // TODO: Add assignment validation
+            const assignments = await prisma.teacherAssignment.findMany({
+                where: { teacherId: user.id },
+                select: { cohortId: true, subjectId: true }
+            });
+            if (assignments.length > 0) {
+                whereClause.OR = assignments.map(a => ({
+                    cohortId: a.cohortId,
+                    subjectId: a.subjectId
+                }));
+            } else {
+                // Teacher has no assignments — return empty
+                return res.json({ feedbacks: [] });
+            }
+
         } else if (user.role === 'HOD') {
             // HOD can only see feedback for students in their department
             const student = await prisma.user.findUnique({
@@ -700,6 +728,152 @@ export const getStudentFeedback = async (req: AuthRequest, res: Response) => {
             message: 'Failed to get student feedback',
             error: error.message
         });
+    }
+};
+
+/**
+ * @route   GET /api/teacher-feedback/template/:templateId
+ * @desc    Get all feedback for a specific template (for results view)
+ * @access  HOD, Principal, Admin
+ */
+export const getTemplateFeedback = async (req: AuthRequest, res: Response) => {
+    try {
+        const user = req.user;
+        if (!user) return res.status(401).json({ message: 'Unauthenticated' });
+
+        const { templateId } = req.params;
+
+        // RBAC: Only higher authorities
+        if (!['ADMIN', 'PRINCIPAL', 'HOD'].includes(user.role)) {
+            return res.status(403).json({ message: 'Only authorities can view template-wide results' });
+        }
+
+        const feedbacks = await prisma.teacherStudentFeedback.findMany({
+            where: { templateId },
+            include: {
+                student: {
+                    select: { id: true, fullName: true, email: true }
+                },
+                teacher: {
+                    select: { id: true, fullName: true }
+                },
+                subject: {
+                    select: { name: true, code: true }
+                },
+                categoryRatings: {
+                    include: {
+                        category: {
+                            select: { name: true, displayOrder: true }
+                        }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        return res.json({ feedbacks });
+    } catch (error: any) {
+        console.error('Error getting template feedback:', error);
+        return res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+/**
+ * @route   GET /api/teacher-feedback/template/:templateId/export
+ * @desc    Export all feedback for a specific template as CSV
+ * @access  HOD, Principal, Admin
+ */
+export const exportTemplateFeedback = async (req: AuthRequest, res: Response) => {
+    try {
+        const user = req.user;
+        if (!user) return res.status(401).json({ message: 'Unauthenticated' });
+
+        const { templateId } = req.params;
+
+        // RBAC: Only higher authorities
+        if (!['ADMIN', 'PRINCIPAL', 'HOD'].includes(user.role)) {
+            return res.status(403).json({ message: 'Only authorities can export results' });
+        }
+
+        const template = await prisma.feedbackTemplate.findUnique({
+            where: { id: templateId },
+            include: { categories: { orderBy: { displayOrder: 'asc' } } }
+        });
+
+        if (!template) {
+            return res.status(404).json({ message: 'Template not found' });
+        }
+
+        const feedbacks = await prisma.teacherStudentFeedback.findMany({
+            where: { templateId },
+            include: {
+                student: {
+                    select: { fullName: true, email: true }
+                },
+                teacher: {
+                    select: { fullName: true }
+                },
+                subject: {
+                    select: { name: true, code: true }
+                },
+                categoryRatings: {
+                    include: {
+                        category: { select: { id: true, name: true } }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        if (feedbacks.length === 0) {
+            return res.status(404).json({ message: 'No feedback data to export' });
+        }
+
+        // CSV Header
+        const categoryNames = template.categories.map(c => c.name);
+        const headers = [
+            'Date',
+            'Student Name',
+            'Student Email',
+            'Subject',
+            'Semester',
+            'Teacher',
+            'Overall Rating (Stars)',
+            ...categoryNames,
+            'Detailed Review'
+        ];
+
+        // CSV Rows
+        const rows = feedbacks.map(f => {
+            const ratingsMap = new Map();
+            f.categoryRatings.forEach(cr => {
+                ratingsMap.set(cr.category.id, cr.rating);
+            });
+
+            const categoryValues = template.categories.map(c => ratingsMap.get(c.id) || 'N/A');
+
+            return [
+                new Date(f.createdAt).toLocaleDateString(),
+                f.student.fullName,
+                f.student.email,
+                `${f.subject.name} (${f.subject.code})`,
+                f.semester,
+                f.teacher.fullName,
+                f.starRating || 'N/A',
+                ...categoryValues,
+                f.reviewText ? `"${f.reviewText.replace(/"/g, '""')}"` : 'N/A'
+            ].join(',');
+        });
+
+        const csvContent = [headers.join(','), ...rows].join('\n');
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=feedback_report_${template.name.replace(/\s+/g, '_')}.csv`);
+        return res.status(200).send(csvContent);
+
+    } catch (error: any) {
+        console.error('Error exporting template feedback:', error);
+        return res.status(500).json({ message: 'Internal server error', error: error.message });
     }
 };
 
@@ -823,10 +997,70 @@ export const getPendingApprovals = async (req: AuthRequest, res: Response) => {
 };
 
 /**
+ * @route   GET /api/teacher-feedback/final-approvals
+ * @desc    Get final approvals (APPROVED feedback awaiting lock)
+ * @access  Principal, Admin
+ */
+export const getFinalApprovals = async (req: AuthRequest, res: Response) => {
+    try {
+        const user = req.user;
+
+        if (!user) {
+            return res.status(401).json({ message: 'Authentication required' });
+        }
+
+        if (user.role !== 'PRINCIPAL' && user.role !== 'ADMIN') {
+            return res.status(403).json({ message: 'Only Principal or Admin can view final approvals' });
+        }
+
+        const { departmentId } = req.query;
+
+        let whereClause: any = { status: 'APPROVED' };
+
+        if (departmentId) {
+            whereClause.student = {
+                departmentId: departmentId
+            };
+        }
+
+        const feedbacks = await prisma.teacherStudentFeedback.findMany({
+            where: whereClause,
+            include: {
+                teacher: {
+                    select: { fullName: true }
+                },
+                student: {
+                    select: { fullName: true, email: true, departmentId: true }
+                },
+                subject: {
+                    select: { name: true, code: true }
+                },
+                cohort: {
+                    select: { name: true }
+                },
+                approver: {
+                    select: { fullName: true }
+                }
+            },
+            orderBy: { approvedAt: 'desc' }
+        });
+
+        return res.json({ feedbacks });
+    } catch (error: any) {
+        console.error('Error getting final approvals:', error);
+        return res.status(500).json({
+            message: 'Failed to get final approvals',
+            error: error.message
+        });
+    }
+};
+
+/**
  * @route   DELETE /api/teacher-feedback/:id
  * @desc    Delete feedback (DRAFT ONLY - preserves audit trail)
  * @access  Teacher (owner DRAFT), Admin (DRAFT only)
  */
+
 export const deleteFeedback = async (req: AuthRequest, res: Response) => {
     try {
         const user = req.user;

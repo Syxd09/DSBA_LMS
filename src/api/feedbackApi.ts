@@ -67,7 +67,11 @@ export const feedbackTemplateApi = {
      * Toggle template status (Admin/Principal)
      */
     toggleStatus: async (id: string): Promise<FeedbackTemplate> => {
-        const response = await feedbackApi.patch(`/feedback-templates/${id}/status`);
+        // First fetch current template to determine current status
+        const current = await feedbackApi.get(`/feedback-templates/${id}`);
+        const response = await feedbackApi.patch(`/feedback-templates/${id}/status`, {
+            isActive: !current.data.isActive
+        });
         return response.data;
     }
 };

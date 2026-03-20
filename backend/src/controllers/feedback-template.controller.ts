@@ -1,8 +1,7 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/feedback-rbac.middleware';
+import prisma from '../services/db';
 
-const prisma = new PrismaClient();
 
 /**
  * @route   POST /api/feedback-templates
@@ -48,7 +47,14 @@ export const createTemplate = async (req: AuthRequest, res: Response) => {
                         name: cat.name,
                         description: cat.description || null,
                         question: cat.question || `How would you rate ${cat.name.toLowerCase()}?`,
-                        displayOrder: cat.displayOrder !== undefined ? cat.displayOrder : index
+                        displayOrder: cat.displayOrder !== undefined ? cat.displayOrder : index,
+                        options: {
+                            create: (cat.options || []).map((opt: any, optIndex: number) => ({
+                                label: opt.label,
+                                points: opt.points,
+                                order: opt.order !== undefined ? opt.order : optIndex
+                            }))
+                        }
                     }))
                 }
             },
@@ -115,8 +121,12 @@ export const listTemplates = async (req: AuthRequest, res: Response) => {
             where: whereClause,
             include: {
                 categories: {
-                    orderBy: { displayOrder: 'asc' }
+                    include: {
+                        options: true
+                    },
+                    orderBy: { displayOrder: 'asc' as const }
                 },
+
                 department: {
                     select: { id: true, name: true }
                 },
@@ -156,8 +166,12 @@ export const getTemplate = async (req: AuthRequest, res: Response) => {
             where: { id },
             include: {
                 categories: {
-                    orderBy: { displayOrder: 'asc' }
+                    include: {
+                        options: true
+                    },
+                    orderBy: { displayOrder: 'asc' as const }
                 },
+
                 department: {
                     select: { id: true, name: true }
                 },
@@ -233,7 +247,14 @@ export const updateTemplate = async (req: AuthRequest, res: Response) => {
                             name: cat.name,
                             description: cat.description || null,
                             question: cat.question || `How would you rate ${cat.name.toLowerCase()}?`,
-                            displayOrder: cat.displayOrder !== undefined ? cat.displayOrder : index
+                            displayOrder: cat.displayOrder !== undefined ? cat.displayOrder : index,
+                            options: {
+                                create: (cat.options || []).map((opt: any, optIndex: number) => ({
+                                    label: opt.label,
+                                    points: opt.points,
+                                    order: opt.order !== undefined ? opt.order : optIndex
+                                }))
+                            }
                         }))
                     } : undefined
                 },

@@ -12,29 +12,29 @@ async function seedPrincipal() {
 
         // Check if user exists
         const existing = await prisma.user.findUnique({
-            where: { email: 'syxdmatheen.9@gmail.com' }
+            where: { email: 'syxdmatheen.09@gmail.com' }
         });
 
         if (existing) {
             console.log('✅ Principal account already exists!');
-            console.log('Email: syxdmatheen.9@gmail.com');
-            console.log('Password: password');
+            console.log('Email: syxdmatheen.09@gmail.com');
+            console.log('Password: 54321');
             return;
         }
 
         // Create principal
         const principal = await prisma.user.create({
             data: {
-                email: 'syxdmatheen.9@gmail.com',
+                email: 'syxdmatheen.09@gmail.com',
                 fullName: 'System Principal',
-                password: hashedPassword,
+                password: await bcrypt.hash('#761936', 10),
                 role: 'PRINCIPAL'
             }
         });
 
         console.log('✅ Principal account created successfully!');
-        console.log('Email: syxdmatheen.9@gmail.com');
-        console.log('Password: password');
+        console.log('Email: syxdmatheen.09@gmail.com');
+        console.log('Password: #761936');
         console.log(`User ID: ${principal.id}`);
 
     } catch (error) {

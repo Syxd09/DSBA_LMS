@@ -4,7 +4,7 @@ import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit, Eye, Power, Archive } from 'lucide-react';
+import { Plus, Edit, Eye, Power, Archive, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
@@ -35,7 +35,7 @@ export default function FeedbackTemplates() {
   const { data: templates = [], isLoading } = useQuery<FeedbackTemplate[]>({
     queryKey: ['feedback-templates'],
     queryFn: async () => {
-      const { data } = await api.get('/feedback/templates');
+      const { data } = await api.get('/feedback-templates');
       return data.templates || [];
     },
   });
@@ -43,7 +43,7 @@ export default function FeedbackTemplates() {
   // Toggle template status
   const toggleStatus = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      await api.patch(`/feedback/templates/${id}/status`, { isActive });
+      await api.patch(`/feedback-templates/${id}/status`, { isActive });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feedback-templates'] });
@@ -167,6 +167,15 @@ export default function FeedbackTemplates() {
                       >
                         <Eye className="mr-2 h-3 w-3" />
                         View
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="bg-purple-600 hover:bg-purple-700"
+                        onClick={() => navigate(`/feedback/templates/${template.id}/results`)}
+                      >
+                        <BarChart3 className="mr-2 h-3 w-3" />
+                        Results
                       </Button>
                       <Button
                         variant="outline"

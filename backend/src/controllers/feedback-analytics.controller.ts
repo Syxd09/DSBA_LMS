@@ -1,13 +1,12 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AuthRequest } from '../middleware/feedback-rbac.middleware';
+import prisma from '../services/db';
 import {
     getAnalytics,
     forceRecalculateAll,
     recalculateStaleAnalytics
 } from '../services/analytics.service';
 
-const prisma = new PrismaClient();
 
 /**
  * @route   GET /api/feedback-analytics/student/:studentId

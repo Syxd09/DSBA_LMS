@@ -8,12 +8,26 @@ export interface FeedbackTemplate {
     id: string;
     name: string;
     description?: string;
-    scope: 'DEPARTMENT' | 'PROGRAM';
-    scopeId: string;
+    departmentId?: string;
+    programId?: string;
     isActive: boolean;
+    isDefault: boolean;
+    createdBy: string;
     categories: FeedbackTemplateCategory[];
+    department?: { id: string; name: string };
+    program?: { id: string; name: string };
     createdAt: string;
     updatedAt: string;
+}
+
+
+export interface FeedbackCategoryOption {
+    id: string;
+    categoryId: string;
+    label: string;
+    points: number;
+    order: number;
+    createdAt: string;
 }
 
 export interface FeedbackTemplateCategory {
@@ -21,10 +35,13 @@ export interface FeedbackTemplateCategory {
     templateId: string;
     name: string;
     description?: string;
+    question: string;
     displayOrder: number;
-    weight?: number;
+    options?: FeedbackCategoryOption[];
     createdAt: string;
+    updatedAt: string;
 }
+
 
 export interface CategoryRatingInput {
     categoryId: string;

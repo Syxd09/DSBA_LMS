@@ -42,6 +42,7 @@ import ViewFeedback from "./pages/feedback/teacher/ViewFeedback";
 import FeedbackTemplates from "./pages/feedback/FeedbackTemplates";
 import CreateFeedbackTemplate from "./pages/feedback/CreateFeedbackTemplate";
 import ViewFeedbackTemplate from "./pages/feedback/ViewFeedbackTemplate";
+import TemplateResults from './pages/feedback/TemplateResults';
 import HODAnalyticsDashboard from "./pages/analytics/hod/HODAnalyticsDashboard";
 import PendingApprovals from "./pages/analytics/hod/PendingApprovals";
 import AtRiskStudents from "./pages/analytics/hod/AtRiskStudents";
@@ -99,6 +100,7 @@ const App = () => (
             <Route path="/feedback/templates" element={<FeedbackTemplates />} />
             <Route path="/feedback/templates/create" element={<CreateFeedbackTemplate />} />
             <Route path="/feedback/templates/:id" element={<ViewFeedbackTemplate />} />
+            <Route path="/feedback/templates/:templateId/results" element={<TemplateResults />} />
             
             {/* Teacher Feedback Routes */}
             <Route path="/feedback/teacher/assigned" element={<TeacherAssignedStudents />} />

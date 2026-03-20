@@ -10,13 +10,18 @@ import {
     getStudentFeedback,
     getTeacherOwnFeedback,
     getPendingApprovals,
+    getFinalApprovals,
+    getTemplateFeedback,
+    exportTemplateFeedback,
     deleteFeedback
 } from '../controllers/teacher-feedback.controller';
+
 import {
     canAccessFeedback,
     canApproveFeedback,
     canLockFeedback
 } from '../middleware/feedback-rbac.middleware';
+import { requireRole } from '../middleware/rbac.middleware';
 
 const router = Router();
 
@@ -45,11 +50,28 @@ router.get('/teacher/me', getTeacherOwnFeedback);
 router.get('/pending-approvals', getPendingApprovals);
 
 /**
+ * @route   GET /api/teacher-feedback/final-approvals
+ * @desc    Get final approvals (APPROVED feedback awaiting lock)
+ * @access  Principal, Admin
+ */
+router.get('/final-approvals', getFinalApprovals);
+
+
+
+/**
  * @route   GET /api/teacher-feedback/student/:studentId
  * @desc    Get student's feedback
  * @access  Student (own), Teacher (assigned), HOD (dept), Principal, Admin
  */
 router.get('/student/:studentId', getStudentFeedback);
+
+/**
+ * @route   GET /api/teacher-feedback/template/:templateId
+ * @desc    Get all feedback for a specific template (for results view)
+ * @access  HOD, Principal, Admin
+ */
+router.get('/template/:templateId', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), getTemplateFeedback);
+router.get('/template/:templateId/export', requireRole(['ADMIN', 'PRINCIPAL', 'HOD']), exportTemplateFeedback);
 
 /**
  * @route   GET /api/teacher-feedback/:id

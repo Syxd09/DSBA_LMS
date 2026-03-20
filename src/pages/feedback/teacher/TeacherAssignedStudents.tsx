@@ -32,8 +32,8 @@ export default function TeacherAssignedStudents() {
     queryKey: ['teacher-assigned-students'],
     queryFn: async () => {
       // This would fetch students assigned to the logged-in teacher
-      const { data } = await api.get('/enrollments/teacher-students');
-      return data || [];
+      const { data } = await api.get('/enrollments/teacher/students');
+      return data?.students || [];
     },
   });
 
@@ -41,8 +41,20 @@ export default function TeacherAssignedStudents() {
   const { data: subjects = [] } = useQuery<Subject[]>({
     queryKey: ['teacher-subjects'],
     queryFn: async () => {
-      const { data } = await api.get('/teacher-assignments/my-subjects');
-      return data || [];
+      const { data } = await api.get('/assignments');
+      // Extract unique subjects from teacher's assignments
+      const subjectMap = new Map();
+      (data || []).forEach((a: any) => {
+        if (a.subject && !subjectMap.has(a.subject.id)) {
+          subjectMap.set(a.subject.id, {
+            id: a.subject.id,
+            name: a.subject.name,
+            code: a.subject.code,
+            semester: a.subject.semester || a.semester
+          });
+        }
+      });
+      return Array.from(subjectMap.values());
     },
   });
 
@@ -50,8 +62,8 @@ export default function TeacherAssignedStudents() {
   const { data: existingFeedback = [] } = useQuery({
     queryKey: ['teacher-feedback'],
     queryFn: async () => {
-      const { data } = await api.get('/feedback/feedback/teacher/me');
-      return data || [];
+      const { data } = await api.get('/teacher-feedback/teacher/me');
+      return data?.feedbacks || data || [];
     },
   });
 
@@ -210,7 +222,14 @@ export default function TeacherAssignedStudents() {
                         <Button
                           size="sm"
                           className="w-full"
-                          onClick={() => navigate(`/feedback/teacher/create/${student.id}`)}
+                          onClick={() => navigate(`/feedback/teacher/create/${student.id}`, { 
+                            state: { 
+                              studentName: student.fullName,
+                              cohortId: (student as any).cohort.id,
+                              semester: (student as any).semester,
+                              assignedSubjects: (student as any).assignedSubjects
+                            } 
+                          })}
                         >
                           Give Feedback
                         </Button>

@@ -17,6 +17,50 @@ export const getGradingRules = async (req: AuthRequest, res: Response) => {
     }
 };
 
+export const createGradingRule = async (req: AuthRequest, res: Response) => {
+    try {
+        const { grade, minPercentage, maxPercentage, gradePoint, departmentId } = req.body;
+        const user = req.user;
+
+        if (!['ADMIN', 'PRINCIPAL', 'HOD'].includes(user?.role || '')) {
+            return res.status(403).json({ message: 'Unauthorized' });
+        }
+
+        const rule = await prisma.gradingRule.create({
+            data: {
+                grade,
+                minPercentage: parseFloat(minPercentage),
+                maxPercentage: parseFloat(maxPercentage),
+                gradePoint: parseFloat(gradePoint),
+                departmentId: departmentId || null
+            }
+        });
+
+        res.status(201).json(rule);
+    } catch (error: any) {
+        res.status(500).json({ message: 'Failed to create grading rule', error: error.message });
+    }
+};
+
+export const deleteGradingRule = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const user = req.user;
+
+        if (!['ADMIN', 'PRINCIPAL', 'HOD'].includes(user?.role || '')) {
+            return res.status(403).json({ message: 'Unauthorized' });
+        }
+
+        await prisma.gradingRule.delete({
+            where: { id }
+        });
+
+        res.json({ message: 'Rule deleted successfully' });
+    } catch (error: any) {
+        res.status(500).json({ message: 'Failed to delete grading rule', error: error.message });
+    }
+};
+
 export const getFinalMarks = async (req: AuthRequest, res: Response) => {
     try {
         const { studentId, subjectId, cohortId } = req.query;
@@ -25,7 +69,17 @@ export const getFinalMarks = async (req: AuthRequest, res: Response) => {
         if (subjectId) where.subjectId = String(subjectId);
         if (cohortId) where.cohortId = String(cohortId);
 
-        const marks = await prisma.finalMark.findMany({ where });
+        const marks = await prisma.finalMark.findMany({ 
+            where,
+            include: {
+                student: {
+                    select: { fullName: true, email: true, id: true }
+                },
+                subject: {
+                    select: { name: true, code: true }
+                }
+            }
+        });
         res.json(marks);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching final marks' });
@@ -117,11 +171,21 @@ export const calculateGrades = async (req: AuthRequest, res: Response) => {
             const internal1 = studentExamMarks['INTERNAL_1'] ?? 0;
             const internal2 = studentExamMarks['INTERNAL_2'] ?? 0;
             const external = studentExamMarks['EXTERNAL'] ?? 0;
+            
+            // Get max marks for the involved exams to calculate correct percentage
+            const int1Exam = exams.find(e => e.examType === 'INTERNAL_1');
+            const int2Exam = exams.find(e => e.examType === 'INTERNAL_2');
+            const extExam = exams.find(e => e.examType === 'EXTERNAL');
+
+            const maxInt = Math.max(int1Exam?.maxMarks || 0, int2Exam?.maxMarks || 0) || 30;
+            const maxExt = extExam?.maxMarks || 70;
+            const maxTotal = maxInt + maxExt;
+
             const bestInternal = Math.max(internal1, internal2);
             const totalMarks = bestInternal + external;
 
-            // Calculate percentage (assuming max 30 internal + 70 external = 100)
-            const percentage = totalMarks;
+            // Calculate percentage dynamically
+            const percentage = parseFloat(((totalMarks / maxTotal) * 100).toFixed(2));
 
             // Assign grade based on percentage
             let grade = 'F';
@@ -326,5 +390,100 @@ export const updateFeedback = async (req: AuthRequest, res: Response) => {
     } catch (error) {
         console.error('Error updating feedback:', error);
         res.status(500).json({ message: 'Error updating feedback' });
+    }
+};
+
+export const bulkUpdateGradeStatus = async (req: AuthRequest, res: Response) => {
+    try {
+        const { cohortId, subjectId, status } = req.body;
+        const user = req.user;
+
+        if (!['ADMIN', 'PRINCIPAL', 'HOD'].includes(user?.role || '')) {
+            return res.status(403).json({ message: 'Only authorities can perform bulk status updates' });
+        }
+
+        if (status === 'LOCKED' && !['ADMIN', 'PRINCIPAL'].includes(user?.role || '')) {
+            return res.status(403).json({ message: 'Only Principal or Admin can lock grades permanently' });
+        }
+
+        const result = await prisma.finalMark.updateMany({
+            where: { cohortId, subjectId },
+            data: { status }
+        });
+
+        res.json({ message: `Status updated to ${status} for ${result.count} students`, count: result.count });
+    } catch (error: any) {
+        console.error('Error bulk updating grade status:', error);
+        res.status(500).json({ message: 'Failed to update grade status', error: error.message });
+    }
+};
+
+export const bulkCalculateSGPA = async (req: AuthRequest, res: Response) => {
+    try {
+        const { cohortId, semester } = req.body;
+        const user = req.user;
+
+        if (!['ADMIN', 'PRINCIPAL', 'HOD'].includes(user?.role || '')) {
+            return res.status(403).json({ message: 'Unauthorized' });
+        }
+
+        const enrollments = await prisma.studentEnrollment.findMany({
+            where: { cohortId },
+            select: { studentId: true }
+        });
+
+        const studentIds = enrollments.map(e => e.studentId);
+        const results = [];
+
+        for (const studentId of studentIds) {
+            // Re-using logic from calculateSGPA but in a loop
+            // We could optimize this but for a typical class of 60-120 it's fine
+            const marks = await prisma.finalMark.findMany({
+                where: { studentId, cohortId },
+                include: { subject: true }
+            });
+
+            if (marks.length === 0) continue;
+
+            let totalCredits = 0;
+            let totalPoints = 0;
+            let earnedCredits = 0;
+
+            marks.forEach(mark => {
+                const credits = mark.subject.credits || 3;
+                totalCredits += credits;
+                totalPoints += credits * mark.gradePoint;
+                if (mark.grade !== 'F') earnedCredits += credits;
+            });
+
+            const sgpa = totalCredits > 0 ? parseFloat((totalPoints / totalCredits).toFixed(2)) : 0;
+            
+            // CGPA calculation
+            const previousResults = await prisma.semesterResult.findMany({
+                where: { studentId, cohortId, semester: { lt: semester } }
+            });
+
+            let allCredits = totalCredits;
+            let allPoints = totalPoints;
+            previousResults.forEach(r => {
+                allCredits += r.totalCredits;
+                allPoints += r.sgpa * r.totalCredits;
+            });
+
+            const cgpa = allCredits > 0 ? parseFloat((allPoints / allCredits).toFixed(2)) : 0;
+
+            await prisma.semesterResult.upsert({
+                where: { studentId_cohortId_semester: { studentId, cohortId, semester } },
+                update: { totalCredits, earnedCredits, sgpa, cgpa, status: 'calculated' },
+                create: { studentId, cohortId, semester, totalCredits, earnedCredits, sgpa, cgpa, status: 'calculated' }
+            });
+
+            results.push({ studentId, sgpa, cgpa });
+        }
+
+        res.json({ message: `SGPA/CGPA calculated for ${results.length} students`, count: results.length });
+    } catch (error: any) {
+        console.error('Error bulk calculating SGPA:', error);
+        res.status(500).json({ message: 'Failed to calculate bulk SGPA', error: error.message });
     }
 };

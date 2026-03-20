@@ -146,7 +146,13 @@ export const login = async (req: Request, res: Response) => {
         }
 
         const token = jwt.sign(
-            { userId: user.id, role: user.role, email: user.email, departmentId: user.departmentId },
+            { 
+                id: user.id, // Primary ID for controllers
+                userId: user.id, // Backward compatibility
+                role: user.role, 
+                email: user.email, 
+                departmentId: user.departmentId 
+            },
             process.env.JWT_SECRET as string,
             { expiresIn: '4h' } // BUG-008 FIX: Reduced from 24h for better security
         );

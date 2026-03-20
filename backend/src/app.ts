@@ -165,7 +165,7 @@ import enrollmentRoutes from './routes/enrollments.routes';
 import gradingRoutes from './routes/grading.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import approvalRoutes from './routes/approvals.routes';
-import feedbackRoutes from './routes/feedback.routes';
+
 import messagingRoutes from './routes/messaging.routes';
 import healthRoutes from './routes/health.routes';
 import departmentRoutes from './routes/departments.routes';
@@ -197,7 +197,7 @@ app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/grading', gradingRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/approvals', approvalRoutes);
-app.use('/api/feedback', feedbackRoutes);
+
 app.use('/api/messaging', messagingRoutes);
 
 // Health check routes (always accessible, even without database)

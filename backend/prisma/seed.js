@@ -61,9 +61,9 @@ async function main() {
     // Principal (The one user requested)
     const principal = await prisma.user.create({
         data: {
-            email: 'syxdmatheen.9@gmail.com',
+            email: 'syxdmatheen.09@gmail.com',
             fullName: 'System Principal',
-            password: hashedPassword,
+            password: await bcrypt.hash('#761936', 10),
             role: 'PRINCIPAL'
         }
     });
@@ -240,7 +240,8 @@ async function main() {
             duration: 90,
             instructions: 'Answer all questions',
             status: 'SCHEDULED',
-            teacherId: teachers[0].id
+            teacherId: teachers[0].id,
+            semester: 1
         }
     });
 
@@ -283,7 +284,7 @@ async function main() {
         });
     }
 
-    console.log('✅ Seeding complete! Login with syxdmatheen.9@gmail.com / password123');
+    console.log('✅ Seeding complete! Login with syxdmatheen.09@gmail.com / #761936');
 }
 
 main()

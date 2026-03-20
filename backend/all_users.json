@@ -1,0 +1,178 @@
+[
+  {
+    "id": "a1d8f53c-b670-4ff1-aa8e-3de004510656",
+    "email": "syxdmatheen.09@gmail.com",
+    "fullName": "System Principal",
+    "role": "PRINCIPAL",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.018Z",
+    "departmentId": null,
+    "mobileNumber": null,
+    "password": "$2b$10$oi0YAO3I.zj9.eg1HS6IdeQnCcULvgZ6m74XP68lum58e42bIvCKS"
+  },
+  {
+    "id": "bb17e262-13f8-40ec-8508-92670bc252ca",
+    "email": "admin@college.edu",
+    "fullName": "System Administrator",
+    "role": "ADMIN",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.030Z",
+    "departmentId": null,
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "24d93c03-3638-4688-adf8-74b9ab64e67c",
+    "email": "hod.cse@college.edu",
+    "fullName": "Dr. Priya Sharma",
+    "role": "HOD",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.034Z",
+    "departmentId": "5f4c588d-172f-4942-ac2f-30e094be5fd0",
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "d3a9dc60-d1eb-4f3f-9187-d1f6cd65ba22",
+    "email": "teacher2.cse@college.edu",
+    "fullName": "Prof. Teacher 2",
+    "role": "TEACHER",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.115Z",
+    "departmentId": "5f4c588d-172f-4942-ac2f-30e094be5fd0",
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "98bc2c39-54e9-4e25-9780-eccc5c1c3e5b",
+    "email": "teacher3.cse@college.edu",
+    "fullName": "Prof. Teacher 3",
+    "role": "TEACHER",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.119Z",
+    "departmentId": "5f4c588d-172f-4942-ac2f-30e094be5fd0",
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "7ba7a08e-be55-485f-a8ff-aa115ab8a16e",
+    "email": "student1.cse@college.edu",
+    "fullName": "Aarav",
+    "role": "STUDENT",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.122Z",
+    "departmentId": "5f4c588d-172f-4942-ac2f-30e094be5fd0",
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "3499fa1c-b96f-4e0c-a79b-3032733c323d",
+    "email": "student2.cse@college.edu",
+    "fullName": "Vivaan",
+    "role": "STUDENT",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.126Z",
+    "departmentId": "5f4c588d-172f-4942-ac2f-30e094be5fd0",
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "3734e340-90d4-4aa0-8e55-3a925a64a006",
+    "email": "student3.cse@college.edu",
+    "fullName": "Aditya",
+    "role": "STUDENT",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.130Z",
+    "departmentId": "5f4c588d-172f-4942-ac2f-30e094be5fd0",
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "eec66075-af7f-4c59-9bf0-a810cccbaa25",
+    "email": "student4.cse@college.edu",
+    "fullName": "Vihaan",
+    "role": "STUDENT",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.134Z",
+    "departmentId": "5f4c588d-172f-4942-ac2f-30e094be5fd0",
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "be8e3aa8-562b-4110-a19e-d15becb1b77a",
+    "email": "student5.cse@college.edu",
+    "fullName": "Arjun",
+    "role": "STUDENT",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.137Z",
+    "departmentId": "5f4c588d-172f-4942-ac2f-30e094be5fd0",
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "d0d8c6a7-01ae-43e4-9298-e4093ee59706",
+    "email": "student6.cse@college.edu",
+    "fullName": "Sai",
+    "role": "STUDENT",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.141Z",
+    "departmentId": "5f4c588d-172f-4942-ac2f-30e094be5fd0",
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "2512cec5-85ee-4d40-9574-be8f0b3792cb",
+    "email": "student7.cse@college.edu",
+    "fullName": "Arnav",
+    "role": "STUDENT",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.144Z",
+    "departmentId": "5f4c588d-172f-4942-ac2f-30e094be5fd0",
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "e595f43b-e500-416c-9c71-d2cf2ec89cf6",
+    "email": "student8.cse@college.edu",
+    "fullName": "Ayush",
+    "role": "STUDENT",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.147Z",
+    "departmentId": "5f4c588d-172f-4942-ac2f-30e094be5fd0",
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "d0c7e262-22e3-461d-bd75-17aa8e84f346",
+    "email": "student9.cse@college.edu",
+    "fullName": "Krishna",
+    "role": "STUDENT",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.151Z",
+    "departmentId": "5f4c588d-172f-4942-ac2f-30e094be5fd0",
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "53172d8e-e419-4687-beaa-cd9aff13997f",
+    "email": "student10.cse@college.edu",
+    "fullName": "Ishaan",
+    "role": "STUDENT",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.154Z",
+    "departmentId": "5f4c588d-172f-4942-ac2f-30e094be5fd0",
+    "mobileNumber": null,
+    "password": "$2b$10$Z5dbSwJlxLrxWXIDD7YtQudVzkVNy6aVaQJP9N/LmkuWvlz/t7yqK"
+  },
+  {
+    "id": "644fcadf-c49c-41c3-85c0-1cd474f3650b",
+    "email": "teacher1.cse@college.edu",
+    "fullName": "Prof. Teacher 1",
+    "role": "TEACHER",
+    "isActive": true,
+    "createdAt": "2026-02-10T10:40:17.110Z",
+    "departmentId": null,
+    "mobileNumber": null,
+    "password": "$2b$10$7PzrSK2fA9L3NYxZcBgiiOmTVnhZZzQCnPwQ9d6EC2UeAKQmquZoi"
+  }
+]

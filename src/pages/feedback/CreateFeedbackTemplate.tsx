@@ -67,7 +67,13 @@ export default function CreateFeedbackTemplate() {
   };
 
   const removeCategory = (index: number) => {
-    setCategories(categories.filter((_, i) => i !== index));
+    const remaining = categories.filter((_, i) => i !== index);
+    // Re-index displayOrder to maintain consistency and avoid unique constraint violations in DB
+    const reindexed = remaining.map((cat, i) => ({
+      ...cat,
+      displayOrder: i
+    }));
+    setCategories(reindexed);
   };
 
   const updateCategory = (index: number, field: keyof Category, value: any) => {
@@ -111,7 +117,7 @@ export default function CreateFeedbackTemplate() {
 
   const createTemplate = useMutation({
     mutationFn: async () => {
-      await api.post('/feedback/templates', {
+      await api.post('/feedback-templates', {
         name,
         description,
         categories: categories.map((cat) => ({
@@ -119,6 +125,11 @@ export default function CreateFeedbackTemplate() {
           description: cat.description,
           question: cat.question,
           displayOrder: cat.displayOrder,
+          options: cat.options.map((opt) => ({
+            label: opt.label,
+            points: opt.points,
+            order: opt.order,
+          })),
         })),
       });
     },

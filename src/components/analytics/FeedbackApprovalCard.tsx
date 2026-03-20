@@ -28,9 +28,10 @@ export function FeedbackApprovalCard({
     : 'N/A';
 
   // Truncate review text
-  const truncatedReview = feedback.reviewText.length > 150
-    ? feedback.reviewText.substring(0, 150) + '...'
-    : feedback.reviewText;
+  const reviewText = feedback.reviewText || '';
+  const truncatedReview = reviewText.length > 150
+    ? reviewText.substring(0, 150) + '...'
+    : reviewText;
 
   return (
     <Card>

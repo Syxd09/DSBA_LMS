@@ -40,6 +40,13 @@ export function FeedbackStatusBadge({ status, className }: FeedbackStatusBadgePr
           label: 'Locked',
           extraClass: 'bg-blue-600 hover:bg-blue-700',
         };
+      default:
+        const s = status as any;
+        return {
+          variant: 'secondary' as const,
+          icon: Circle,
+          label: s ? s.charAt(0) + s.slice(1).toLowerCase() : 'Unknown',
+        };
     }
   };
 

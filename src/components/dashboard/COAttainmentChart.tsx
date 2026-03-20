@@ -22,17 +22,13 @@ export function COAttainmentChart({ data }: COAttainmentChartProps) {
   }
 
   return (
-    <div className="border border-border bg-card p-6">
-      <div className="mb-6">
-        <h3 className="font-semibold text-foreground">CO Attainment</h3>
-        <p className="text-sm text-muted-foreground">Course Outcome achievement vs target (70%)</p>
-      </div>
-      <div className="h-64">
+    <div className="w-full h-full flex flex-col pt-2">
+      <div className="flex-1 min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis type="number" domain={[0, 100]} stroke="hsl(var(--muted-foreground))" fontSize={12} />
-            <YAxis dataKey="name" type="category" stroke="hsl(var(--muted-foreground))" fontSize={12} width={40} />
+            <YAxis dataKey="name" type="category" stroke="hsl(var(--muted-foreground))" fontSize={11} width={45} tickLine={false} axisLine={false} />
             <Tooltip
               contentStyle={{
                 backgroundColor: 'hsl(var(--card))',

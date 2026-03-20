@@ -1,48 +1,55 @@
-
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { COAttainmentChart } from '@/components/dashboard/COAttainmentChart';
 import { BloomTaxonomyChart } from '@/components/dashboard/BloomTaxonomyChart';
-import { PerformanceTrendChart } from '@/components/dashboard/PerformanceTrendChart';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts';
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
-import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, Download, Printer, TrendingUp, Users, BookOpen, Award, CheckCircle2 } from 'lucide-react';
 import { useAcademicContext } from '@/contexts/AcademicContext';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
+
+// --- Utility for CSV Export ---
+const downloadCSV = (data: any[], filename: string) => {
+  if (!data || !data.length) return;
+  const headers = Object.keys(data[0]).join(',');
+  const rows = data.map(obj => 
+    Object.values(obj).map(val => typeof val === 'string' ? `"${val.replace(/"/g, '""')}"` : val).join(',')
+  ).join('\n');
+  const csvStr = `${headers}\n${rows}`;
+  const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
 
 export default function Analytics() {
-  // Use global academic context for filtering? Or local state?
-  // User just requested "filter by Single subject". 
-  // Let's keep local subject filter but maybe default to "all".
   const { departmentId, cohortId } = useAcademicContext();
   const [selectedSubject, setSelectedSubject] = useState('all');
 
-  // 1. Fetch Subjects for the dropdown (Same filtering as other pages)
+  // 1. Fetch Subjects
   const { data: subjects = [] } = useQuery({
       queryKey: ['analytics-subjects', departmentId],
       queryFn: async () => {
           const { data } = await api.get('/subjects'); 
-          // Note: getSubjects already RBAC filtered for Teacher.
-          // For HOD/Principal, it might return many. Ideally filter by dept.
-          // Let's assume backend handles text/RBAC correctly here.
           return data;
       },
       enabled: !!departmentId
   });
 
-  // 2. Fetch CO Attainment (Real Data)
+  // 2. Fetch CO Attainment
   const { data: coAttainmentData = [], isLoading: loadingCO } = useQuery({
       queryKey: ['analytics-co-attainment', selectedSubject, cohortId],
       queryFn: async () => {
-          // If no subject selected, backend might default or error. 
-          // Current backend getCOAttainment requires subjectId param.
-          // If "all", we might need to aggregate or pick first?
-          // Let's force pick first subject if 'all' or show empty.
-          // Or better: Update backend to handle 'all'. 
-          // For now, let's only fetch if specific subject is selected.
-          if(selectedSubject === 'all') {
+          if (selectedSubject === 'all') {
               if (subjects.length > 0) return api.get(`/analytics/co-attainment/${subjects[0].id}?cohortId=${cohortId || ''}`).then(r => r.data);
               return [];
           }
@@ -52,17 +59,11 @@ export default function Analytics() {
       enabled: subjects.length > 0
   });
 
-  // 3. Fetch Bloom Distribution (Real Data)
-  // Requires examId. We don't have exam selector yet. 
-  // Maybe just fetch for "latest published exam" of selected subject?
-  // Let's assume we can fetch bloom stats by subject too? Backend logic for 'getBloomDistribution' requires examId.
-  // Hack: Fetch exams for subject first, then pick one?
-  // Simplified: Let's mock or skip bloom for a sec or use a fixed one if we find one.
-  const { data: bloomData = [] } = useQuery({
+  // 3. Fetch Bloom Distribution 
+  const { data: bloomData = [], isLoading: loadingBloom } = useQuery({
       queryKey: ['analytics-bloom', selectedSubject],
       queryFn: async () => {
            if(selectedSubject === 'all') return [];
-           // Find latest exam for this subject
            const { data: exams } = await api.get(`/exams?subjectId=${selectedSubject}&status=PUBLISHED`);
            if(exams && exams.length > 0) {
                const latest = exams[0];
@@ -74,117 +75,259 @@ export default function Analytics() {
       enabled: selectedSubject !== 'all'
   });
 
-  // 4. Fetch Subject/Cohort Performance (Real Data)
-  // This endpoint returns array of subjects with stats. Good for "all" view.
-  const { data: performanceData = [] } = useQuery({
+  // 4. Fetch Subject Performance
+  const { data: performanceData = [], isLoading: loadingPerf } = useQuery({
       queryKey: ['analytics-performance', cohortId],
       queryFn: async () => {
-          if(!cohortId) return [];
+          if (!cohortId) return [];
           const { data } = await api.get(`/analytics/subject-performance/${cohortId}`);
           return data;
       },
       enabled: !!cohortId
   });
 
-  // Prepare Chart Data
-  // PerformanceTrendChart expects: name (CO), value (%). 
-  // Let's reuse coAttainmentData for trend (it's actually just a bar chart).
-  
-  // Internal Comparison Chart (Bar)
-  // performanceData maps to: subjectName, average, highest, passRate.
-  // Chart needs: name, average, highest, passRate.
-  const internalComparisonData = performanceData.map((p: any) => ({
-      name: p.subjectCode,
-      average: p.average,
-      highest: p.highest,
-      passRate: p.passRate
-  }));
+  // Chart Formatting
+  const internalComparisonData = useMemo(() => {
+    return performanceData.map((p: any) => ({
+      Subject: p.subjectCode,
+      Average: p.average,
+      Highest: p.highest,
+      PassRate: p.passRate
+    }));
+  }, [performanceData]);
 
-  // Student Distribution (Mock for now, or fetch if we add endpoint)
-  const studentDistribution = [
-    { range: '0-20', count: 0 },
-    { range: '21-40', count: 0 },
-    { range: '41-60', count: 0 },
-    { range: '61-80', count: 0 },
-    { range: '81-100', count: 0 },
-  ]; // TODO: Add real distribution endpoint
+  const formattedCOData = useMemo(() => {
+    return coAttainmentData.map((d:any) => ({
+      co: d.co,
+      attainment: d.attainment,
+      target: d.target
+    }));
+  }, [coAttainmentData]);
+
+  // KPIs
+  const totalSubjects = performanceData.length || 0;
+  const overallAverage = totalSubjects > 0 ? (performanceData.reduce((acc: number, p: any) => acc + p.average, 0) / totalSubjects).toFixed(1) : '0';
+  const overallPassRate = totalSubjects > 0 ? (performanceData.reduce((acc: number, p: any) => acc + p.passRate, 0) / totalSubjects).toFixed(1) : '0';
+  const bestSubject = [...performanceData].sort((a, b) => b.average - a.average)[0]?.subjectCode || '-';
 
   return (
     <AuthenticatedLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <TooltipProvider>
+        <div className="space-y-8 pb-10 print:bg-white print:text-black print:pb-0">
+        
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Analytics Dashboard</h2>
-            <p className="text-muted-foreground">Comprehensive performance analysis and insights</p>
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Academic Command Center</h2>
+            <p className="text-slate-500 font-medium mt-1">Institutional insights, attainment tracing, and performance analysis</p>
           </div>
-          <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filter by Subject" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Subjects</SelectItem>
-              {subjects.map((s: any) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name} ({s.code})</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          
+          <div className="flex flex-col sm:flex-row items-center gap-3 print:hidden">
+            <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+              <SelectTrigger className="w-56 bg-white shadow-sm border-slate-200">
+                <SelectValue placeholder="Filter by Subject" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="font-semibold text-indigo-600">All Subjects (Overview)</SelectItem>
+                {subjects.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name} ({s.code})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button 
+                onClick={() => window.print()} 
+                className="bg-slate-900 hover:bg-slate-800 text-white shadow-md transition-all"
+            >
+              <Printer className="w-4 h-4 mr-2" />
+              Print Full Report
+            </Button>
+          </div>
         </div>
 
-        {/* Main Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-             <CardHeader><CardTitle>CO Attainment</CardTitle></CardHeader>
-             <CardContent>
-                 {selectedSubject === 'all' && <p className="text-sm text-muted-foreground mb-4">Showing data for first subject (Select a subject for details)</p>}
-                 {loadingCO ? <Loader2 className="animate-spin" /> : 
-                    <COAttainmentChart data={coAttainmentData.map((d:any) => ({
-                        co: d.co,
-                        attainment: d.attainment,
-                        target: d.target
-                    }))} />
+        {/* Global KPI Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            <Card className="shadow-sm border-slate-200 bg-gradient-to-br from-white to-slate-50">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Active Subjects</p>
+                    <h3 className="text-3xl font-extrabold text-slate-900">{totalSubjects}</h3>
+                  </div>
+                  <div className="p-3 bg-indigo-100 text-indigo-600 rounded-xl">
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm border-slate-200 bg-gradient-to-br from-white to-slate-50">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Cohort Average</p>
+                    <h3 className="text-3xl font-extrabold text-slate-900">{overallAverage}%</h3>
+                  </div>
+                  <div className="p-3 bg-emerald-100 text-emerald-600 rounded-xl">
+                    <TrendingUp className="w-6 h-6" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm border-slate-200 bg-gradient-to-br from-white to-slate-50">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Pass Rate</p>
+                    <h3 className="text-3xl font-extrabold text-slate-900">{overallPassRate}%</h3>
+                  </div>
+                  <div className="p-3 bg-blue-100 text-blue-600 rounded-xl">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm border-slate-200 bg-gradient-to-br from-white to-slate-50">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">Top Subject</p>
+                    <h3 className="text-3xl font-extrabold text-slate-900">{bestSubject}</h3>
+                  </div>
+                  <div className="p-3 bg-purple-100 text-purple-600 rounded-xl">
+                    <Award className="w-6 h-6" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+        </div>
+
+        {/* Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* CO Attainment */}
+          <Card className="shadow border-slate-200">
+             <CardHeader className="flex flex-row items-start justify-between bg-slate-50/50 border-b pb-4">
+                <div>
+                   <CardTitle className="text-lg">Course Outcome (CO) Attainment</CardTitle>
+                   <CardDescription className="mt-1">Tracking student gap to target outcomes</CardDescription>
+                </div>
+                {formattedCOData.length > 0 && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="icon" className="print:hidden h-8 w-8" onClick={() => downloadCSV(formattedCOData, 'co_attainment_report')}>
+                        <Download className="h-4 w-4 text-slate-500" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Download CSV</TooltipContent>
+                  </Tooltip>
+                )}
+             </CardHeader>
+             <CardContent className="pt-6 h-[350px]">
+                 {selectedSubject === 'all' && <div className="absolute top-2 right-2"><Badge variant="secondary">Global Overview</Badge></div>}
+                 {loadingCO ? <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-indigo-500 w-8 h-8" /></div> : 
+                    <COAttainmentChart data={formattedCOData} />
                  }
              </CardContent>
           </Card>
           
-          <Card>
-              <CardHeader><CardTitle>Bloom's Taxonomy Distribution</CardTitle></CardHeader>
-              <CardContent>
+          {/* Bloom's Taxonomy */}
+          <Card className="shadow border-slate-200">
+              <CardHeader className="flex flex-row items-start justify-between bg-slate-50/50 border-b pb-4">
+                 <div>
+                    <CardTitle className="text-lg">Cognitive Mapping (Bloom's Taxonomy)</CardTitle>
+                    <CardDescription className="mt-1">Evaluation of exam questions complexity</CardDescription>
+                 </div>
+                 {bloomData.length > 0 && (
+                   <Tooltip>
+                     <TooltipTrigger asChild>
+                      <Button variant="outline" size="icon" className="print:hidden h-8 w-8" onClick={() => downloadCSV(bloomData, 'blooms_distribution_report')}>
+                        <Download className="h-4 w-4 text-slate-500" />
+                      </Button>
+                     </TooltipTrigger>
+                     <TooltipContent>Download CSV</TooltipContent>
+                   </Tooltip>
+                 )}
+              </CardHeader>
+              <CardContent className="pt-6 h-[350px]">
                   {selectedSubject === 'all' ? 
-                    <div className="flex items-center justify-center h-64 text-muted-foreground">Select a subject to view Bloom stats</div> :
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-slate-50/50 rounded-lg border border-dashed">
+                       <BookOpen className="w-10 h-10 mb-3 text-slate-300" />
+                       <p className="font-medium text-slate-500">Subject Context Required</p>
+                       <p className="text-sm mt-1">Select a specific subject to render its latest exam taxonomy.</p>
+                    </div> :
+                    loadingBloom ? <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-indigo-500 w-8 h-8" /></div> :
                     <BloomTaxonomyChart data={bloomData} />
                   }
               </CardContent>
           </Card>
         </div>
 
-        {/* Performance Overview (Internal Comparison) */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Subject Performance Overview</CardTitle>
+        {/* Full Span: Subject Performance Analysis */}
+        <Card className="shadow border-slate-200">
+          <CardHeader className="flex flex-row items-start justify-between bg-slate-50/50 border-b pb-4">
+             <div>
+                <CardTitle className="text-lg">Relative Subject Performance</CardTitle>
+                <CardDescription className="mt-1">Comparative academic performance highlighting strengths and weaknesses across the cohort.</CardDescription>
+             </div>
+             {internalComparisonData.length > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon" className="print:hidden h-8 w-8" onClick={() => downloadCSV(internalComparisonData, 'subject_performance_report')}>
+                      <Download className="h-4 w-4 text-slate-500" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Download Full CSV</TooltipContent>
+                </Tooltip>
+             )}
           </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={internalComparisonData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                    }}
-                  />
-                  <Legend />
-                  <Bar dataKey="average" name="Average %" fill="hsl(var(--chart-2))" />
-                  <Bar dataKey="highest" name="Highest %" fill="hsl(var(--chart-3))" />
-                  <Bar dataKey="passRate" name="Pass Rate %" fill="hsl(var(--chart-5))" />
-                </BarChart>
-              </ResponsiveContainer>
+          <CardContent className="pt-6">
+            <div className="h-[400px]">
+              {loadingPerf ? (
+                 <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-indigo-500 w-8 h-8" /></div>
+              ) : internalComparisonData.length === 0 ? (
+                 <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                    <p className="font-medium text-slate-500">No performance data yet</p>
+                 </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={internalComparisonData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                    <XAxis dataKey="Subject" stroke="#64748b" fontSize={13} axisLine={false} tickLine={false} dy={10} />
+                    <YAxis stroke="#64748b" fontSize={13} axisLine={false} tickLine={false} dx={-10} />
+                    <RechartsTooltip
+                      contentStyle={{
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                      }}
+                      itemStyle={{ fontWeight: 600 }}
+                      cursor={{fill: '#f8fafc'}}
+                    />
+                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                    <Bar dataKey="Average" name="Average %" fill="#818cf8" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                    <Bar dataKey="Highest" name="Highest %" fill="#34d399" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                    <Bar dataKey="PassRate" name="Pass Rate %" fill="#94a3b8" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </CardContent>
         </Card>
+
       </div>
+      
+      {/* Global Print Styles to ensure charts render well when downloaded */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .recharts-responsive-container { width: 100% !important; height: 350px !important; }
+          .shadow { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
+        }
+      `}} />
+      </TooltipProvider>
     </AuthenticatedLayout>
   );
 }

@@ -104,7 +104,8 @@ export default function StudentAnalytics() {
   const { data: feedbackResponse } = useQuery({
     queryKey: ['student-feedback', selectedStudentId],
     queryFn: async () => {
-      const { data } = await api.get(`/feedback/feedback/student/${selectedStudentId}`);
+      const { data } = await api.get(`/teacher-feedback/student/${selectedStudentId}`);
+
       return data;
     },
     enabled: !!selectedStudentId,
@@ -113,7 +114,7 @@ export default function StudentAnalytics() {
   // Ensure feedbackData is always an array
   const feedbackData = Array.isArray(feedbackResponse) 
     ? feedbackResponse 
-    : (feedbackResponse?.feedback || feedbackResponse?.data || []);
+    : (feedbackResponse?.feedbacks || feedbackResponse?.feedback || feedbackResponse?.data || []);
 
   return (
     <AuthenticatedLayout allowedRoles={['admin', 'principal', 'hod', 'teacher', 'student']}>
@@ -277,7 +278,8 @@ export default function StudentAnalytics() {
                 <TabsTrigger value="subjects">Subject Performance</TabsTrigger>
                 <TabsTrigger value="cos">Course Outcomes</TabsTrigger>
                 <TabsTrigger value="bloom">Bloom's Taxonomy</TabsTrigger>
-                <TabsTrigger value="feedback">Qualitative Feedback</TabsTrigger>
+                <TabsTrigger value="feedback">Quantitative Feedback</TabsTrigger>
+
               </TabsList>
 
               <TabsContent value="subjects" className="space-y-4">
