@@ -3,16 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { AcademicContextSelector } from '@/components/AcademicContextSelector';
 import { Loader2 } from 'lucide-react';
 
 interface AuthenticatedLayoutProps {
   children: ReactNode;
   allowedRoles?: string[];
-  showContextSelector?: boolean;
 }
 
-export function AuthenticatedLayout({ children, allowedRoles, showContextSelector = true }: AuthenticatedLayoutProps) {
+export function AuthenticatedLayout({ children, allowedRoles }: AuthenticatedLayoutProps) {
   const { user, role, isLoading, signOut, profile } = useAuth();
   const navigate = useNavigate();
 
@@ -53,7 +51,6 @@ export function AuthenticatedLayout({ children, allowedRoles, showContextSelecto
       <Sidebar role={role} profile={profile} onSignOut={signOut} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header profile={profile} role={role} onSignOut={signOut} />
-        {showContextSelector && <AcademicContextSelector />}
         <main className="flex-1 overflow-y-auto p-6">
           {children}
         </main>

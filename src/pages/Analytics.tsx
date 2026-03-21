@@ -50,7 +50,7 @@ export default function Analytics() {
       queryKey: ['analytics-co-attainment', selectedSubject, cohortId],
       queryFn: async () => {
           if (selectedSubject === 'all') {
-              if (subjects.length > 0) return api.get(`/analytics/co-attainment/${subjects[0].id}?cohortId=${cohortId || ''}`).then(r => r.data);
+              if (subjects.length > 0) return api.get(`/analytics/co-attainment/${subjects[0].id}?cohortId=${cohortId || ''}`).then((r: any) => r.data);
               return [];
           }
           const { data } = await api.get(`/analytics/co-attainment/${selectedSubject}?cohortId=${cohortId || ''}`);

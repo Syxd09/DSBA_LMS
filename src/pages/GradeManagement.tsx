@@ -159,7 +159,7 @@ export default function GradeManagement() {
       m.gradePoint
     ]);
     
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const csvContent = [headers.join(','), ...rows.map((r: any) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -540,19 +540,19 @@ export default function GradeManagement() {
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="grade" className="text-right">Grade</Label>
-                <Input id="grade" placeholder="e.g. A+" className="col-span-3" value={newRule.grade} onChange={(e) => setNewRule({...newRule, grade: e.target.value})} />
+                <Input id="grade" placeholder="e.g. A+" className="col-span-3" value={newRule.grade} onChange={(e: any) => setNewRule({...newRule, grade: e.target.value})} />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="minPercentage" className="text-right">Min %</Label>
-                <Input id="minPercentage" type="number" placeholder="e.g. 90" className="col-span-3" value={newRule.minPercentage} onChange={(e) => setNewRule({...newRule, minPercentage: e.target.value})} />
+                <Input id="minPercentage" type="number" placeholder="e.g. 90" className="col-span-3" value={newRule.minPercentage} onChange={(e: any) => setNewRule({...newRule, minPercentage: e.target.value})} />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="maxPercentage" className="text-right">Max %</Label>
-                <Input id="maxPercentage" type="number" placeholder="e.g. 100" className="col-span-3" value={newRule.maxPercentage} onChange={(e) => setNewRule({...newRule, maxPercentage: e.target.value})} />
+                <Input id="maxPercentage" type="number" placeholder="e.g. 100" className="col-span-3" value={newRule.maxPercentage} onChange={(e: any) => setNewRule({...newRule, maxPercentage: e.target.value})} />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="gradePoint" className="text-right">Points</Label>
-                <Input id="gradePoint" type="number" step="0.1" placeholder="e.g. 10.0" className="col-span-3" value={newRule.gradePoint} onChange={(e) => setNewRule({...newRule, gradePoint: e.target.value})} />
+                <Input id="gradePoint" type="number" step="0.1" placeholder="e.g. 10.0" className="col-span-3" value={newRule.gradePoint} onChange={(e: any) => setNewRule({...newRule, gradePoint: e.target.value})} />
               </div>
             </div>
             <DialogFooter>
@@ -597,7 +597,7 @@ export default function GradeManagement() {
               </div>
               <Textarea
                 value={feedbackText}
-                onChange={(e) => setFeedbackText(e.target.value)}
+                onChange={(e: any) => setFeedbackText(e.target.value)}
                 placeholder="Share descriptive feedback on student performance, areas for growth, or notable achievements..."
                 className="h-40 bg-slate-50/50 focus:bg-white transition-colors text-sm"
               />
