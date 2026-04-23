@@ -40,7 +40,7 @@ export const getCOAttainment = async (req: AuthRequest, res: Response) => {
                 co: { select: { coNumber: true, description: true, bloomLevel: true } },
                 subject: { select: { name: true, code: true } },
                 cohort: { select: { name: true } },
-                approver: { select: { fullName: true, email: true } },
+                approver: { select: { fullName: true, registrationNumber: true, email: true } },
             },
             orderBy: { co: { coNumber: 'asc' } }
         });

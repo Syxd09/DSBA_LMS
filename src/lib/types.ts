@@ -48,7 +48,7 @@ export interface SubQuestion {
 export interface StudentMark {
   studentId: string;
   studentName: string;
-  rollNumber: string;
+  registrationNumber: string;
   marks: Record<string, number>; // subQuestionId -> marks
   totalMarks: number;
   selectedQuestions: string[];

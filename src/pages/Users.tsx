@@ -29,6 +29,7 @@ interface User {
   fullName: string;
   email: string;
   role: string;
+  registrationNumber?: string;
   isActive?: boolean;
   createdAt: string;
   department?: { id: string; name: string; code: string };
@@ -90,6 +91,7 @@ export default function Users() {
     email: '',
     password: '',
     role: 'STUDENT',
+    registrationNumber: '',
     departmentId: 'none',
   });
   
@@ -126,6 +128,7 @@ export default function Users() {
         email: '', 
         password: '', 
         role: 'STUDENT', 
+        registrationNumber: '',
         departmentId: isHod ? (hodDepartmentId || 'none') : 'none' 
     });
     setAssignments([]);
@@ -162,6 +165,7 @@ export default function Users() {
       fullName: user.fullName,
       email: user.email,
       password: '',
+      registrationNumber: user.registrationNumber || '',
       role: user.role,
       departmentId: user.department?.id || 'none',
     });
@@ -277,7 +281,8 @@ export default function Users() {
   const filteredUsers = users.filter(user => {
     const matchesSearch = (user.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (user.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (user.role || '').toLowerCase().includes(searchQuery.toLowerCase());
+    (user.role || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (user.registrationNumber || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesRole = roleFilter === 'ALL' || user.role === roleFilter;
 
@@ -315,6 +320,16 @@ export default function Users() {
                   placeholder="e.g., John Doe"
                 />
               </div>
+              {formData.role === 'STUDENT' && (
+                <div className="space-y-2">
+                  <Label>Registration Number</Label>
+                  <Input
+                    value={formData.registrationNumber}
+                    onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
+                    placeholder="e.g., U03CH23S0055"
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Email *</Label>
                 <Input
@@ -531,7 +546,9 @@ export default function Users() {
             {filteredUsers.map((user) => (
               <Card key={user.id}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">{user.fullName}</CardTitle>
+                  <CardTitle className="text-sm font-medium text-slate-900 border-b border-transparent pb-1">
+                    {user.fullName}
+                  </CardTitle>
                   <Badge variant={
                     user.role === 'PRINCIPAL' ? 'destructive' :
                     user.role === 'HOD' ? 'default' :
@@ -540,6 +557,9 @@ export default function Users() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-xs text-muted-foreground mb-2">{user.email}</div>
+                  {user.role === 'STUDENT' && user.registrationNumber && (
+                    <div className="text-xs font-mono text-slate-600 mb-2">Reg: {user.registrationNumber}</div>
+                  )}
                   {user.department && (
                     <div className="text-xs font-medium mb-4">Dept: {user.department.code}</div>
                   )}

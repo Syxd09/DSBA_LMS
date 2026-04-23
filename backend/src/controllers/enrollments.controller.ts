@@ -87,7 +87,7 @@ export const getEnrollments = async (req: AuthRequest, res: Response) => {
                 student: {
                     select: {
                         id: true,
-                        fullName: true,
+                        fullName: true, registrationNumber: true,
                         email: true,
                         mobileNumber: true
                     }
@@ -104,9 +104,10 @@ export const getEnrollments = async (req: AuthRequest, res: Response) => {
                     select: { id: true, name: true, code: true }
                 }
             },
-            orderBy: { rollNumber: 'asc' }
+            orderBy: { student: { fullName: 'asc' } }
         });
 
+        console.log(`✅ API Returning ${enrollments.length} enrollments for user ${userId}`);
         res.json(enrollments);
     } catch (error) {
         console.error('Error fetching enrollments:', error);
@@ -133,13 +134,13 @@ export const getStudentsByClass = async (req: AuthRequest, res: Response) => {
                 student: {
                     select: {
                         id: true,
-                        fullName: true,
+                        fullName: true, registrationNumber: true,
                         email: true,
                         mobileNumber: true
                     }
                 }
             },
-            orderBy: { rollNumber: 'asc' }
+            orderBy: { student: { fullName: 'asc' } }
         });
 
         res.json(students);
@@ -192,7 +193,7 @@ export const getTeacherStudents = async (req: AuthRequest, res: Response) => {
                     select: {
                         id: true,
                         email: true,
-                        fullName: true,
+                        fullName: true, registrationNumber: true,
                         departmentId: true
                     }
                 },
@@ -207,7 +208,7 @@ export const getTeacherStudents = async (req: AuthRequest, res: Response) => {
             },
             orderBy: [
                 { cohort: { year: 'desc' } },
-                { rollNumber: 'asc' }
+                { student: { fullName: 'asc' } }
             ]
         });
 
@@ -216,7 +217,7 @@ export const getTeacherStudents = async (req: AuthRequest, res: Response) => {
             id: enrollment.student.id,
             email: enrollment.student.email,
             fullName: enrollment.student.fullName,
-            rollNumber: enrollment.rollNumber,
+            registrationNumber: enrollment.student.registrationNumber,
             cohort: enrollment.cohort,
             semester: enrollment.semester,
             // Add subjects this teacher teaches to this student
@@ -243,11 +244,11 @@ export const getTeacherStudents = async (req: AuthRequest, res: Response) => {
 // Enroll a single student (with auto-create user)
 export const enrollStudent = async (req: AuthRequest, res: Response) => {
     try {
-        const { cohortId, departmentId, semester, rollNumber, fullName, email, mobileNumber, password } = req.body;
+        const { cohortId, departmentId, semester, registrationNumber, fullName, email, mobileNumber, password } = req.body;
 
-        if (!cohortId || !departmentId || !rollNumber || !fullName || !email) {
+        if (!cohortId || !departmentId || !registrationNumber || !fullName || !email) {
             return res.status(400).json({
-                message: 'Cohort ID, Department ID, Roll Number, Full Name, and Email are required'
+                message: 'Cohort ID, Department ID, Registration Number, Full Name, and Email are required'
             });
         }
 
@@ -280,7 +281,8 @@ export const enrollStudent = async (req: AuthRequest, res: Response) => {
                     password: hashedPassword,
                     role: 'STUDENT',
                     mobileNumber: mobileNumber || null,
-                    departmentId
+                    departmentId,
+                    registrationNumber
                 }
             });
 
@@ -301,18 +303,13 @@ export const enrollStudent = async (req: AuthRequest, res: Response) => {
         // Check for existing enrollment
         const existingEnrollment = await prisma.studentEnrollment.findFirst({
             where: {
-                OR: [
-                    { studentId: user.id, cohortId, semester: semester || 1 },
-                    { rollNumber }
-                ]
+                studentId: user.id, cohortId, semester: semester || 1
             }
         });
 
         if (existingEnrollment) {
             return res.status(400).json({
-                message: existingEnrollment.rollNumber === rollNumber
-                    ? 'Roll number already exists'
-                    : 'Student already enrolled in this cohort/semester'
+                message: 'Student already enrolled in this cohort/semester'
             });
         }
 
@@ -322,12 +319,11 @@ export const enrollStudent = async (req: AuthRequest, res: Response) => {
                 studentId: user.id,
                 cohortId,
                 departmentId,
-                semester: semester || 1,
-                rollNumber,
+                semester,
                 status: 'active'
-            },
+            } as any,
             include: {
-                student: { select: { fullName: true, email: true, mobileNumber: true } },
+                student: { select: { fullName: true, registrationNumber: true, email: true, mobileNumber: true } },
                 department: { select: { name: true, code: true } }
             }
         });
@@ -335,8 +331,8 @@ export const enrollStudent = async (req: AuthRequest, res: Response) => {
         // Audit Log for Enrollment
         if (req.user?.userId) {
             await AuditService.log(req.user.userId, 'STUDENT_ENROLLED', 'StudentEnrollment', enrollment.id, {
-                rollNumber: enrollment.rollNumber,
-                studentName: enrollment.student.fullName
+                registrationNumber: (enrollment as any).student.registrationNumber,
+                studentName: (enrollment as any).student.fullName
             });
         }
 
@@ -344,7 +340,7 @@ export const enrollStudent = async (req: AuthRequest, res: Response) => {
     } catch (error: unknown) {
         console.error('Error enrolling student:', error);
         if ((error as any).code === 'P2002') {
-            return res.status(400).json({ message: 'Roll number or student already enrolled' });
+            return res.status(400).json({ message: 'Registration number or student already enrolled' });
         }
         res.status(500).json({ message: 'Error enrolling student', error: String(error) });
     }
@@ -360,6 +356,22 @@ export const bulkEnroll = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ message: 'Cohort ID, Department ID, and students array required' });
         }
 
+        // H-6 FIX: Validate cohort belongs to the department
+        const cohort = await prisma.cohort.findUnique({
+            where: { id: cohortId },
+            include: { program: true }
+        });
+
+        if (!cohort) {
+            return res.status(404).json({ message: 'Cohort not found' });
+        }
+
+        if (cohort.program.departmentId !== departmentId) {
+            return res.status(400).json({ 
+                message: `Validation Error: Cohort '${cohort.name}' does not belong to the selected department.`
+            });
+        }
+
         const results = {
             success: 0,
             created: 0,
@@ -369,11 +381,11 @@ export const bulkEnroll = async (req: AuthRequest, res: Response) => {
         for (let i = 0; i < students.length; i++) {
             const s = students[i];
             try {
-                if (!s.email || !s.rollNumber) {
+                if (!s.email || !s.registrationNumber) {
                     results.errors.push({
                         row: i + 1,
                         email: s.email || 'N/A',
-                        error: 'Email and Roll Number are required'
+                        error: 'Email and Registration Number are required'
                     });
                     continue;
                 }
@@ -390,7 +402,8 @@ export const bulkEnroll = async (req: AuthRequest, res: Response) => {
                             password: hashedPassword,
                             role: 'STUDENT',
                             mobileNumber: s.mobileNumber || null,
-                            departmentId
+                            departmentId,
+                            registrationNumber: s.registrationNumber
                         }
                     });
                     results.created++;
@@ -399,10 +412,7 @@ export const bulkEnroll = async (req: AuthRequest, res: Response) => {
                 // Check for existing enrollment
                 const existingEnrollment = await prisma.studentEnrollment.findFirst({
                     where: {
-                        OR: [
-                            { studentId: user.id, cohortId, semester: semester || 1 },
-                            { rollNumber: s.rollNumber }
-                        ]
+                        studentId: user.id, cohortId, semester: semester || 1
                     }
                 });
 
@@ -410,9 +420,7 @@ export const bulkEnroll = async (req: AuthRequest, res: Response) => {
                     results.errors.push({
                         row: i + 1,
                         email: s.email,
-                        error: existingEnrollment.rollNumber === s.rollNumber
-                            ? 'Roll number already exists'
-                            : 'Student already enrolled in this cohort/semester'
+                        error: 'Student already enrolled in this cohort/semester'
                     });
                     continue;
                 }
@@ -424,9 +432,8 @@ export const bulkEnroll = async (req: AuthRequest, res: Response) => {
                         cohortId,
                         departmentId,
                         semester: semester || 1,
-                        rollNumber: s.rollNumber,
                         status: 'active'
-                    }
+                    } as any
                 });
                 results.success++;
             } catch (error: unknown) {
@@ -438,6 +445,16 @@ export const bulkEnroll = async (req: AuthRequest, res: Response) => {
                 });
             }
         }
+
+        const userId = req.user?.userId;
+        // AUDIT LOG
+        await AuditService.log(
+            userId || 'SYSTEM',
+            'BULK_ENROLL_STUDENTS',
+            'StudentEnrollment',
+            cohortId,
+            { results, semester }
+        );
 
         res.json({
             message: `Enrolled ${results.success} students, created ${results.created} new users`,

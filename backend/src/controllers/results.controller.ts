@@ -41,10 +41,47 @@ export const getStudentResults = async (req: AuthRequest, res: Response) => {
             })
         ]);
 
+        // Calculate Bloom's and CO performance from marks
+        const studentMarks = await prisma.studentMark.findMany({
+            where: { studentId },
+            include: {
+                subQuestion: {
+                    select: { maxMarks: true, bloomLevel: true, coId: true }
+                }
+            }
+        });
+
+        // Bloom performance aggregation
+        const bloomAggregation: Record<string, { total: number; max: number }> = {};
+        const coAggregation: Record<string, { total: number; max: number }> = {};
+
+        studentMarks.forEach(m => {
+            const level = m.subQuestion.bloomLevel;
+            if (!bloomAggregation[level]) bloomAggregation[level] = { total: 0, max: 0 };
+            bloomAggregation[level].total += Number(m.marks);
+            bloomAggregation[level].max += m.subQuestion.maxMarks;
+
+            if (m.subQuestion.coId) {
+                const coId = m.subQuestion.coId;
+                if (!coAggregation[coId]) coAggregation[coId] = { total: 0, max: 0 };
+                coAggregation[coId].total += Number(m.marks);
+                coAggregation[coId].max += m.subQuestion.maxMarks;
+            }
+        });
+
+        const bloomPerformance = Object.entries(bloomAggregation).map(([level, data]) => ({
+            level,
+            percentage: data.max > 0 ? (data.total / data.max) * 100 : 0,
+            totalMarks: data.total,
+            maxMarks: data.max
+        }));
+
         res.json({
             finalMarks,
             semesterResults,
-            enrollment
+            enrollment,
+            bloomPerformance,
+            coPerformance: coAggregation
         });
     } catch (error) {
         console.error('Error fetching student results:', error);
@@ -146,7 +183,7 @@ export const exportCohortResults = async (req: AuthRequest, res: Response) => {
         const finalMarks = await prisma.finalMark.findMany({
             where,
             include: {
-                student: { select: { id: true, fullName: true, email: true } },
+                student: { select: { id: true, fullName: true, registrationNumber: true, email: true } },
                 subject: { select: { code: true, name: true, semester: true, credits: true } }
             },
             orderBy: [
@@ -159,14 +196,14 @@ export const exportCohortResults = async (req: AuthRequest, res: Response) => {
         // Get enrollments for roll numbers
         const enrollments = await prisma.studentEnrollment.findMany({
             where: { cohortId: String(cohortId) },
-            select: { studentId: true, rollNumber: true }
+            include: { student: { select: { registrationNumber: true } } }
         });
 
-        const rollNumberMap = new Map(enrollments.map(e => [e.studentId, e.rollNumber]));
+        const registrationNumberMap = new Map(enrollments.map(e => [e.studentId, e.student.registrationNumber]));
 
         // Transform to export format
         const exportData = finalMarks.map(mark => ({
-            rollNumber: rollNumberMap.get(mark.studentId) || '',
+            registrationNumber: registrationNumberMap.get(mark.studentId) || '',
             studentName: mark.student.fullName,
             subjectCode: mark.subject.code,
             subjectName: mark.subject.name,
@@ -183,7 +220,7 @@ export const exportCohortResults = async (req: AuthRequest, res: Response) => {
         }));
 
         const csv = toCSV(exportData, [
-            { key: 'rollNumber', header: 'Roll Number' },
+            { key: 'registrationNumber', header: 'Registration Number' },
             { key: 'studentName', header: 'Student Name' },
             { key: 'subjectCode', header: 'Subject Code' },
             { key: 'subjectName', header: 'Subject Name' },

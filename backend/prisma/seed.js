@@ -121,7 +121,8 @@ async function main() {
                 fullName: studentNames[i],
                 password: hashedPassword,
                 role: 'STUDENT',
-                departmentId: cse.id
+                departmentId: cse.id,
+                registrationNumber: `REG2025${i + 1}`
             }
         }));
     }
@@ -164,8 +165,7 @@ async function main() {
                 studentId: student.id,
                 cohortId: cohort2025.id,
                 departmentId: cse.id,
-                semester: 1,
-                rollNumber: 'BCA25' + student.id.substring(0, 4)
+                semester: 1
             }
         });
     }

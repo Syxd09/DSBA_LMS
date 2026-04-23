@@ -59,15 +59,19 @@ export default function TeacherAssignments() {
         return;
       }
 
-      await assignTeacher.mutateAsync({
+      const payload = {
         teacherId: selectedTeacher,
         subjectId: selectedSubject,
         cohortId: selectedCohort,
-        departmentId: subject.curriculum?.program?.departmentId, // Required by backend
+        departmentId: subject.curriculum?.program?.departmentId, // Now optionally handled by backend
         academicYear: academicYear,
         section: 'A',
         semester: subject.semester || 1
-      });
+      };
+
+      console.log('DEBUG: Sending teacher assignment payload:', payload);
+
+      await assignTeacher.mutateAsync(payload);
       
       toast({ title: 'Success', description: 'Teacher assigned successfully'});
       setIsDialogOpen(false);

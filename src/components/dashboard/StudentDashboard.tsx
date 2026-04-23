@@ -45,7 +45,7 @@ export function StudentDashboard() {
       <div>
         <h2 className="text-2xl font-bold text-foreground">My Performance</h2>
         <p className="text-muted-foreground">
-          {profile?.full_name || 'Student'} • {enrollment?.rollNumber || 'N/A'} • {programName} Semester {semester}
+          {profile?.full_name || 'Student'} • {enrollment?.registrationNumber || 'N/A'} • {programName} Semester {semester}
         </p>
       </div>
 

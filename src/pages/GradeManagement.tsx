@@ -147,7 +147,7 @@ export default function GradeManagement() {
     if (!finalMarks?.length) return;
     const headers = ['Student', 'Email', 'Internal 1', 'Internal 2', 'Best Internal', 'External', 'Total', 'Percentage', 'Grade', 'Points'];
     const rows = finalMarks.map((m: any) => [
-      m.student?.fullName || 'N/A',
+      m.student?.registrationNumber || m.student?.fullName || 'N/A',
       m.student?.email || 'N/A',
       m.internal1,
       m.internal2,
@@ -392,6 +392,7 @@ export default function GradeManagement() {
                       <Table>
                         <TableHeader className="bg-slate-50/80">
                           <TableRow className="hover:bg-transparent">
+                            <TableHead className="w-[180px] font-bold text-slate-700">Reg. Number</TableHead>
                             <TableHead className="w-[200px] font-bold text-slate-700">Student Identity</TableHead>
                             <TableHead className="text-center font-bold text-slate-700">Internal 1</TableHead>
                             <TableHead className="text-center font-bold text-slate-700">Internal 2</TableHead>
@@ -407,10 +408,14 @@ export default function GradeManagement() {
                           {finalMarks
                             .filter((m: any) => 
                               m.student?.fullName?.toLowerCase().includes(filterText.toLowerCase()) || 
+                              m.student?.registrationNumber?.toLowerCase().includes(filterText.toLowerCase()) || 
                               m.student?.email?.toLowerCase().includes(filterText.toLowerCase())
                             )
                             .map((mark: any) => (
                             <TableRow key={mark.id} className="group hover:bg-slate-50/80 transition-colors">
+                              <TableCell>
+                                <span className="font-mono text-sm text-slate-600 font-medium">{mark.student?.registrationNumber || '-'}</span>
+                              </TableCell>
                               <TableCell>
                                 <div className="flex flex-col">
                                   <span className="font-bold text-slate-900">{mark.student?.fullName || 'Unknown Student'}</span>
@@ -591,7 +596,7 @@ export default function GradeManagement() {
               <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
                  <div className="bg-indigo-100 p-2 rounded-full"><Users className="w-4 h-4 text-indigo-600" /></div>
                  <div>
-                    <p className="text-sm font-bold text-slate-900">{selectedMark?.student?.fullName}</p>
+                    <p className="text-sm font-bold text-slate-900">{selectedMark?.student?.registrationNumber ? `${selectedMark.student.registrationNumber} - ${selectedMark.student.fullName}` : selectedMark?.student?.fullName}</p>
                     <p className="text-xs text-slate-500">{selectedMark?.student?.email}</p>
                  </div>
               </div>

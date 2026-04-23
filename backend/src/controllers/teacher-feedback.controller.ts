@@ -199,7 +199,7 @@ export const createFeedback = async (req: AuthRequest, res: Response) => {
                     }
                 },
                 student: {
-                    select: { id: true, fullName: true, email: true }
+                    select: { id: true, fullName: true, registrationNumber: true, email: true }
                 },
                 subject: {
                     select: { id: true, name: true, code: true }
@@ -238,10 +238,10 @@ export const getFeedback = async (req: AuthRequest, res: Response) => {
             where: { id },
             include: {
                 teacher: {
-                    select: { id: true, fullName: true, email: true }
+                    select: { id: true, fullName: true, registrationNumber: true, email: true }
                 },
                 student: {
-                    select: { id: true, fullName: true, email: true, departmentId: true }
+                    select: { id: true, fullName: true, registrationNumber: true, email: true, departmentId: true }
                 },
                 subject: {
                     select: { id: true, name: true, code: true }
@@ -253,7 +253,7 @@ export const getFeedback = async (req: AuthRequest, res: Response) => {
                     select: { id: true, name: true }
                 },
                 approver: {
-                    select: { id: true, fullName: true }
+                    select: { id: true, fullName: true, registrationNumber: true }
                 },
                 categoryRatings: {
                     include: {
@@ -699,7 +699,7 @@ export const getStudentFeedback = async (req: AuthRequest, res: Response) => {
             where: whereClause,
             include: {
                 teacher: {
-                    select: { fullName: true }
+                    select: { fullName: true, registrationNumber: true }
                 },
                 subject: {
                     select: { name: true, code: true }
@@ -752,10 +752,10 @@ export const getTemplateFeedback = async (req: AuthRequest, res: Response) => {
             where: { templateId },
             include: {
                 student: {
-                    select: { id: true, fullName: true, email: true }
+                    select: { id: true, fullName: true, registrationNumber: true, email: true }
                 },
                 teacher: {
-                    select: { id: true, fullName: true }
+                    select: { id: true, fullName: true, registrationNumber: true }
                 },
                 subject: {
                     select: { name: true, code: true }
@@ -808,10 +808,10 @@ export const exportTemplateFeedback = async (req: AuthRequest, res: Response) =>
             where: { templateId },
             include: {
                 student: {
-                    select: { fullName: true, email: true }
+                    select: { fullName: true, registrationNumber: true, email: true }
                 },
                 teacher: {
-                    select: { fullName: true }
+                    select: { fullName: true, registrationNumber: true }
                 },
                 subject: {
                     select: { name: true, code: true }
@@ -904,7 +904,7 @@ export const getTeacherOwnFeedback = async (req: AuthRequest, res: Response) => 
             where: whereClause,
             include: {
                 student: {
-                    select: { fullName: true, email: true }
+                    select: { fullName: true, registrationNumber: true, email: true }
                 },
                 subject: {
                     select: { name: true, code: true }
@@ -971,10 +971,10 @@ export const getPendingApprovals = async (req: AuthRequest, res: Response) => {
             where: whereClause,
             include: {
                 teacher: {
-                    select: { fullName: true }
+                    select: { fullName: true, registrationNumber: true }
                 },
                 student: {
-                    select: { fullName: true, email: true, departmentId: true }
+                    select: { fullName: true, registrationNumber: true, email: true, departmentId: true }
                 },
                 subject: {
                     select: { name: true, code: true }
@@ -1027,10 +1027,10 @@ export const getFinalApprovals = async (req: AuthRequest, res: Response) => {
             where: whereClause,
             include: {
                 teacher: {
-                    select: { fullName: true }
+                    select: { fullName: true, registrationNumber: true }
                 },
                 student: {
-                    select: { fullName: true, email: true, departmentId: true }
+                    select: { fullName: true, registrationNumber: true, email: true, departmentId: true }
                 },
                 subject: {
                     select: { name: true, code: true }
@@ -1039,7 +1039,7 @@ export const getFinalApprovals = async (req: AuthRequest, res: Response) => {
                     select: { name: true }
                 },
                 approver: {
-                    select: { fullName: true }
+                    select: { fullName: true, registrationNumber: true }
                 }
             },
             orderBy: { approvedAt: 'desc' }

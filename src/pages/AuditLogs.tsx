@@ -22,7 +22,7 @@ interface AuditLog {
   createdAt: string;
   user?: {
     id: string;
-    name: string;
+    fullName: string;
     email: string;
   };
 }
@@ -48,7 +48,7 @@ export default function AuditLogs() {
   const filteredLogs = logs?.filter(log =>
     log.tableName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     log.action?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    log.user?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    log.user?.fullName?.toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
   
   const getActionBadgeVariant = (action: string) => {
@@ -72,7 +72,7 @@ export default function AuditLogs() {
         log.createdAt,
         log.action,
         log.tableName,
-        log.user?.name || log.userId || 'System',
+        log.user?.fullName || log.userId || 'System',
         log.recordId || ''
       ].join(','))
     ].join('\n');
@@ -180,7 +180,12 @@ export default function AuditLogs() {
                         {log.tableName}
                       </TableCell>
                       <TableCell>
-                        {log.user?.name || log.userId || 'System'}
+                        <div className="flex flex-col">
+                          <span className="font-medium">{log.user?.fullName || 'System'}</span>
+                          {log.user?.email && (
+                            <span className="text-xs text-muted-foreground">{log.user.email}</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="font-mono text-sm">
                         {log.recordId ? log.recordId.slice(0, 8) + '...' : '—'}

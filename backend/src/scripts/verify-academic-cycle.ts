@@ -175,7 +175,7 @@ async function runVerification() {
     });
     // Enroll
     await prisma.studentEnrollment.create({
-        data: { studentId: s1.id, cohortId: cohort.id, departmentId: dept.id, semester: 1, rollNumber: '101', status: 'active' }
+        data: { studentId: s1.id, cohortId: cohort.id, departmentId: dept.id, semester: 1, status: 'active' } as any
     });
 
 

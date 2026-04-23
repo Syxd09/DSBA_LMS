@@ -32,7 +32,7 @@ export default function Index() {
               <GraduationCap className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-semibold text-foreground text-lg">EduMetrics</h1>
+              <h1 className="font-semibold text-foreground text-lg">DSBA_OBE Manager</h1>
               <p className="text-xs text-muted-foreground">Academic Excellence Platform</p>
             </div>
           </div>
@@ -149,7 +149,7 @@ export default function Index() {
             Ready to Transform Your Institution?
           </h3>
           <p className="text-lg opacity-90 mb-8 max-w-xl mx-auto">
-            Join hundreds of colleges already using EduMetrics for outcome-based academic excellence.
+            Join hundreds of colleges already using DSBA_OBE Manager for outcome-based academic excellence.
           </p>
           <Button size="lg" variant="secondary" onClick={() => navigate('/auth')}>
             Get Started Today
@@ -161,7 +161,7 @@ export default function Index() {
       {/* Footer */}
       <footer className="border-t border-border bg-card py-8">
         <div className="container mx-auto px-6 text-center text-sm text-muted-foreground">
-          © 2024 EduMetrics. Comprehensive Academic Evaluation Platform.
+          © 2024 DSBA_OBE Manager. Comprehensive Academic Evaluation Platform.
         </div>
       </footer>
     </div>

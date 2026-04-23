@@ -10,6 +10,6 @@ router.use(authenticateToken);
 
 // SECURITY: Audit logs contain sensitive forensic data - restrict to ADMIN and PRINCIPAL only
 router.get('/', requireRole(Role.ADMIN, Role.PRINCIPAL), getAuditLogs);
-router.get('/dashboard-stats', getDashboardStats);
+router.get('/dashboard-stats', requireRole(Role.ADMIN, Role.PRINCIPAL), getDashboardStats);
 
 export default router;

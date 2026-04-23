@@ -85,11 +85,21 @@ export function useAuth(): UserWithRole & {
   };
 
   const signOut = async () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
-    setProfile(null);
-    setRole(null);
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        await api.post('/auth/logout');
+      }
+    } catch (error) {
+      console.error("Server-side logout failed", error);
+    } finally {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('academic-context'); // Reset academic context on logout
+      setUser(null);
+      setProfile(null);
+      setRole(null);
+    }
   };
 
   return {

@@ -127,7 +127,7 @@ export function Sidebar({ role, profile, onSignOut }: SidebarProps) {
             <GraduationCap className="w-6 h-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="font-semibold text-foreground">EduMetrics</h1>
+            <h1 className="font-semibold text-foreground">DSBA_OBE Manager</h1>
             <p className="text-xs text-muted-foreground capitalize">{role} Portal</p>
           </div>
         </div>

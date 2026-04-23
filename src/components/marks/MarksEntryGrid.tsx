@@ -16,7 +16,7 @@ interface SubQuestion {
 interface Student {
   studentId: string;
   studentName: string;
-  rollNumber: string;
+  registrationNumber: string;
 }
 
 interface MarksEntryGridProps {
@@ -253,8 +253,8 @@ export function MarksEntryGrid({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky left-0 bg-card z-10 min-w-[100px]">Roll No</TableHead>
-              <TableHead className="sticky left-[100px] bg-card z-10 min-w-[150px]">Student Name</TableHead>
+              <TableHead className="sticky left-0 bg-card z-10 min-w-[150px]">Reg. Number</TableHead>
+              <TableHead className="sticky left-[150px] bg-card z-10 min-w-[200px]">Student Name</TableHead>
               {subQuestions.map(sq => (
                 <TableHead key={sq.id} className="text-center min-w-[80px]">
                   <div className="text-xs">Q{sq.label}</div>
@@ -268,16 +268,21 @@ export function MarksEntryGrid({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {students.map(student => {
+            {students.map((student, index) => {
               const total = calculateTotal(student.studentId);
               const passThreshold = totalMaxMarks * 0.4;
+              const rowKey = `${student.studentId}-${index}`;
+              
+              if (index === 0) {
+                console.log(`[DEBUG] MarksEntryGrid: First row key is "${rowKey}"`);
+              }
               
               return (
-                <TableRow key={student.studentId}>
-                  <TableCell className="sticky left-0 bg-card font-mono text-sm">
-                    {student.rollNumber}
+                <TableRow key={rowKey}>
+                  <TableCell className="sticky left-0 bg-card font-mono text-sm font-medium">
+                    {student.registrationNumber}
                   </TableCell>
-                  <TableCell className="sticky left-[100px] bg-card font-medium">
+                  <TableCell className="sticky left-[150px] bg-card font-medium">
                     {student.studentName}
                   </TableCell>
                   {subQuestions.map(sq => (

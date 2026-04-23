@@ -21,18 +21,18 @@ export default function Performance() {
 
   const finalMarks = data?.finalMarks || [];
   const semesterResults = data?.semesterResults || [];
+  const bloomData = data?.bloomPerformance || [];
+  const coData = data?.coPerformance || {};
 
-  // Calculate Bloom's performance (mock based on marks for now)
-  const bloomPerformance = [
-    { level: 'Remember', percentage: 85, questionsAttempted: 15, totalQuestions: 18 },
-    { level: 'Understand', percentage: 78, questionsAttempted: 12, totalQuestions: 15 },
-    { level: 'Apply', percentage: 72, questionsAttempted: 10, totalQuestions: 14 },
-    { level: 'Analyze', percentage: 65, questionsAttempted: 8, totalQuestions: 12 },
-    { level: 'Evaluate', percentage: 58, questionsAttempted: 6, totalQuestions: 10 },
-    { level: 'Create', percentage: 52, questionsAttempted: 4, totalQuestions: 8 },
-  ];
+  // Calculate Bloom's performance from real data
+  const bloomPerformance = bloomData.map((b: any) => ({
+    level: b.level.charAt(0) + b.level.slice(1).toLowerCase(), // Format 'CREATE' to 'Create'
+    percentage: Math.round(b.percentage),
+    questionsAttempted: b.count || 0, // We can adjust this if count is added to backend
+    totalQuestions: b.total || 0,
+  }));
 
-  const radarData = bloomPerformance.map(b => ({
+  const radarData = bloomPerformance.map((b: any) => ({
     subject: b.level,
     A: b.percentage,
     fullMark: 100,
@@ -49,27 +49,21 @@ export default function Performance() {
         score: Number(m.percentage) || 0,
       }));
 
-  // Calculate CO attainment from final marks coAttainment field
-  const coAttainment = finalMarks
-    .filter((m: any) => m.coAttainment && Object.keys(m.coAttainment).length > 0)
-    .slice(0, 1)
-    .flatMap((m: any) => {
-      const att = m.coAttainment as Record<string, number>;
-      return Object.entries(att).slice(0, 5).map(([co, value]) => ({
-        co,
-        attainment: value,
-        desc: `Course Outcome ${co.replace('CO', '')}`,
-      }));
-    });
+  // Calculate CO attainment from real data
+  const displayCoAttainment = Object.entries(coData).map(([id, stats]: [string, any]) => ({
+    co: id.substring(0, 3).toUpperCase(), // Assuming ID has co number
+    attainment: Math.round(stats.total / stats.max * 100),
+    desc: `Course Outcome ${id}`
+  })).slice(0, 5);
 
-  // Default CO data if none available
-  const displayCoAttainment = coAttainment.length > 0 ? coAttainment : [
-    { co: 'CO1', attainment: 78, desc: 'Apply fundamentals' },
-    { co: 'CO2', attainment: 65, desc: 'Analyze problems' },
-    { co: 'CO3', attainment: 72, desc: 'Design solutions' },
-    { co: 'CO4', attainment: 81, desc: 'Implement algorithms' },
-    { co: 'CO5', attainment: 68, desc: 'Evaluate performance' },
-  ];
+  // Fallback if no CO data
+  if (displayCoAttainment.length === 0) {
+    displayCoAttainment.push(
+      { co: 'CO1', attainment: 0, desc: 'No data available' },
+      { co: 'CO2', attainment: 0, desc: 'No data available' },
+      { co: 'CO3', attainment: 0, desc: 'No data available' }
+    );
+  }
 
   // Calculate weak areas
   const weakAreas = bloomPerformance.filter(b => b.percentage < 65);

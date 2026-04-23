@@ -10,7 +10,7 @@ import prisma from '../services/db';
 interface StudentPerformance {
     studentId: string;
     studentName: string;
-    rollNumber: string;
+    registrationNumber: string;
     cohortName: string;
     overallPerformance: {
         totalExams: number;
@@ -175,7 +175,7 @@ export const getStudentAnalytics = async (req: AuthRequest, res: Response) => {
                 ...(semester && { semester: Number(semester) })
             },
             include: {
-                student: { select: { fullName: true, email: true } },
+                student: { select: { fullName: true, registrationNumber: true, email: true } },
                 cohort: {
                     select: {
                         name: true,
@@ -218,7 +218,7 @@ export const getStudentAnalytics = async (req: AuthRequest, res: Response) => {
                 data: {
                     studentId,
                     studentName: enrollment.student.fullName,
-                    rollNumber: enrollment.rollNumber,
+                    registrationNumber: enrollment.student.registrationNumber,
                     cohortName: enrollment.cohort.name,
                     overallPerformance: {
                         totalExams: 0,
@@ -438,7 +438,7 @@ export const getStudentAnalytics = async (req: AuthRequest, res: Response) => {
         const analytics: StudentPerformance = {
             studentId,
             studentName: enrollment.student.fullName,
-            rollNumber: enrollment.rollNumber,
+            registrationNumber: enrollment.student.registrationNumber || '',
             cohortName: enrollment.cohort.name,
             overallPerformance: {
                 totalExams: uniqueExams,
@@ -471,76 +471,140 @@ export const getStudentAnalytics = async (req: AuthRequest, res: Response) => {
 };
 
 /**
+ * Internal helper to calculate risk for a student
+ */
+async function calculateStudentRisk(studentId: string) {
+    const computedMarks = await prisma.marksComputed.findMany({
+        where: { studentId },
+        include: { exam: { select: { maxMarks: true } } }
+    });
+
+    if (computedMarks.length === 0) return { percentage: 0, risk: 'low' as const, examsCompleted: 0 };
+
+    const totalMarks = computedMarks.reduce((sum, m) => sum + Number(m.totalMarks), 0);
+    const totalMax = computedMarks.reduce((sum, m) => sum + m.exam.maxMarks, 0);
+    const percentage = totalMax > 0 ? (totalMarks / totalMax) * 100 : 0;
+
+    let risk: 'low' | 'medium' | 'high' | 'critical' = 'low';
+    if (percentage < 30) risk = 'critical';
+    else if (percentage < 45) risk = 'high';
+    else if (percentage < 60) risk = 'medium';
+
+    return { percentage, risk, examsCompleted: computedMarks.length };
+}
+
+/**
+ * Get count of at-risk students for dashboard
+ */
+export const getAtRiskStudentsCount = async (filters: { cohortId?: string; departmentId?: string } = {}) => {
+    try {
+        const enrollments = await prisma.studentEnrollment.findMany({
+            where: {
+                ...filters,
+                status: 'active'
+            },
+            select: { studentId: true }
+        });
+
+        // Deduplicate enrollments by studentId to ensure each student is only counted once
+        const uniqueStudentIds = new Set(enrollments.map(e => e.studentId));
+        let count = 0;
+        for (const studentId of uniqueStudentIds) {
+            const { risk } = await calculateStudentRisk(studentId);
+            if (['medium', 'high', 'critical'].includes(risk)) {
+                count++;
+            }
+        }
+        return count;
+    } catch (error) {
+        console.error('Error counting at-risk students:', error);
+        return 0;
+    }
+};
+
+/**
  * Get list of at-risk students
  */
 export const getAtRiskStudents = async (req: AuthRequest, res: Response) => {
     try {
-        const { cohortId, departmentId, riskLevel = 'medium' } = req.query;
+        let { cohortId, departmentId, riskLevel = 'medium' } = req.query;
+        const userRole = req.user?.role?.toUpperCase();
+        const userId = req.user?.userId;
 
-        // This is a simplified version - in production, you'd run the full analytics
-        // for each student and filter. For performance, consider caching results.
-
-        const enrollments = await prisma.studentEnrollment.findMany({
-            where: {
-                ...(cohortId && { cohortId: String(cohortId) }),
-                ...(departmentId && { departmentId: String(departmentId) }),
-                status: 'active'
-            },
-            include: {
-                student: { select: { id: true, fullName: true, email: true } },
-                cohort: { select: { name: true } },
-                department: { select: { name: true } }
-            },
-            take: 100 // Limit for performance
-        });
-
-        const atRiskStudents = [];
-
-        for (const enrollment of enrollments) {
-            // Quick risk check based on computed marks
-            const computedMarks = await prisma.marksComputed.findMany({
-                where: {
-                    studentId: enrollment.studentId
-                },
-                include: {
-                    exam: { select: { maxMarks: true } }
-                }
+        // RBAC: HOD sees only their department
+        if (userRole === 'HOD') {
+            const department = await prisma.department.findFirst({
+                where: { hodId: userId }
             });
-
-            if (computedMarks.length > 0) {
-                const totalMarks = computedMarks.reduce((sum, m) => sum + Number(m.totalMarks), 0);
-                const totalMax = computedMarks.reduce((sum, m) => sum + m.exam.maxMarks, 0);
-                const percentage = totalMax > 0 ? (totalMarks / totalMax) * 100 : 0;
-
-                let studentRisk: 'low' | 'medium' | 'high' | 'critical' = 'low';
-                if (percentage < 30) studentRisk = 'critical';
-                else if (percentage < 40) studentRisk = 'high';
-                else if (percentage < 50) studentRisk = 'medium';
-
-                // Filter based on requested risk level
-                const riskLevels = ['low', 'medium', 'high', 'critical'];
-                const requestedIndex = riskLevels.indexOf(String(riskLevel));
-                const studentIndex = riskLevels.indexOf(studentRisk);
-
-                if (studentIndex >= requestedIndex) {
-                    atRiskStudents.push({
-                        studentId: enrollment.student.id,
-                        studentName: enrollment.student.fullName,
-                        email: enrollment.student.email,
-                        rollNumber: enrollment.rollNumber,
-                        cohort: enrollment.cohort.name,
-                        department: enrollment.department.name,
-                        currentPercentage: Number(percentage.toFixed(2)),
-                        riskLevel: studentRisk,
-                        examsCompleted: computedMarks.length
-                    });
-                }
+            if (department) {
+                departmentId = department.id;
+            } else {
+                return res.json({ success: true, count: 0, data: [] });
             }
         }
 
-        // Sort by risk level (critical first) then by percentage (lowest first)
-        atRiskStudents.sort((a, b) => {
-            const riskOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+        const where: any = { status: 'active' };
+        if (cohortId) where.cohortId = String(cohortId);
+        if (departmentId) where.departmentId = String(departmentId);
+
+        // RBAC: Teacher sees only their assigned cohorts
+        if (userRole === 'TEACHER') {
+            const assignments = await prisma.teacherAssignment.findMany({
+                where: { teacherId: userId },
+                select: { cohortId: true }
+            });
+            const allowedCohortIds = assignments.map(a => a.cohortId);
+            
+            if (cohortId && !allowedCohortIds.includes(String(cohortId))) {
+               return res.status(403).json({ message: 'Access denied to this cohort' });
+            }
+            
+            if (!cohortId) {
+                where.cohortId = { in: allowedCohortIds };
+            }
+        }
+
+        const enrollments = await prisma.studentEnrollment.findMany({
+            where,
+            include: {
+                student: { select: { id: true, fullName: true, registrationNumber: true, email: true } },
+                cohort: { select: { name: true } },
+                department: { select: { name: true } }
+            },
+            take: 100
+        });
+
+        const atRiskStudents = [];
+        const processedStudentIds = new Set<string>();
+
+        for (const enrollment of enrollments) {
+            // Deduplicate: If we've already processed this student, skip
+            if (processedStudentIds.has(enrollment.studentId)) continue;
+            processedStudentIds.add(enrollment.studentId);
+
+            const { percentage, risk, examsCompleted } = await calculateStudentRisk(enrollment.studentId);
+
+            const riskPriority: Record<string, number> = { 'low': 0, 'medium': 1, 'high': 2, 'critical': 3 };
+            const requestedPriority = riskPriority[riskLevel as keyof typeof riskPriority] || 1;
+            const studentPriority = riskPriority[risk];
+
+            if (studentPriority >= requestedPriority) {
+                atRiskStudents.push({
+                    studentId: enrollment.studentId,
+                    studentName: enrollment.student.fullName,
+                    email: enrollment.student.email,
+                    registrationNumber: enrollment.student.registrationNumber,
+                    cohort: enrollment.cohort.name,
+                    department: enrollment.department.name,
+                    currentPercentage: Number(percentage.toFixed(2)),
+                    riskLevel: risk,
+                    examsCompleted
+                });
+            }
+        }
+
+        const riskOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+        atRiskStudents.sort((a: any, b: any) => {
             const riskDiff = riskOrder[a.riskLevel] - riskOrder[b.riskLevel];
             if (riskDiff !== 0) return riskDiff;
             return a.currentPercentage - b.currentPercentage;

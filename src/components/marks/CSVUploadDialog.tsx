@@ -31,16 +31,44 @@ export function CSVUploadDialog({ open, onOpenChange, examId, subQuestions, onUp
         responseType: 'blob'
       });
       
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // If the response is JSON (error), it might still be returned as a blob
+      if (response.data.type === 'application/json') {
+        const text = await response.data.text();
+        const error = JSON.parse(text);
+        throw new Error(error.message || 'Failed to download template');
+      }
+
+      // Use a more standard Blob approach which is same-origin and more likely to respect 'download'
+      const blob = new Blob(['\uFEFF', response.data], { type: 'text/csv;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const fileName = `marks_template_${examId.substring(0, 8)}.csv`;
+      
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `marks_template_${examId.substring(0, 8)}.csv`);
+      link.setAttribute('download', fileName);
+      link.style.display = 'none';
+      
       document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (error) {
+      
+      // Use a slightly different trigger mechanism
+      const clickEvent = new MouseEvent('click', {
+        view: window,
+        bubbles: true,
+        cancelable: true
+      });
+      link.dispatchEvent(clickEvent);
+      
+      // Do NOT remove or revoke immediately. Let the browser handle the stream.
+      // We keep it in the DOM for a few seconds.
+      setTimeout(() => {
+        if (link.parentNode) {
+          document.body.removeChild(link);
+        }
+        window.URL.revokeObjectURL(url);
+      }, 5000); // 5 seconds is safe for small files
+    } catch (error: any) {
       console.error('Error downloading template:', error);
-      setErrors(['Failed to download template']);
+      setErrors([error.message || 'Failed to download template']);
     }
   };
 
@@ -58,9 +86,8 @@ export function CSVUploadDialog({ open, onOpenChange, examId, subQuestions, onUp
 
         const fileHeaders = rows[0];
         
-        // Filter out completely empty rows
         const dataRows = rows.slice(2).filter(row => {
-          // Row is not empty if it has at least a roll number
+          // Row is not empty if it has at least a registration number
           return row[0] && row[0].trim() !== '';
         });
 
@@ -83,8 +110,8 @@ export function CSVUploadDialog({ open, onOpenChange, examId, subQuestions, onUp
     const validationErrors: string[] = [];
 
     // Check headers match expected structure
-    if (fileHeaders[0] !== 'Roll Number' || fileHeaders[1] !== 'Student Name') {
-      validationErrors.push('First two columns must be "Roll Number" and "Student Name"');
+    if (fileHeaders[0] !== 'Registration Number' || fileHeaders[1] !== 'Student Name') {
+      validationErrors.push('First two columns must be "Registration Number" and "Student Name"');
     }
 
     // Check each data row
@@ -120,23 +147,22 @@ export function CSVUploadDialog({ open, onOpenChange, examId, subQuestions, onUp
     try {
       // Map CSV data to API format
       const marks = csvData.map(row => {
-        const rollNumber = row[0];
+        const registrationNumber = row[0];
         const subQuestionMarks = subQuestions.map((sq, idx) => {
-          const marksValue = row[idx + 2]; // +2 to skip Roll Number and Student Name columns
+          const marksValue = row[idx + 2]; // +2 to skip Registration Number and Student Name columns
           return {
             subQuestionId: sq.id,
             marks: marksValue && marksValue.trim() !== '' ? parseFloat(marksValue) : 0
           };
         });
 
-       console.log('[CSV UPLOAD] Student:', rollNumber, 'Marks:', subQuestionMarks.length);
-        return { rollNumber, subQuestionMarks };
+        console.log('[CSV UPLOAD] Student:', registrationNumber, 'Marks:', subQuestionMarks.length);
+        return { registrationNumber, subQuestionMarks };
       });
 
       console.log('[CSV UPLOAD] Sending data:');
       console.log('  Students:', marks.length);
       console.log('  Sub-questions per student:', subQuestions.length);
-      console.log('  First student sample:', marks[0]);
 
       const response = await api.post(`/marks/${examId}/bulk-upload`, { marks });
 
@@ -146,13 +172,10 @@ export function CSVUploadDialog({ open, onOpenChange, examId, subQuestions, onUp
       setErrors([]);
       
       // Force refetch marks (bypass cache)
-      console.log('[CSV UPLOAD] Forcing refetch for exam:', examId);
       await queryClient.refetchQueries({ 
         queryKey: ['student-marks', examId],
         type: 'active'
       });
-      
-      console.log('[CSV UPLOAD] Refetch complete, closing dialog...');
       
       setTimeout(() => {
         onUploadComplete();

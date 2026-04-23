@@ -35,7 +35,7 @@ export default function StudentEnrollments() {
     fullName: '',
     email: '',
     mobileNumber: '',
-    rollNumber: '',
+    registrationNumber: '',
   });
   
   // Fetch departments
@@ -84,7 +84,7 @@ export default function StudentEnrollments() {
   
   const filteredEnrollments = enrollments?.filter((e: any) =>
     e.student?.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    e.rollNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    e.student?.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     e.student?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     e.student?.mobileNumber?.includes(searchQuery)
   ) || [];
@@ -95,7 +95,7 @@ export default function StudentEnrollments() {
   
   // Handle single student enrollment
   const handleSingleEnroll = async () => {
-    if (!selectedCohort || !selectedDepartment || !newStudent.fullName || !newStudent.email || !newStudent.rollNumber) {
+    if (!selectedCohort || !selectedDepartment || !newStudent.fullName || !newStudent.email || !newStudent.registrationNumber) {
       toast({ title: 'Error', description: 'Please fill all required fields and select Department/Cohort', variant: 'destructive' });
       return;
     }
@@ -109,7 +109,7 @@ export default function StudentEnrollments() {
       });
       
       toast({ title: 'Success', description: `${newStudent.fullName} enrolled successfully` });
-      setNewStudent({ fullName: '', email: '', mobileNumber: '', rollNumber: '' });
+      setNewStudent({ fullName: '', email: '', mobileNumber: '', registrationNumber: '' });
       setIsDialogOpen(false);
       refetch();
     } catch (error: any) {
@@ -141,8 +141,8 @@ export default function StudentEnrollments() {
       return;
     }
     
-    // Parse CSV data
-    const lines = bulkData.trim().split('\n');
+    // Parse CSV data - split by newlines (handle both LF and CRLF)
+    const lines = bulkData.trim().split(/\r?\n/);
     const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
     
     const students = lines.slice(1).map(line => {
@@ -150,13 +150,20 @@ export default function StudentEnrollments() {
       const student: any = {};
       
       headers.forEach((header, idx) => {
-        const key = header.replace(/_/g, '').replace('fullname', 'fullName')
-          .replace('rollnumber', 'rollNumber').replace('mobilenumber', 'mobileNumber');
+        // Robust normalization of headers to backend keys
+        const cleanHeader = header.replace(/[^a-z0-9]/g, '');
+        let key = cleanHeader;
+        
+        if (cleanHeader === 'fullname' || cleanHeader === 'name') key = 'fullName';
+        else if (cleanHeader === 'registrationnumber' || cleanHeader === 'rollnumber' || cleanHeader === 'regno') key = 'registrationNumber';
+        else if (cleanHeader === 'mobilenumber' || cleanHeader === 'mobile' || cleanHeader === 'phone') key = 'mobileNumber';
+        else if (cleanHeader === 'email') key = 'email';
+
         student[key] = values[idx] || '';
       });
       
       return student;
-    }).filter(s => s.email && s.rollNumber);
+    }).filter(s => s.email && s.registrationNumber);
     
     if (students.length === 0) {
       toast({ title: 'Error', description: 'No valid student data found in CSV', variant: 'destructive' });
@@ -189,7 +196,7 @@ export default function StudentEnrollments() {
   };
   
   const downloadTemplate = () => {
-    const csv = 'email,full_name,roll_number,mobile_number\nstudent@example.com,John Doe,2024001,9876543210';
+    const csv = 'email,full_name,registration_number,mobile_number\nstudent@example.com,John Doe,U03CH23S0055,9876543210';
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -264,11 +271,11 @@ export default function StudentEnrollments() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Roll Number *</Label>
+                      <Label>Registration Number *</Label>
                       <Input
-                        value={newStudent.rollNumber}
-                        onChange={(e) => setNewStudent({ ...newStudent, rollNumber: e.target.value })}
-                        placeholder="2024001"
+                        value={newStudent.registrationNumber}
+                        onChange={(e) => setNewStudent({ ...newStudent, registrationNumber: e.target.value })}
+                        placeholder="U03CH23S0055"
                       />
                     </div>
                     <div className="space-y-2">
@@ -297,7 +304,7 @@ export default function StudentEnrollments() {
                       <div>
                         <p className="font-medium">Upload CSV File</p>
                         <p className="text-sm text-muted-foreground">
-                          Format: email, full_name, roll_number, mobile_number
+                          Format: email, full_name, registration_number, mobile_number
                         </p>
                       </div>
                     </div>
@@ -323,7 +330,7 @@ export default function StudentEnrollments() {
                   <div className="space-y-2">
                     <Label>CSV Data (or paste here)</Label>
                     <Textarea
-                      placeholder="email,full_name,roll_number,mobile_number&#10;student@example.com,John Doe,2024001,9876543210"
+                      placeholder="email,full_name,registration_number,mobile_number&#10;student@example.com,John Doe,U03CH23S0055,9876543210"
                       value={bulkData}
                       onChange={(e) => setBulkData(e.target.value)}
                       rows={8}
@@ -457,7 +464,7 @@ export default function StudentEnrollments() {
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, roll number, email, or mobile..."
+              placeholder="Search by name, reg. number, email, or mobile..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -508,7 +515,7 @@ export default function StudentEnrollments() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Roll Number</TableHead>
+                      <TableHead>Reg. Number</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Mobile</TableHead>
@@ -518,7 +525,7 @@ export default function StudentEnrollments() {
                   <TableBody>
                     {filteredEnrollments.map((enrollment: any) => (
                       <TableRow key={enrollment.id}>
-                        <TableCell className="font-mono font-medium">{enrollment.rollNumber}</TableCell>
+                        <TableCell className="font-mono font-medium">{enrollment.student?.registrationNumber || '—'}</TableCell>
                         <TableCell className="font-medium">
                           {enrollment.student?.fullName || '—'}
                         </TableCell>

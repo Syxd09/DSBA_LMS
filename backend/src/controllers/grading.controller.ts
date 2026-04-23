@@ -73,7 +73,7 @@ export const getFinalMarks = async (req: AuthRequest, res: Response) => {
             where,
             include: {
                 student: {
-                    select: { fullName: true, email: true, id: true }
+                    select: { fullName: true, registrationNumber: true, email: true, id: true }
                 },
                 subject: {
                     select: { name: true, code: true }

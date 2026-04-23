@@ -48,10 +48,39 @@ export function HODDashboard() {
     }
   });
 
+  const { data: atRiskData } = useQuery({
+    queryKey: ['hod-at-risk'],
+    queryFn: async () => {
+      const { data } = await api.get('/attainment/students/at-risk?riskLevel=medium');
+      return data || { count: 0, data: [] };
+    }
+  });
+
+  const { data: coAttainment = [] } = useQuery({
+    queryKey: ['hod-global-attainment'],
+    queryFn: async () => {
+      const { data } = await api.get('/analytics/global-attainment');
+      return data || [];
+    }
+  });
+
+  const { data: bloomDist = [] } = useQuery({
+    queryKey: ['hod-bloom-dist'],
+    queryFn: async () => {
+      // For HOD, we might want an aggregate, but let's leave empty for now 
+      // or fetch for the most recent exam if we had that logic.
+      return [];
+    }
+  });
+
   const studentCount = studentEnrollments.length;
   const teacherCount = users.filter((u: any) => u.role === 'TEACHER').length;
-  const atRiskCount = 0; // No real analysis yet
-  const passRate = 0;    // No real analysis yet
+  const atRiskCount = atRiskData?.count || 0;
+  
+  // Calculate average pass rate from subjects if we had them, otherwise use attainment average
+  const avgAttainment = coAttainment.length > 0 
+    ? Math.round(coAttainment.reduce((sum: number, co: any) => sum + co.attainment, 0) / coAttainment.length)
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -81,11 +110,10 @@ export function HODDashboard() {
           icon={Users}
         />
         <StatsCard
-          title="Pass Rate"
-          value={`${passRate}%`}
-          subtitle="Current semester"
+          title="Avg. Attainment"
+          value={`${avgAttainment}%`}
+          subtitle="All outcomes"
           icon={TrendingUp}
-          trend={{ value: 3.2, isPositive: true }}
           variant="success"
         />
         <StatsCard
@@ -99,14 +127,14 @@ export function HODDashboard() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <COAttainmentChart data={[]} />
-        <BloomTaxonomyChart data={[]} />
+        <COAttainmentChart data={coAttainment} />
+        <BloomTaxonomyChart data={bloomDist} />
       </div>
 
       {/* Subject Performance */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-semibold">Subject Performance</CardTitle>
+          <CardTitle className="text-base font-semibold">Subject Overview</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -115,39 +143,26 @@ export function HODDashboard() {
                 <TableHead>Subject</TableHead>
                 <TableHead>Code</TableHead>
                 <TableHead>Credits</TableHead>
-                <TableHead>Pass Rate</TableHead>
-                <TableHead>Avg Score</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {subjects.slice(0, 5).map((subject: any) => {
-                const passRate = 0;
-                const avgScore = 0;
-                return (
+              {subjects.slice(0, 10).map((subject: any) => (
                   <TableRow key={subject.id}>
                     <TableCell className="font-medium">{subject.name}</TableCell>
                     <TableCell className="font-mono text-sm">{subject.code}</TableCell>
                     <TableCell>{subject.credits}</TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Progress value={passRate} className="w-16 h-2" />
-                        <span className="text-sm">{passRate.toFixed(0)}%</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{avgScore.toFixed(1)}</TableCell>
-                    <TableCell>
-                      <Badge variant={passRate >= 80 ? 'default' : passRate >= 70 ? 'secondary' : 'destructive'}>
-                        {passRate >= 80 ? 'Excellent' : passRate >= 70 ? 'Good' : 'Review'}
+                      <Badge variant="outline">
+                        Active
                       </Badge>
                     </TableCell>
                   </TableRow>
-                );
-              })}
+              ))}
               {subjects.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    No subjects found. Add subjects to see performance data.
+                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    No subjects found.
                   </TableCell>
                 </TableRow>
               )}
@@ -156,12 +171,12 @@ export function HODDashboard() {
         </CardContent>
       </Card>
 
-      {/* At-Risk Students */}
+      {/* At-Risk Students List Summary */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-destructive" />
-            At-Risk Students
+            At-Risk Intervention
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -169,12 +184,13 @@ export function HODDashboard() {
             {atRiskCount === 0 ? (
               <div className="flex items-center gap-2 p-4 bg-green-500/5 border border-green-500/20">
                 <CheckCircle className="w-5 h-5 text-green-500" />
-                <span className="text-sm">No students at immediate risk based on current internal scores</span>
+                <span className="text-sm">No students in your department are currently identified as at-risk.</span>
               </div>
             ) : (
               <div className="flex items-center gap-2 p-4 bg-destructive/5 border border-destructive/20">
                 <AlertTriangle className="w-5 h-5 text-destructive" />
-                <span className="text-sm">{atRiskCount} students identified as at-risk. Review their performance in the Analytics section.</span>
+                <span className="text-sm uppercase font-bold text-destructive">{atRiskCount} students identified!</span>
+                <span className="text-sm">Review their details in the Student Analytics section to plan interventions.</span>
               </div>
             )}
           </div>

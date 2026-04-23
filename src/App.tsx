@@ -51,6 +51,7 @@ import PrincipalAnalyticsDashboard from "./pages/analytics/principal/PrincipalAn
 import FinalApprovals from "./pages/analytics/principal/FinalApprovals";
 import NotFound from "./pages/NotFound";
 import ErrorBoundary from "./components/ErrorBoundary";
+import AuthGuard from "./components/AuthGuard";
 
 const queryClient = new QueryClient();
 
@@ -66,59 +67,60 @@ const App = () => (
         <ErrorBoundary>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
+            {/* Public routes */}
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/approvals" element={<HODDashboard />} />
-            <Route path="/marks-entry" element={<MarksEntry />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/users" element={<Users />} />
-            <Route path="/departments" element={<Departments />} />
-            <Route path="/subjects" element={<Subjects />} />
-            <Route path="/results" element={<Results />} />
-            <Route path="/performance" element={<Performance />} />
-            <Route path="/programs" element={<Programs />} />
-            <Route path="/cohorts" element={<Cohorts />} />
-            <Route path="/exams" element={<Exams />} />
-            <Route path="/feedback" element={<StudentFeedback />} />
-            <Route path="/messages" element={<Messages />} />
-            <Route path="/course-outcomes" element={<CourseOutcomes />} />
-            <Route path="/program-outcomes" element={<ProgramOutcomes />} />
-            <Route path="/student-enrollments" element={<StudentEnrollments />} />
-            <Route path="/students" element={<Students />} />
 
-            <Route path="/teacher-assignments" element={<TeacherAssignments />} />
-            <Route path="/grade-management" element={<GradeManagement />} />
-            <Route path="/co-po-analytics" element={<COPOAnalytics />} />
-            <Route path="/attainment" element={<AttainmentDashboard />} />
-            <Route path="/student-analytics" element={<StudentAnalytics />} />
-            <Route path="/po-attainment" element={<POAttainmentDashboard />} />
-            <Route path="/audit-logs" element={<AuditLogs />} />
-            <Route path="/co-po-traceability" element={<COPOTraceability />} />
-            
-            {/* Feedback Template Management Routes (Admin/Principal/HOD) */}
-            <Route path="/feedback/templates" element={<FeedbackTemplates />} />
-            <Route path="/feedback/templates/create" element={<CreateFeedbackTemplate />} />
-            <Route path="/feedback/templates/:id" element={<ViewFeedbackTemplate />} />
-            <Route path="/feedback/templates/:templateId/results" element={<TemplateResults />} />
-            
+            {/* Protected routes — redirect to /auth if not logged in */}
+            <Route path="/dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
+            <Route path="/approvals" element={<AuthGuard><HODDashboard /></AuthGuard>} />
+            <Route path="/marks-entry" element={<AuthGuard><MarksEntry /></AuthGuard>} />
+            <Route path="/analytics" element={<AuthGuard><Analytics /></AuthGuard>} />
+            <Route path="/users" element={<AuthGuard allowedRoles={['admin','principal','hod']}><Users /></AuthGuard>} />
+            <Route path="/departments" element={<AuthGuard><Departments /></AuthGuard>} />
+            <Route path="/subjects" element={<AuthGuard><Subjects /></AuthGuard>} />
+            <Route path="/results" element={<AuthGuard><Results /></AuthGuard>} />
+            <Route path="/performance" element={<AuthGuard><Performance /></AuthGuard>} />
+            <Route path="/programs" element={<AuthGuard><Programs /></AuthGuard>} />
+            <Route path="/cohorts" element={<AuthGuard><Cohorts /></AuthGuard>} />
+            <Route path="/exams" element={<AuthGuard><Exams /></AuthGuard>} />
+            <Route path="/feedback" element={<AuthGuard><StudentFeedback /></AuthGuard>} />
+            <Route path="/messages" element={<AuthGuard><Messages /></AuthGuard>} />
+            <Route path="/course-outcomes" element={<AuthGuard><CourseOutcomes /></AuthGuard>} />
+            <Route path="/program-outcomes" element={<AuthGuard><ProgramOutcomes /></AuthGuard>} />
+            <Route path="/student-enrollments" element={<AuthGuard><StudentEnrollments /></AuthGuard>} />
+            <Route path="/students" element={<AuthGuard><Students /></AuthGuard>} />
+            <Route path="/teacher-assignments" element={<AuthGuard><TeacherAssignments /></AuthGuard>} />
+            <Route path="/grade-management" element={<AuthGuard><GradeManagement /></AuthGuard>} />
+            <Route path="/co-po-analytics" element={<AuthGuard><COPOAnalytics /></AuthGuard>} />
+            <Route path="/attainment" element={<AuthGuard><AttainmentDashboard /></AuthGuard>} />
+            <Route path="/student-analytics" element={<AuthGuard><StudentAnalytics /></AuthGuard>} />
+            <Route path="/po-attainment" element={<AuthGuard><POAttainmentDashboard /></AuthGuard>} />
+            <Route path="/audit-logs" element={<AuthGuard allowedRoles={['admin','principal']}><AuditLogs /></AuthGuard>} />
+            <Route path="/co-po-traceability" element={<AuthGuard><COPOTraceability /></AuthGuard>} />
+
+            {/* Feedback Template Routes */}
+            <Route path="/feedback/templates" element={<AuthGuard><FeedbackTemplates /></AuthGuard>} />
+            <Route path="/feedback/templates/create" element={<AuthGuard><CreateFeedbackTemplate /></AuthGuard>} />
+            <Route path="/feedback/templates/:id" element={<AuthGuard><ViewFeedbackTemplate /></AuthGuard>} />
+            <Route path="/feedback/templates/:templateId/results" element={<AuthGuard><TemplateResults /></AuthGuard>} />
+
             {/* Teacher Feedback Routes */}
-            <Route path="/feedback/teacher/assigned" element={<TeacherAssignedStudents />} />
-            <Route path="/feedback/teacher/create/:studentId" element={<CreateFeedback />} />
-            <Route path="/feedback/teacher/edit/:feedbackId" element={<EditFeedback />} />
-            <Route path="/feedback/teacher/view/:feedbackId" element={<ViewFeedback />} />
-            
+            <Route path="/feedback/teacher/assigned" element={<AuthGuard allowedRoles={['teacher']}><TeacherAssignedStudents /></AuthGuard>} />
+            <Route path="/feedback/teacher/create/:studentId" element={<AuthGuard allowedRoles={['teacher']}><CreateFeedback /></AuthGuard>} />
+            <Route path="/feedback/teacher/edit/:feedbackId" element={<AuthGuard allowedRoles={['teacher']}><EditFeedback /></AuthGuard>} />
+            <Route path="/feedback/teacher/view/:feedbackId" element={<AuthGuard allowedRoles={['teacher']}><ViewFeedback /></AuthGuard>} />
+
             {/* HOD Analytics Routes */}
-            <Route path="/analytics/hod/dashboard" element={<HODAnalyticsDashboard />} />
-            <Route path="/analytics/hod/pending-approvals" element={<PendingApprovals />} />
-            <Route path="/analytics/hod/at-risk" element={<AtRiskStudents />} />
-            <Route path="/analytics/hod/student/:studentId" element={<StudentAnalyticsDetail />} />
-            
+            <Route path="/analytics/hod/dashboard" element={<AuthGuard allowedRoles={['hod','admin','principal']}><HODAnalyticsDashboard /></AuthGuard>} />
+            <Route path="/analytics/hod/pending-approvals" element={<AuthGuard allowedRoles={['hod','admin','principal']}><PendingApprovals /></AuthGuard>} />
+            <Route path="/analytics/hod/at-risk" element={<AuthGuard allowedRoles={['hod','admin','principal']}><AtRiskStudents /></AuthGuard>} />
+            <Route path="/analytics/hod/student/:studentId" element={<AuthGuard allowedRoles={['hod','admin','principal']}><StudentAnalyticsDetail /></AuthGuard>} />
+
             {/* Principal Analytics Routes */}
-            <Route path="/analytics/principal/dashboard" element={<PrincipalAnalyticsDashboard />} />
-            <Route path="/analytics/principal/final-approvals" element={<FinalApprovals />} />
-            
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="/analytics/principal/dashboard" element={<AuthGuard allowedRoles={['principal','admin']}><PrincipalAnalyticsDashboard /></AuthGuard>} />
+            <Route path="/analytics/principal/final-approvals" element={<AuthGuard allowedRoles={['principal','admin']}><FinalApprovals /></AuthGuard>} />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
           </BrowserRouter>

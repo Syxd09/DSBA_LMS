@@ -194,14 +194,21 @@ export const getMarks = async (req: AuthRequest, res: Response) => {
         }
 
         const marks = await prisma.studentMark.findMany({
-            where: { examId }
+            where: { examId },
+            include: {
+                subQuestion: { select: { maxMarks: true, label: true } },
+                exam: { select: { subjectId: true, examType: true, maxMarks: true } }
+            }
         });
 
         // Transform to frontend expected format (snake_case)
         const transformedMarks = marks.map(m => ({
             student_id: m.studentId,
             sub_question_id: m.subQuestionId,
-            marks: m.marks
+            marks: Number(m.marks),
+            marks_obtained: Number(m.marksObtained),
+            sub_question: m.subQuestion,
+            exam: m.exam
         }));
 
         res.json(transformedMarks);
@@ -235,11 +242,11 @@ export const getCSVTemplate = async (req: AuthRequest, res: Response) => {
 
         const enrollments = await prisma.studentEnrollment.findMany({
             where: { cohortId: exam.cohortId, status: 'active' },
-            include: { student: { select: { fullName: true } } },
-            orderBy: { rollNumber: 'asc' }
+            include: { student: { select: { fullName: true, registrationNumber: true } } },
+            orderBy: { student: { registrationNumber: 'asc' } }
         });
 
-        const headers = ['Roll Number', 'Student Name'];
+        const headers = ['Registration Number', 'Student Name'];
         const subQuestionMap: Array<{ id: string; label: string; maxMarks: number }> = [];
 
         exam.sections.forEach(section => {
@@ -257,7 +264,7 @@ export const getCSVTemplate = async (req: AuthRequest, res: Response) => {
 
         const csvRows = [headers, maxMarksRow];
         enrollments.forEach(enrollment => {
-            const row = [enrollment.rollNumber, enrollment.student.fullName];
+            const row = [enrollment.student.registrationNumber || '', enrollment.student.fullName];
             subQuestionMap.forEach(() => row.push(''));
             csvRows.push(row);
         });
@@ -266,6 +273,7 @@ export const getCSVTemplate = async (req: AuthRequest, res: Response) => {
 
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="marks_template_${examId.substring(0, 8)}.csv"`);
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate'); // Prevent 304 and caching issues
         res.send(csvContent);
     } catch (error) {
         console.error('Error generating CSV template:', error);
@@ -314,7 +322,7 @@ export const bulkUploadMarks = async (req: AuthRequest, res: Response) => {
 
         console.log('[BULK UPLOAD] Students in cohort:', enrollments.length);
 
-        const rollNumberToStudentId = new Map(enrollments.map(e => [e.rollNumber, e.student.id]));
+        const registrationNumberToStudentId = new Map(enrollments.map(e => [e.student.registrationNumber, e.student.id]));
         const allSubQuestions = exam.sections.flatMap(s => s.questions.flatMap(q => q.subQuestions));
         const subQuestionMap = new Map(allSubQuestions.map(sq => [sq.id, sq.maxMarks]));
 
@@ -324,9 +332,9 @@ export const bulkUploadMarks = async (req: AuthRequest, res: Response) => {
         const validatedMarks: Array<{ studentId: string; subQuestionId: string; marks: number }> = [];
 
         marks.forEach((studentMark: any, idx: number) => {
-            const studentId = rollNumberToStudentId.get(studentMark.rollNumber);
+            const studentId = registrationNumberToStudentId.get(studentMark.registrationNumber);
             if (!studentId) {
-                errors.push(`Row ${idx + 3}: Roll number "${studentMark.rollNumber}" not found`);
+                errors.push(`Row ${idx + 3}: Registration number "${studentMark.registrationNumber}" not found`);
                 return;
             }
 

@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../services/db';
+import { BloomLevel } from '@prisma/client';
 import { createAuditLog } from '../middleware/audit.middleware';
 
 /**
@@ -36,10 +37,12 @@ export const bulkCreateTeacherAssignments = async (req: AuthRequest, res: Respon
             try {
                 await prisma.teacherAssignment.upsert({
                     where: {
-                        teacherId_subjectId_cohortId: {
+                        teacherId_subjectId_cohortId_semester_academicYear: {
                             teacherId: a.teacherId,
                             subjectId: a.subjectId,
-                            cohortId: a.cohortId
+                            cohortId: a.cohortId,
+                            semester: a.semester || 1,
+                            academicYear: a.academicYear || new Date().getFullYear().toString()
                         }
                     },
                     update: {

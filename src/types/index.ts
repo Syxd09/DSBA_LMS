@@ -188,7 +188,7 @@ export interface StudentEnrollment {
     cohortId: string;
     departmentId: string;
     semester: number;
-    rollNumber: string;
+    registrationNumber: string;
     status: string;
     createdAt: string;
     student?: User;

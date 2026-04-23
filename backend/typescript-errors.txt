@@ -1,6 +1,0 @@
-﻿src/scripts/test-attainment.ts(53,38): error TS2339: Property 'code' does not exist on type '{ id: string; subjectId: string; coNumber: number; description: string; bloomLevel: BloomLevel; createdAt: Date; }'.
-src/scripts/test-attainment.ts(63,17): error TS2353: Object literal may only specify known properties, and 'subjectId' does not exist in type 'POAttainmentWhereInput'.
-src/scripts/test-attainment.ts(71,35): error TS2339: Property 'po' does not exist on type '{ id: string; programId: string; cohortId: string; poId: string; semester: number; academicYear: string; targetPercent: number; achievedPercent: number; weightedSum: number; totalWeight: number; ... 8 more ...; updatedAt: Date; }'.
-src/scripts/trigger-ds-calc.ts(2,46): error TS2307: Cannot find module './src/services/co-attainment.service' or its corresponding type declarations.
-src/scripts/trigger-ds-calc.ts(3,49): error TS2307: Cannot find module './src/services/po-attainment.service' or its corresponding type declarations.
-src/scripts/trigger-ds-calc.ts(51,32): error TS2339: Property 'code' does not exist on type '{ id: string; subjectId: string; coNumber: number; description: string; bloomLevel: BloomLevel; createdAt: Date; }'.

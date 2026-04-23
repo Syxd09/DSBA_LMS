@@ -193,8 +193,16 @@ async function main() {
     const enrollStudents = async (cohort: any, deptId: string, sem: number, prefix: string) => {
         for (let i = 1; i <= 10; i++) {
             const email = `${prefix.toLowerCase()}${cohort.year}.${i}@test.com`;
+            const registrationNumber = `${prefix}-${cohort.year}-${String(i).padStart(3, '0')}`;
             const user = await prisma.user.create({
-                data: { email, password, fullName: `${prefix} Student ${cohort.year} - ${i}`, role: 'STUDENT', departmentId: deptId }
+                data: { 
+                    email, 
+                    password, 
+                    fullName: `${prefix} Student ${cohort.year} - ${i}`, 
+                    role: 'STUDENT', 
+                    departmentId: deptId,
+                    registrationNumber
+                }
             });
             await prisma.studentEnrollment.create({
                 data: {
@@ -202,9 +210,8 @@ async function main() {
                     cohortId: cohort.id,
                     departmentId: deptId,
                     semester: sem,
-                    rollNumber: `${prefix}-${cohort.year}-${String(i).padStart(3, '0')}`,
                     status: 'active'
-                }
+                } as any
             });
         }
     };

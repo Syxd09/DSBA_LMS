@@ -138,7 +138,7 @@ export const uploadAttachment = async (req: AuthRequest, res: Response) => {
                 sender: {
                     select: {
                         id: true,
-                        fullName: true,
+                        fullName: true, registrationNumber: true,
                         role: true,
                         avatarUrl: true
                     }

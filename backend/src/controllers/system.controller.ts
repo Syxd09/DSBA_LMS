@@ -115,13 +115,13 @@ export const seedDemoData = async (req: AuthRequest, res: Response) => {
         // 7. Create Students
         const studentPassword = await bcrypt.hash('Student@123', 10);
         const studentData = [
-            { email: 'student1@college.edu', fullName: 'Amit Kumar', roll: '2024BCA001', cohortId: cohortBCA.id, deptId: deptCS.id },
-            { email: 'student2@college.edu', fullName: 'Priya Sharma', roll: '2024BCA002', cohortId: cohortBCA.id, deptId: deptCS.id },
-            { email: 'student3@college.edu', fullName: 'Rahul Verma', roll: '2024BCA003', cohortId: cohortBCA.id, deptId: deptCS.id },
-            { email: 'student4@college.edu', fullName: 'Sneha Patel', roll: '2024BCA004', cohortId: cohortBCA.id, deptId: deptCS.id },
-            { email: 'student5@college.edu', fullName: 'Vikram Singh', roll: '2024BCA005', cohortId: cohortBCA.id, deptId: deptCS.id },
-            { email: 'student6@college.edu', fullName: 'Ananya Reddy', roll: '2024MCA001', cohortId: cohortMCA.id, deptId: deptCS.id },
-            { email: 'student7@college.edu', fullName: 'Karthik Nair', roll: '2024MCA002', cohortId: cohortMCA.id, deptId: deptCS.id },
+            { email: 'student1@college.edu', fullName: 'Amit Kumar', registrationNumber: '2024BCA001', cohortId: cohortBCA.id, deptId: deptCS.id },
+            { email: 'student2@college.edu', fullName: 'Priya Sharma', registrationNumber: '2024BCA002', cohortId: cohortBCA.id, deptId: deptCS.id },
+            { email: 'student3@college.edu', fullName: 'Rahul Verma', registrationNumber: '2024BCA003', cohortId: cohortBCA.id, deptId: deptCS.id },
+            { email: 'student4@college.edu', fullName: 'Sneha Patel', registrationNumber: '2024BCA004', cohortId: cohortBCA.id, deptId: deptCS.id },
+            { email: 'student5@college.edu', fullName: 'Vikram Singh', registrationNumber: '2024BCA005', cohortId: cohortBCA.id, deptId: deptCS.id },
+            { email: 'student6@college.edu', fullName: 'Ananya Reddy', registrationNumber: '2024MCA001', cohortId: cohortMCA.id, deptId: deptCS.id },
+            { email: 'student7@college.edu', fullName: 'Karthik Nair', registrationNumber: '2024MCA002', cohortId: cohortMCA.id, deptId: deptCS.id },
         ];
 
         for (const s of studentData) {
@@ -131,6 +131,7 @@ export const seedDemoData = async (req: AuthRequest, res: Response) => {
                 create: {
                     email: s.email,
                     fullName: s.fullName,
+                    registrationNumber: s.registrationNumber,
                     password: studentPassword,
                     role: 'STUDENT',
                     departmentId: s.deptId
@@ -151,9 +152,8 @@ export const seedDemoData = async (req: AuthRequest, res: Response) => {
                     cohortId: s.cohortId,
                     departmentId: s.deptId,
                     semester: 1,
-                    rollNumber: s.roll,
                     status: 'active'
-                }
+                } as any
             });
             results.students++;
         }

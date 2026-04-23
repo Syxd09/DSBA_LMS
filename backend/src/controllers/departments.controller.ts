@@ -22,7 +22,7 @@ export const getDepartments = async (req: AuthRequest, res: Response) => {
             where,
             orderBy: { name: 'asc' },
             include: {
-                hod: { select: { id: true, fullName: true, email: true } },
+                hod: { select: { id: true, fullName: true, registrationNumber: true, email: true } },
                 _count: { select: { users: true, programs: true } }
             }
         });

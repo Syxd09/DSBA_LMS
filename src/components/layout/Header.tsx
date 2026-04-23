@@ -22,12 +22,13 @@ export function Header({ profile, role, onSignOut }: HeaderProps) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search students, subjects, exams..."
-            className="pl-10 bg-background"
+            className="pl-10 bg-background h-9 text-sm"
           />
         </div>
       </div>
 
       <div className="flex items-center gap-2">
+
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="w-5 h-5" />
           <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />

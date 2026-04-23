@@ -197,9 +197,8 @@ export const promoteCohort = async (req: AuthRequest, res: Response) => {
                         cohortId: id,
                         departmentId: e.departmentId,
                         semester: newSemester,
-                        rollNumber: e.rollNumber, // Keep same roll number
                         status: 'active'
-                    }))
+                    })) as any
                 });
             }
         });

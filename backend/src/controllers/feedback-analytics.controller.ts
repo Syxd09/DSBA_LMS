@@ -64,7 +64,7 @@ export const getStudentFeedbackAnalytics = async (req: AuthRequest, res: Respons
                     select: { id: true, name: true, code: true }
                 },
                 teacher: {
-                    select: { id: true, fullName: true }
+                    select: { id: true, fullName: true, registrationNumber: true }
                 },
                 cohort: {
                     select: { id: true, name: true }
@@ -184,7 +184,7 @@ export const getDepartmentAnalytics = async (req: AuthRequest, res: Response) =>
                 feedback: {
                     include: {
                         student: {
-                            select: { id: true, fullName: true }
+                            select: { id: true, fullName: true, registrationNumber: true }
                         },
                         subject: {
                             select: { id: true, name: true }

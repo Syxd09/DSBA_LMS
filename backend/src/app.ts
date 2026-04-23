@@ -185,6 +185,7 @@ import programOutcomeRoutes from './routes/program-outcomes.routes';
 import feedbackTemplateRoutes from './routes/feedback-template.routes';
 import teacherFeedbackRoutes from './routes/teacher-feedback.routes';
 import feedbackAnalyticsRoutes from './routes/feedback-analytics.routes';
+import coPoTraceabilityRoutes from './routes/co-po-traceability.routes';
 
 // Auth routes with stricter rate limiting
 app.use('/api/auth', authLimiter, authRoutes);
@@ -219,6 +220,7 @@ app.use('/api/program-outcomes', programOutcomeRoutes);
 app.use('/api/feedback-templates', feedbackTemplateRoutes);
 app.use('/api/teacher-feedback', teacherFeedbackRoutes);
 app.use('/api/feedback-analytics', feedbackAnalyticsRoutes);
+app.use('/api/co-po-traceability', coPoTraceabilityRoutes);
 
 // Bulk operations routes
 import bulkRoutes from './routes/bulk.routes';

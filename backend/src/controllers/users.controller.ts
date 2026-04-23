@@ -3,15 +3,39 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../services/db';
 import * as bcrypt from 'bcrypt';
+import { Role } from '@prisma/client';
 
 export const getUsers = async (req: AuthRequest, res: Response) => {
     try {
+        const { role } = req.query;
+        const userRole = req.user?.role?.toUpperCase();
+        const userId = req.user?.userId;
+        
+        const where: any = {};
+        
+        if (role) {
+            where.role = (role as string).toUpperCase();
+        }
+
+        // RBAC: HOD sees only their department users
+        if (userRole === 'HOD') {
+            const department = await prisma.department.findFirst({
+                where: { hodId: userId }
+            });
+            if (department) {
+                where.departmentId = department.id;
+            } else {
+                return res.json([]);
+            }
+        }
+
         const users = await prisma.user.findMany({
+            where,
             orderBy: { fullName: 'asc' },
             select: {
                 id: true,
                 email: true,
-                fullName: true,
+                fullName: true, registrationNumber: true,
                 role: true,
                 isActive: true,
                 createdAt: true,
@@ -33,15 +57,32 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
 
 export const getTeachers = async (req: AuthRequest, res: Response) => {
     try {
+        const userRole = req.user?.role?.toUpperCase();
+        const userId = req.user?.userId;
+
+        const where: any = {
+            role: 'TEACHER',
+            isActive: true
+        };
+
+        // RBAC: HOD sees only their department teachers
+        if (userRole === 'HOD') {
+            const department = await prisma.department.findFirst({
+                where: { hodId: userId }
+            });
+            if (department) {
+                where.departmentId = department.id;
+            } else {
+                return res.json([]);
+            }
+        }
+
         const teachers = await prisma.user.findMany({
-            where: {
-                role: 'TEACHER',
-                isActive: true
-            },
+            where,
             orderBy: { fullName: 'asc' },
             select: {
                 id: true,
-                fullName: true,
+                fullName: true, registrationNumber: true,
                 email: true,
                 departmentId: true,
                 department: {
@@ -87,7 +128,7 @@ import { AuditService } from '../services/audit.service';
 
 export const createUser = async (req: AuthRequest, res: Response) => {
     try {
-        const { email, password, fullName, name, role, departmentId, teacherAssignments } = req.body;
+        const { email, password, fullName, name, role, departmentId, teacherAssignments, registrationNumber } = req.body;
         const userName = fullName || name;
         const requsterRole = req.user?.role?.toUpperCase();
         const requesterId = req.user?.userId;
@@ -150,14 +191,15 @@ export const createUser = async (req: AuthRequest, res: Response) => {
                 email,
                 password: hashedPassword,
                 fullName: userName,
-                role: role.toUpperCase() as keyof typeof import('@prisma/client').Role,
+                role: role.toUpperCase() as Role,
+                registrationNumber: registrationNumber || null,
                 departmentId: effectiveDepartmentId || null,
                 teacherAssignments: assignmentsCreate
             },
             select: {
                 id: true,
                 email: true,
-                fullName: true,
+                fullName: true, registrationNumber: true,
                 role: true,
                 createdAt: true
             }
@@ -182,7 +224,7 @@ export const createUser = async (req: AuthRequest, res: Response) => {
 export const updateUser = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
-        const { fullName, name, role, departmentId, password, teacherAssignments } = req.body;
+        const { fullName, name, role, departmentId, password, teacherAssignments, registrationNumber } = req.body;
         const userName = fullName || name;
         const requsterRole = req.user?.role?.toUpperCase();
         const requesterId = req.user?.userId;
@@ -221,7 +263,8 @@ export const updateUser = async (req: AuthRequest, res: Response) => {
 
         const updateData: any = {
             fullName: userName,
-            role: role ? role.toUpperCase() as keyof typeof import('@prisma/client').Role : undefined,
+            registrationNumber: registrationNumber !== undefined ? (registrationNumber || null) : undefined,
+            role: role ? role.toUpperCase() as Role : undefined,
             departmentId: effectiveDepartmentId || null
         };
 
@@ -267,6 +310,12 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
         const { id } = req.params;
 
         // Use transaction to cleanup related data first
+        // Check user exists first
+        const userToDelete = await prisma.user.findUnique({ where: { id } });
+        if (!userToDelete) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
         await prisma.$transaction(async (tx) => {
             // 1. Academic Relations
             await tx.teacherAssignment.deleteMany({ where: { teacherId: id } });
@@ -281,18 +330,26 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
             await tx.approvalRequest.deleteMany({ where: { OR: [{ requesterId: id }, { approverId: id }] } });
             await tx.marksUnlockRequest.deleteMany({ where: { OR: [{ requesterId: id }, { hodApprovedBy: id }, { principalApprovedBy: id }] } });
 
-            // 3. Communication & Feedback
-            await tx.message.deleteMany({ where: { senderId: id } });
+            // 3. Feedback Relations (must precede user delete to avoid FK violations)
+            await tx.feedbackCategoryRating.deleteMany({
+                where: { feedback: { OR: [{ studentId: id }, { teacherId: id }] } }
+            });
+            await tx.teacherStudentFeedback.deleteMany({
+                where: { OR: [{ studentId: id }, { teacherId: id }] }
+            });
+            await tx.feedback.deleteMany({ where: { OR: [{ studentId: id }, { teacherId: id }] } });
+
+            // 4. Communication
             await tx.messageReadReceipt.deleteMany({ where: { userId: id } });
+            await tx.message.deleteMany({ where: { senderId: id } });
             await tx.conversationParticipant.deleteMany({ where: { userId: id } });
             await tx.conversation.deleteMany({ where: { createdBy: id } });
             await tx.userPresence.deleteMany({ where: { userId: id } });
-            await tx.feedback.deleteMany({ where: { OR: [{ studentId: id }, { teacherId: id }] } });
 
-            // 4. System Logs
+            // 5. System Logs
             await tx.auditLog.deleteMany({ where: { userId: id } });
 
-            // 5. Finally delete user
+            // 6. Finally delete user
             await tx.user.delete({ where: { id } });
         });
 
@@ -304,8 +361,11 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
         }
 
         res.status(204).send();
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error deleting user:', error);
+        if (error?.code === 'P2025') {
+            return res.status(404).json({ message: 'User not found' });
+        }
         res.status(500).json({ message: 'Error deleting user', error: String(error) });
     }
 };

@@ -79,7 +79,7 @@ export const getPOAttainment = async (req: AcademicRequest, res: Response) => {
             include: {
                 po: true,
                 program: { select: { name: true, code: true } },
-                approver: { select: { fullName: true } }
+                approver: { select: { fullName: true, registrationNumber: true } }
             },
             orderBy: { semester: 'asc' }
         });

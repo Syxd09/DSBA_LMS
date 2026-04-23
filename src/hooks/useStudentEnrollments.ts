@@ -6,7 +6,7 @@ export interface StudentEnrollment {
   id: string;
   studentId: string;
   cohortId: string;
-  rollNumber: string;
+  registrationNumber: string;
   status: string;
   createdAt: string;
   profile?: {
@@ -37,7 +37,7 @@ export function useEnrollStudent() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: { studentId: string; cohortId: string; rollNumber: string }) => {
+    mutationFn: async (data: { studentId: string; cohortId: string; registrationNumber: string }) => {
       await api.post('/enrollments', data);
     },
     onSuccess: (_, variables) => {
@@ -54,7 +54,7 @@ export function useBulkEnrollStudents() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: { cohortId: string; students: Array<{ email: string; fullName: string; rollNumber: string }> }) => {
+    mutationFn: async (data: { cohortId: string; students: Array<{ email: string; fullName: string; registrationNumber: string }> }) => {
       const { data: results } = await api.post('/enrollments/bulk', data);
       return results;
     },

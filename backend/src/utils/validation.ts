@@ -47,12 +47,14 @@ export const CreateUserSchema = z.object({
     fullName: z.string().min(2, 'Name must be at least 2 characters').max(100),
     role: RoleSchema.optional().default('STUDENT'),
     departmentId: z.string().uuid().nullable().optional(),
+    registrationNumber: z.string().min(2).max(30).optional(),
 });
 
 export const UpdateUserSchema = z.object({
     fullName: z.string().min(2).max(100).optional(),
     role: RoleSchema.optional(),
     departmentId: z.string().uuid().nullable().optional(),
+    registrationNumber: z.string().min(2).max(30).optional(),
     isActive: z.boolean().optional(),
 });
 
@@ -170,7 +172,7 @@ export const EnrollStudentSchema = z.object({
     studentId: z.string().uuid('Invalid student ID'),
     cohortId: z.string().uuid('Invalid cohort ID'),
     departmentId: z.string().uuid('Invalid department ID'),
-    rollNumber: z.string().min(2, 'Roll number is required').max(20),
+    registrationNumber: z.string().min(2, 'Registration number is required').max(30),
     semester: z.coerce.number().int().min(1).max(12).default(1),
 });
 
@@ -180,7 +182,7 @@ export const BulkEnrollSchema = z.object({
     students: z.array(z.object({
         email: z.string().email(),
         fullName: z.string().min(2).max(100),
-        rollNumber: z.string().min(2).max(20),
+        registrationNumber: z.string().min(2).max(30),
     })).min(1, 'At least one student is required'),
 });
 
@@ -192,7 +194,7 @@ export const CreateAssignmentSchema = z.object({
     cohortId: z.string().uuid('Invalid cohort ID'),
     departmentId: z.string().uuid('Invalid department ID'),
     semester: z.coerce.number().int().min(1).max(12).default(1),
-    academicYear: z.string().regex(/^\d{4}-\d{2}$/, 'Academic year must be in format YYYY-YY'),
+    academicYear: z.string().regex(/^(\d{4}-\d{2}|\d{4})$/, 'Academic year must be in format YYYY-YY or YYYY'),
 });
 
 // ============== FEEDBACK ==============

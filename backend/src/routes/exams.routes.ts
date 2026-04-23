@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createExam, getExamDetails, getTeacherExams, getStudentsByCohort, updateExamStructure } from '../controllers/exams.controller';
+import { createExam, getExamDetails, getExams, getStudentsByCohort, updateExamStructure } from '../controllers/exams.controller';
 import { publishExam, unlockExam, recalculateAttainment } from '../controllers/exam-publish.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/rbac.middleware';
@@ -10,7 +10,7 @@ router.use(authenticateToken);
 
 // IMPORTANT: Specific routes MUST come before generic /:id routes
 router.get('/cohort/:cohortId/students', requireRole('TEACHER', 'HOD', 'PRINCIPAL'), getStudentsByCohort);
-router.get('/', requireRole('TEACHER', 'HOD', 'PRINCIPAL'), getTeacherExams);
+router.get('/', requireRole('TEACHER', 'HOD', 'PRINCIPAL'), getExams);
 router.post('/', requireRole('TEACHER'), createExam);
 router.get('/:id', requireRole('TEACHER', 'HOD', 'PRINCIPAL'), getExamDetails);
 router.post('/:id/structure', requireRole('TEACHER'), updateExamStructure);

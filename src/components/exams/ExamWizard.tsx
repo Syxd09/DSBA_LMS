@@ -32,13 +32,7 @@ interface ExamWizardProps {
 const EXAM_TYPES = [
   { value: 'INTERNAL_1', label: 'Internal Assessment 1' },
   { value: 'INTERNAL_2', label: 'Internal Assessment 2' },
-  { value: 'INTERNAL_3', label: 'Internal Assessment 3' },
-  { value: 'MIDSEM', label: 'Mid-Semester Exam' },
-  { value: 'ENDSEM', label: 'End-Semester Exam' },
-  { value: 'ASSIGNMENT', label: 'Assignment' },
-  { value: 'PROJECT', label: 'Project' },
-  { value: 'QUIZ', label: 'Quiz' },
-  { value: 'CUSTOM', label: 'Custom Exam Type' }
+  { value: 'EXTERNAL', label: 'End-Semester Exam' }
 ];
 
 export function ExamWizard({ open, onOpenChange, subjects, cohorts, onSubmit, isSubmitting }: ExamWizardProps) {
@@ -66,7 +60,7 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, onSubmit, is
   const canProceed = () => {
     if (step === 1) {
       return formData.subjectId && formData.cohortId && formData.semester &&
-        formData.examType && (formData.examType !== 'CUSTOM' || formData.customTypeName);
+        formData.examType;
     }
     if (step === 2) {
       return formData.maxMarks > 0;
@@ -181,17 +175,6 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, onSubmit, is
                   </SelectContent>
                 </Select>
               </div>
-
-              {formData.examType === 'CUSTOM' && (
-                <div className="space-y-2">
-                  <Label>Custom Exam Name *</Label>
-                  <Input
-                    value={formData.customTypeName}
-                    onChange={(e) => updateField('customTypeName', e.target.value)}
-                    placeholder="e.g., Lab Practical, Viva"
-                  />
-                </div>
-              )}
             </>
           )}
 

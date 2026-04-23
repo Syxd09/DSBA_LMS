@@ -106,7 +106,7 @@ export default function Auth() {
 
     toast({
       title: 'Account created!',
-      description: 'Welcome to EduMetrics. You are now signed in.',
+      description: 'Welcome to DSBA_OBE Manager. You are now signed in.',
     });
     navigate('/dashboard');
   };
@@ -121,7 +121,7 @@ export default function Auth() {
               <GraduationCap className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-semibold text-foreground text-lg">EduMetrics</h1>
+              <h1 className="font-semibold text-foreground text-lg">DSBA_OBE Manager</h1>
               <p className="text-xs text-muted-foreground">Academic Excellence Platform</p>
             </div>
           </div>
@@ -280,7 +280,7 @@ export default function Auth() {
       {/* Footer */}
       <footer className="border-t border-border bg-card py-6">
         <div className="container mx-auto px-6 text-center text-sm text-muted-foreground">
-          © 2024 EduMetrics. Academic Excellence Platform.
+          © 2024 DSBA_OBE Manager. Academic Excellence Platform.
         </div>
       </footer>
     </div>

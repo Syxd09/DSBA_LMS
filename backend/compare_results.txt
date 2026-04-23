@@ -1,8 +1,0 @@
-{
-  "modelsTotal": 39,
-  "userTablesTotal": 38,
-  "missingInDb": [
-    "FeedbackCategoryOption"
-  ],
-  "extraInDb": []
-}

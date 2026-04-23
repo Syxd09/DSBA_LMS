@@ -8,6 +8,7 @@ import {
     addParticipants,
     removeParticipant,
     deleteConversation,
+    clearMessages,
     getMessagingContacts
 } from '../controllers/messaging.controller';
 import { upload, uploadAttachment, serveFile } from '../controllers/file-upload.controller';
@@ -26,6 +27,7 @@ router.post('/conversations', createConversation);
 router.get('/conversations', getConversations);
 router.get('/conversations/:id', getConversationById);
 router.delete('/conversations/:id', deleteConversation);
+router.delete('/conversations/:id/messages', clearMessages);
 
 // Participant management
 router.post('/conversations/:id/participants', addParticipants);

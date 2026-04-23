@@ -12,6 +12,7 @@ import api from '@/lib/api';
 interface Student {
   id: string;
   fullName: string;
+  registrationNumber?: string;
   email: string;
   departmentId?: string;
 }
@@ -68,6 +69,7 @@ export default function TeacherAssignedStudents() {
   });
 
   const filteredStudents = students.filter((student) =>
+    student.registrationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     student.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     student.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -165,6 +167,9 @@ export default function TeacherAssignedStudents() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <CardTitle className="text-lg">{student.fullName}</CardTitle>
+                        {student.registrationNumber && (
+                          <div className="text-xs font-mono text-muted-foreground mt-0.5">Reg: {student.registrationNumber}</div>
+                        )}
                         <CardDescription className="mt-1">
                           {student.email}
                         </CardDescription>

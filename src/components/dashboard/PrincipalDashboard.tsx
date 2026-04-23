@@ -28,16 +28,32 @@ export function PrincipalDashboard() {
     }
   });
 
+  const { data: globalAttainment = [] } = useQuery({
+    queryKey: ['global-attainment'],
+    queryFn: async () => {
+      const { data } = await api.get('/analytics/global-attainment');
+      return data;
+    }
+  });
+
+  const { data: performanceTrend = [] } = useQuery({
+    queryKey: ['performance-trend'],
+    queryFn: async () => {
+      const { data } = await api.get('/analytics/performance-trend');
+      return data;
+    }
+  });
+
   const studentCount = stats?.students || 0;
   const teacherCount = stats?.teachers || 0;
-  const atRiskCount = 0; // TODO: Implement real risk analysis
+  const atRiskCount = stats?.alerts?.studentsAtRisk || 0;
 
   const departmentStats = departments.map((dept: any) => ({
     name: dept.name,
-    passPercentage: 0, // No real data yet
-    averageScore: 0,   // No real data yet
+    passPercentage: 0, // Still need a per-dept pass rate if not in /departments
+    averageScore: 0,   // Still need a per-dept average score
     totalStudents: dept._count?.users || 0,
-    atRiskStudents: 0,
+    atRiskStudents: 0, // We could count this by filtering the at-risk list if needed
   }));
 
   return (
@@ -167,12 +183,12 @@ export function PrincipalDashboard() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <AtRiskStudentsWidget riskLevel="medium" maxDisplay={5} />
-        <COAttainmentChart data={[]} />
+        <COAttainmentChart data={globalAttainment} />
       </div>
 
       {/* Performance Trend */}
       <div>
-        <PerformanceTrendChart data={[]} />
+        <PerformanceTrendChart data={performanceTrend} />
       </div>
 
       {/* Recent Activity & Departments */}

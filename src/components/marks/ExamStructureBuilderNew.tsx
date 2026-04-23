@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Plus, Trash2, GripVertical, Save, AlertCircle, CheckCircle2, 
   BookOpen, Target, Eye, EyeOff, BookText, Info 
@@ -49,6 +50,7 @@ interface ExamStructureBuilderProps {
   initialSections?: SectionInput[];
   onSave: (sections: SectionInput[]) => Promise<void>;
   isLoading?: boolean;
+  readOnly?: boolean;
 }
 
 const bloomLevels = ['Remember', 'Understand', 'Apply', 'Analyze', 'Evaluate', 'Create'];
@@ -66,7 +68,8 @@ export function ExamStructureBuilderNew({
   courseOutcomes, 
   initialSections,
   onSave,
-  isLoading 
+  isLoading,
+  readOnly = false
 }: ExamStructureBuilderProps) {
   const [sections, setSections] = useState<SectionInput[]>(initialSections || []);
   const [isSaving, setIsSaving] = useState(false);
@@ -119,6 +122,7 @@ export function ExamStructureBuilderNew({
   }, [sections]);
 
   const addSection = () => {
+    if (readOnly) return;
     const newSection: SectionInput = {
       id: `temp-${Date.now()}`,
       name: `Section ${String.fromCharCode(65 + sections.length)}`,
@@ -324,6 +328,7 @@ export function ExamStructureBuilderNew({
   };
 
   const handleSave = async () => {
+    if (readOnly) return;
     setIsSaving(true);
     try {
       await onSave(sections);
@@ -348,7 +353,7 @@ export function ExamStructureBuilderNew({
     if (!co) return null;
     return {
       ...co,
-      code: co.code || `CO${co.co_number || '?'}`
+      code: co.code
     };
   };
 
@@ -374,16 +379,26 @@ export function ExamStructureBuilderNew({
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={addSection}>
+          <Button variant="outline" onClick={addSection} disabled={readOnly}>
             <Plus className="w-4 h-4 mr-2" />
             Add Section
           </Button>
-          <Button onClick={handleSave} disabled={isSaving || coStats.completionPercent < 100}>
+          <Button onClick={handleSave} disabled={isSaving || coStats.completionPercent < 100 || readOnly}>
             <Save className="w-4 h-4 mr-2" />
             {isSaving ? 'Saving...' : 'Save Structure'}
           </Button>
         </div>
       </div>
+
+      {readOnly && (
+        <Alert variant="default" className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+          <Info className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-800 dark:text-blue-200">
+            <strong>Structure Locked:</strong> Student marks have already been recorded for this exam. 
+            The structure cannot be modified unless all marks are deleted.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* CO Coverage Progress */}
       {sections.length > 0 && (
@@ -470,7 +485,11 @@ export function ExamStructureBuilderNew({
                               updateSectionField(section.id, 'name', e.target.value);
                             }}
                             onClick={(e) => e.stopPropagation()}
-                            className="font-semibold text-lg border-0 px-0 focus-visible:ring-1 max-w-sm h-auto py-0"
+                            readOnly={readOnly}
+                            className={cn(
+                              "font-semibold text-lg border-0 px-0 focus-visible:ring-1 max-w-sm h-auto py-0",
+                              readOnly && "cursor-default"
+                            )}
                           />
                           <div className="flex items-center gap-3 mt-1">
                             <Badge variant="secondary" className="font-normal">
@@ -506,6 +525,7 @@ export function ExamStructureBuilderNew({
                       variant="ghost" 
                       size="icon"
                       onClick={() => removeSection(section.id)}
+                      disabled={readOnly}
                       className="text-muted-foreground hover:text-destructive flex-shrink-0"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -526,6 +546,7 @@ export function ExamStructureBuilderNew({
                         type="number"
                         value={section.requiredQuestions}
                         onChange={(e) => updateSectionField(section.id, 'requiredQuestions', parseInt(e.target.value) || 1)}
+                        readOnly={readOnly}
                         className="w-16 h-7 text-sm"
                         min={1}
                         max={section.questions.length || 1}
@@ -534,8 +555,9 @@ export function ExamStructureBuilderNew({
                     <div className="flex items-center gap-2">
                       <Label className="text-xs text-muted-foreground">Selection:</Label>
                       <Select
-                        value={section.selectionMode}
+                        value={section.selectionMode || 'FIRST_N'}
                         onValueChange={(value: 'FIRST_N' | 'BEST_N') => updateSectionField(section.id, 'selectionMode', value)}
+                        disabled={readOnly}
                       >
                         <SelectTrigger className="w-28 h-7 text-sm">
                           <SelectValue />
@@ -559,6 +581,7 @@ export function ExamStructureBuilderNew({
                             variant="outline"
                             size="sm"
                             onClick={() => addQuestion(section.id)}
+                            disabled={readOnly}
                           >
                             <Plus className="w-4 h-4 mr-2" />
                             Add First Question
@@ -575,7 +598,7 @@ export function ExamStructureBuilderNew({
                                   </span>
                                   
                                   {/* GAP 1: Derived CO badge (read-only) */}
-                                  {(( ) => {
+                                  {(() => {
                                     const derivedCO = deriveQuestionCO(question.subQuestions);
                                     if (derivedCO === 'mixed') {
                                       return (
@@ -601,10 +624,10 @@ export function ExamStructureBuilderNew({
                                       );
                                     }
                                   })()}
-                                  
                                   <Select
-                                    value={question.bloomLevel}
+                                    value={question.bloomLevel || ''}
                                     onValueChange={(value) => updateQuestionField(section.id, question.id, 'bloomLevel', value)}
+                                    disabled={readOnly}
                                   >
                                     <SelectTrigger className="w-32 h-8">
                                       <SelectValue />
@@ -620,6 +643,7 @@ export function ExamStructureBuilderNew({
                                       type="checkbox"
                                       checked={question.isOptional}
                                       onChange={(e) => updateQuestionField(section.id, question.id, 'isOptional', e.target.checked)}
+                                      disabled={readOnly}
                                       className="rounded border-border"
                                     />
                                     Optional
@@ -629,6 +653,7 @@ export function ExamStructureBuilderNew({
                                   variant="ghost" 
                                   size="icon"
                                   onClick={() => removeQuestion(section.id, question.id)}
+                                  disabled={readOnly}
                                   className="h-8 w-8 text-muted-foreground hover:text-destructive"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -653,6 +678,7 @@ export function ExamStructureBuilderNew({
                                           type="number" 
                                           value={sq.maxMarks} 
                                           onChange={(e) => updateSubQuestionField(section.id, question.id, sq.id, 'maxMarks', parseInt(e.target.value) || 0)}
+                                          readOnly={readOnly}
                                           className="w-16 h-8 text-sm" 
                                           min={0}
                                         />
@@ -661,6 +687,7 @@ export function ExamStructureBuilderNew({
                                       <Select
                                         value={sq.coId || ''}
                                         onValueChange={(value) => updateSubQuestionField(section.id, question.id, sq.id, 'coId', value || null)}
+                                        disabled={readOnly}
                                       >
                                         <SelectTrigger className={cn(
                                           "h-8 text-sm w-20",
@@ -672,7 +699,7 @@ export function ExamStructureBuilderNew({
                                         </SelectTrigger>
                                         <SelectContent>
                                           {courseOutcomes.map(co => {
-                                            const coCode = co.code || `CO${co.co_number || '?'}`;
+                                            const coCode = co.code;
                                             return (
                                               <SelectItem key={co.id} value={co.id}>
                                                 <span className="font-medium">{coCode}</span>
@@ -683,8 +710,9 @@ export function ExamStructureBuilderNew({
                                       </Select>
 
                                       <Select
-                                        value={sq.bloomLevel}
+                                        value={sq.bloomLevel || ''}
                                         onValueChange={(value) => updateSubQuestionField(section.id, question.id, sq.id, 'bloomLevel', value)}
+                                        disabled={readOnly}
                                       >
                                         <SelectTrigger className="w-32 h-8 text-sm">
                                           <SelectValue />
@@ -706,6 +734,7 @@ export function ExamStructureBuilderNew({
                                           variant="ghost"
                                           size="icon"
                                           onClick={() => removeSubQuestion(section.id, question.id, sq.id)}
+                                          disabled={readOnly}
                                           className="h-7 w-7 text-muted-foreground hover:text-destructive"
                                         >
                                           <Trash2 className="w-3 h-3" />
@@ -714,11 +743,11 @@ export function ExamStructureBuilderNew({
                                     </div>
                                   );
                                 })}
-                                
-                                <Button
+                                                             <Button
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => addSubQuestion(section.id, question.id)}
+                                  disabled={readOnly}
                                   className="w-full border-dashed border"
                                 >
                                   <Plus className="w-3.5 h-3.5 mr-2" />
@@ -735,6 +764,7 @@ export function ExamStructureBuilderNew({
                         size="sm"
                         className="w-full border-dashed"
                         onClick={() => addQuestion(section.id)}
+                        disabled={readOnly}
                       >
                         <Plus className="w-4 h-4 mr-2" />
                         Add Question

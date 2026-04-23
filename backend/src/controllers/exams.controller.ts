@@ -10,11 +10,38 @@ interface SubQuestionInput {
     coId: string;
 }
 
-export const getTeacherExams = async (req: AuthRequest, res: Response) => {
+export const getExams = async (req: AuthRequest, res: Response) => {
     try {
         const userId = req.user?.userId;
+        const userRole = req.user?.role?.toUpperCase();
+        
+        const where: any = {};
+
+        // RBAC: Logic based on role
+        if (userRole === 'TEACHER') {
+            where.teacherId = userId;
+        } else if (userRole === 'HOD') {
+            // Find HOD's department
+            const department = await prisma.department.findFirst({
+                where: { hodId: userId }
+            });
+            if (department) {
+                // Filter exams by subjects belonging to the department
+                where.subject = {
+                    curriculum: {
+                        program: {
+                            departmentId: department.id
+                        }
+                    }
+                };
+            } else {
+                return res.json([]);
+            }
+        }
+        // PRINCIPAL and ADMIN see all exams (where = {})
+
         const exams = await prisma.exam.findMany({
-            where: { teacherId: userId },
+            where,
             include: {
                 subject: { select: { id: true, name: true, code: true } },
                 cohort: { select: { id: true, name: true } },
@@ -23,7 +50,8 @@ export const getTeacherExams = async (req: AuthRequest, res: Response) => {
         });
         res.json(exams);
     } catch (error) {
-        res.status(500).json({ message: 'Error fetching exams', error });
+        console.error('Error fetching exams:', error);
+        res.status(500).json({ message: 'Error fetching exams', error: String(error) });
     }
 };
 
@@ -163,11 +191,11 @@ export const getStudentsByCohort = async (req: AuthRequest, res: Response) => {
 
         const students = enrollments.map(e => ({
             studentId: e.student.id,
-            rollNumber: e.rollNumber,
-            studentName: e.student.fullName
+            studentName: e.student.fullName,
+            registrationNumber: e.student.registrationNumber
         }));
 
-        console.log(`✅ Returning ${students.length} students:`, students.map(s => s.rollNumber).join(', '));
+        console.log(`✅ Returning ${students.length} students:`, students.map(s => s.registrationNumber).join(', '));
         res.json(students);
     } catch (error) {
         console.error('❌ Error fetching students:', error);
@@ -188,26 +216,67 @@ export const updateExamStructure = async (req: AuthRequest, res: Response) => {
                 return res.status(403).json({ message: 'Access denied: You can only edit your own exams' });
             }
         }
-        // sections: [{ name, sequence, maxMarks, ..., questions: [...] }]
 
-        // Filter out temporary IDs (frontend generates temp-* IDs for new items)
+        // CRITICAL CHECK: Prevent changing structure if marks already exist
+        // Deleting structure with marks causes foreign key constraint violations (500 error)
+        const marksCount = await prisma.studentMark.count({
+            where: { examId: id }
+        });
+
+        if (marksCount > 0) {
+            console.warn(`⚠️ Attempted to update structure for exam ${id} which already has ${marksCount} student marks.`);
+            return res.status(409).json({
+                message: 'Cannot modify exam structure because student marks have already been recorded. Please delete the marks first if you must change the structure.',
+                marksCount
+            });
+        }
+
+        // Filter out temporary IDs and handle empty values
         const cleanedSections = sections.map((section: any) => ({
             ...section,
             id: section.id?.startsWith('temp-') ? undefined : section.id,
             questions: section.questions?.map((q: any) => ({
                 ...q,
                 id: q.id?.startsWith('temp-') ? undefined : q.id,
+                coId: q.coId || null,
                 subQuestions: q.subQuestions?.map((sq: any) => ({
                     ...sq,
-                    id: sq.id?.startsWith('temp-') ? undefined : sq.id
+                    id: sq.id?.startsWith('temp-') ? undefined : sq.id,
+                    coId: sq.coId || null
                 }))
             }))
         }));
 
         // Use transaction to replace structure
         await prisma.$transaction(async (tx) => {
-            // Delete existing sections (cascades to questions/subquestions)
-            await tx.examSection.deleteMany({ where: { examId: id } });
+            // Manual Cascade Delete: Schema doesn't have onDelete: Cascade configured
+            const existingSections = await tx.examSection.findMany({
+                where: { examId: id },
+                select: { id: true }
+            });
+            const sectionIds = existingSections.map(s => s.id);
+
+            if (sectionIds.length > 0) {
+                const existingQuestions = await tx.question.findMany({
+                    where: { sectionId: { in: sectionIds } },
+                    select: { id: true }
+                });
+                const questionIds = existingQuestions.map(q => q.id);
+
+                if (questionIds.length > 0) {
+                    await tx.subQuestion.deleteMany({
+                        where: { questionId: { in: questionIds } }
+                    });
+                    
+                    await tx.question.deleteMany({
+                        where: { sectionId: { in: sectionIds } }
+                    });
+                }
+
+                await tx.examSection.deleteMany({
+                    where: { examId: id }
+                });
+            }
 
             for (const section of cleanedSections) {
                 const createdSection = await tx.examSection.create({
@@ -234,22 +303,29 @@ export const updateExamStructure = async (req: AuthRequest, res: Response) => {
                     });
 
                     if (q.subQuestions && q.subQuestions.length > 0) {
-                        await tx.subQuestion.createMany({
-                            data: q.subQuestions.map((sq: SubQuestionInput) => ({
-                                questionId: createdQuestion.id,
-                                label: sq.label,
-                                maxMarks: sq.maxMarks,
-                                bloomLevel: sq.bloomLevel,
-                                coId: sq.coId
-                            }))
-                        });
+                        for (const sq of q.subQuestions) {
+                            await tx.subQuestion.create({
+                                data: {
+                                    questionId: createdQuestion.id,
+                                    label: sq.label,
+                                    maxMarks: sq.maxMarks,
+                                    bloomLevel: sq.bloomLevel,
+                                    coId: sq.coId
+                                }
+                            });
+                        }
                     }
                 }
             }
         });
 
         res.json({ message: 'Exam structure updated' });
-    } catch (error) {
+    } catch (error: any) {
+        // Log deep error with stack trace for debugging
+        import('../utils/logger').then(({ logger }) => {
+            logger.error(`❌ Error updating exam structure for ID ${req.params.id}: ${error.message}\n${error.stack}`);
+        });
+        
         console.error('Error updating exam structure:', error);
         res.status(500).json({
             message: 'Error updating structure',

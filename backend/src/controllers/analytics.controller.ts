@@ -1,3 +1,5 @@
+import { getAtRiskStudentsCount } from './student-analytics.controller';
+
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../services/db';
@@ -413,5 +415,108 @@ export const getCOPOTraceability = async (req: AuthRequest, res: Response) => {
     } catch (error) {
         console.error('[CO-PO Traceability] Error:', error);
         res.status(500).json({ message: 'Error fetching traceability data' });
+    }
+};
+export const getGlobalAttainmentStats = async (req: AuthRequest, res: Response) => {
+    try {
+        const userRole = req.user?.role?.toUpperCase();
+        const userId = req.user?.userId;
+
+        const where: any = {};
+
+        // RBAC: HOD filter
+        if (userRole === 'HOD') {
+            const department = await prisma.department.findFirst({
+                where: { hodId: userId }
+            });
+            if (department) {
+                where.subject = {
+                    curriculum: {
+                        program: {
+                            departmentId: department.id
+                        }
+                    }
+                };
+            } else {
+                return res.json([]);
+            }
+        }
+
+        const attainments = await prisma.cOAttainment.findMany({
+            where,
+            include: { co: true }
+        });
+
+        const coAggregation: Record<string, { total: number; count: number }> = {};
+        attainments.forEach(att => {
+            const label = `CO${att.co.coNumber}`;
+            if (!coAggregation[label]) coAggregation[label] = { total: 0, count: 0 };
+            coAggregation[label].total += att.achievedPercent;
+            coAggregation[label].count += 1;
+        });
+
+        const stats = Object.entries(coAggregation).map(([co, data]) => ({
+            co,
+            attainment: Math.round(data.total / data.count),
+            target: 70 // Default target
+        })).sort((a, b) => a.co.localeCompare(b.co, undefined, { numeric: true }));
+
+        res.json(stats);
+    } catch (error) {
+        console.error('Error fetching global attainment stats:', error);
+        res.status(500).json({ message: 'Error fetching global attainment stats' });
+    }
+};
+
+export const getOverallPerformanceTrend = async (req: AuthRequest, res: Response) => {
+    try {
+        const userRole = req.user?.role?.toUpperCase();
+        const userId = req.user?.userId;
+
+        const where: any = {};
+
+        // RBAC: HOD filter
+        if (userRole === 'HOD') {
+            const department = await prisma.department.findFirst({
+                where: { hodId: userId }
+            });
+            if (department) {
+                where.subject = {
+                    curriculum: {
+                        program: {
+                            departmentId: department.id
+                        }
+                    }
+                };
+            } else {
+                return res.json([]);
+            }
+        }
+
+        const attainments = await prisma.cOAttainment.findMany({
+            where,
+            include: { co: true },
+            orderBy: { semester: 'asc' }
+        });
+
+        const semesterMap: Record<string, any> = {};
+        attainments.forEach(att => {
+            const sem = `Sem ${att.semester}`;
+            if (!semesterMap[sem]) {
+                semesterMap[sem] = { semester: sem, CO1: 0, CO2: 0, CO3: 0, CO4: 0, CO5: 0 };
+            }
+            const coLabel = `CO${att.co.coNumber}`;
+            if (semesterMap[sem].hasOwnProperty(coLabel)) {
+                // If multiple COs for same sem, take average or latest? 
+                // Currently taking latest value found in sort order.
+                semesterMap[sem][coLabel] = att.achievedPercent;
+            }
+        });
+
+        const trend = Object.values(semesterMap);
+        res.json(trend);
+    } catch (error) {
+        console.error('Error fetching performance trend:', error);
+        res.status(500).json({ message: 'Error fetching performance trend' });
     }
 };

@@ -33,7 +33,10 @@ async function main() {
         const students = await prisma.studentEnrollment.findMany({
             where: { cohortId: assign.cohortId },
             take: 3,
-            select: { rollNumber: true, semester: true }
+            select: { 
+                semester: true,
+                student: { select: { registrationNumber: true } }
+            }
         });
         if (students.length > 0) {
             console.log('Sample Students:', students);

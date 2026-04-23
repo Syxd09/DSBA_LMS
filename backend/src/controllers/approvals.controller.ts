@@ -46,7 +46,7 @@ export const getPendingRequests = async (req: AuthRequest, res: Response) => {
                 requester: {
                     select: {
                         id: true,
-                        fullName: true,
+                        fullName: true, registrationNumber: true,
                         email: true,
                         department: { select: { id: true, name: true, code: true } }
                     }

@@ -4,6 +4,7 @@ import prisma from '../services/db';
 import { createAuditLog } from '../middleware/audit.middleware';
 import { calculateCOAttainmentForExam } from '../services/co-attainment.service';
 import { calculatePOAttainmentForSubject } from '../services/po-attainment.service';
+import { calculateMarksComputed } from '../services/marks-computation.service';
 
 // Publish exam (change status to PUBLISHED)
 export const publishExam = async (req: AuthRequest, res: Response) => {
@@ -43,6 +44,9 @@ export const publishExam = async (req: AuthRequest, res: Response) => {
 
         // Calculate CO attainment (don't fail publish if this fails)
         try {
+            console.log(`[Publish] Calculating student totals (MarksComputed) for exam ${id}`);
+            await calculateMarksComputed(id);
+
             console.log(`[Publish] Calculating CO attainment for exam ${id}`);
             await calculateCOAttainmentForExam(id);
 
@@ -120,6 +124,10 @@ export const recalculateAttainment = async (req: AuthRequest, res: Response) => 
         }
 
         console.log(`[Recalculate] Found ${marksCount} student marks`);
+
+        // Calculate student totals (MarksComputed)
+        console.log(`[Recalculate] Calculating student totals for exam: ${id}`);
+        await calculateMarksComputed(id);
 
         // Calculate CO attainment
         await calculateCOAttainmentForExam(id);

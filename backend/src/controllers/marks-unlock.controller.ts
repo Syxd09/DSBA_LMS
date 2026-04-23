@@ -285,9 +285,9 @@ export const getUnlockRequests = async (req: AuthRequest, res: Response) => {
                         cohort: { select: { name: true } }
                     }
                 },
-                requester: { select: { fullName: true, email: true } },
-                hodApprover: { select: { fullName: true } },
-                principalApprover: { select: { fullName: true } }
+                requester: { select: { fullName: true, registrationNumber: true, email: true } },
+                hodApprover: { select: { fullName: true, registrationNumber: true } },
+                principalApprover: { select: { fullName: true, registrationNumber: true } }
             },
             orderBy: { createdAt: 'desc' }
         });

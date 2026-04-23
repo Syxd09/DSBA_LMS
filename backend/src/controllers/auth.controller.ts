@@ -129,7 +129,21 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
     try {
         const { email, password } = req.body;
-        const user = await prisma.user.findUnique({ where: { email } });
+
+        // Retry once on cold-start Prisma connection failures
+        let user;
+        try {
+            user = await prisma.user.findUnique({ where: { email } });
+        } catch (dbError: any) {
+            // Cold-start: Prisma pool not ready yet — wait 2s and retry
+            if (dbError?.code === 'P1001' || dbError?.code === 'P1017' || String(dbError).includes('connect')) {
+                console.warn('[Login] DB cold-start detected, retrying in 2s...');
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                user = await prisma.user.findUnique({ where: { email } });
+            } else {
+                throw dbError;
+            }
+        }
 
         if (!user || !user.isActive) {
             return res.status(401).json({ message: 'Invalid credentials or inactive account' });
@@ -147,14 +161,14 @@ export const login = async (req: Request, res: Response) => {
 
         const token = jwt.sign(
             { 
-                id: user.id, // Primary ID for controllers
-                userId: user.id, // Backward compatibility
+                id: user.id,
+                userId: user.id,
                 role: user.role, 
                 email: user.email, 
                 departmentId: user.departmentId 
             },
             process.env.JWT_SECRET as string,
-            { expiresIn: '4h' } // BUG-008 FIX: Reduced from 24h for better security
+            { expiresIn: '4h' }
         );
 
         await createAuditLog(user.id, 'LOGIN', 'users', user.id);
@@ -212,7 +226,7 @@ export const getProfile = async (req: any, res: Response) => {
             select: {
                 id: true,
                 email: true,
-                fullName: true,
+                fullName: true, registrationNumber: true,
                 role: true,
                 departmentId: true,
                 department: {
@@ -228,5 +242,28 @@ export const getProfile = async (req: any, res: Response) => {
         res.json(user);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching profile', error: String(error) });
+    }
+};
+
+/**
+ * Logout endpoint.
+ * JWTs are stateless — the client must discard the token.
+ * This endpoint acknowledges logout server-side and logs it.
+ * Future: add token to a Redis blocklist for true server-side invalidation.
+ *
+ * @route POST /api/auth/logout
+ * @access Private
+ */
+export const logout = async (req: Request, res: Response) => {
+    try {
+        // Log the logout event if we have a user (token already verified by middleware)
+        const userId = (req as any).user?.id ?? (req as any).user?.userId;
+        if (userId) {
+            await createAuditLog(userId, 'LOGOUT', 'users', userId);
+        }
+        res.json({ message: 'Logged out successfully' });
+    } catch (error) {
+        // Non-critical — still return success so client clears the token
+        res.json({ message: 'Logged out successfully' });
     }
 };

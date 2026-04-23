@@ -78,7 +78,7 @@ export const createConversation = async (req: AuthRequest, res: Response) => {
                 },
                 include: {
                     participants: {
-                        include: { user: { select: { id: true, fullName: true, role: true } } }
+                        include: { user: { select: { id: true, fullName: true, registrationNumber: true, role: true } } }
                     }
                 }
             });
@@ -116,7 +116,7 @@ export const createConversation = async (req: AuthRequest, res: Response) => {
                         user: {
                             select: {
                                 id: true,
-                                fullName: true,
+                                fullName: true, registrationNumber: true,
                                 email: true,
                                 role: true,
                                 avatarUrl: true
@@ -127,7 +127,7 @@ export const createConversation = async (req: AuthRequest, res: Response) => {
                 creator: {
                     select: {
                         id: true,
-                        fullName: true,
+                        fullName: true, registrationNumber: true,
                         role: true
                     }
                 }
@@ -174,7 +174,7 @@ export const getConversations = async (req: AuthRequest, res: Response) => {
                         user: {
                             select: {
                                 id: true,
-                                fullName: true,
+                                fullName: true, registrationNumber: true,
                                 email: true,
                                 role: true,
                                 avatarUrl: true
@@ -189,7 +189,7 @@ export const getConversations = async (req: AuthRequest, res: Response) => {
                         sender: {
                             select: {
                                 id: true,
-                                fullName: true
+                                fullName: true, registrationNumber: true
                             }
                         }
                     }
@@ -271,7 +271,7 @@ export const getConversationById = async (req: AuthRequest, res: Response) => {
                         user: {
                             select: {
                                 id: true,
-                                fullName: true,
+                                fullName: true, registrationNumber: true,
                                 email: true,
                                 role: true,
                                 avatarUrl: true
@@ -289,7 +289,7 @@ export const getConversationById = async (req: AuthRequest, res: Response) => {
                         sender: {
                             select: {
                                 id: true,
-                                fullName: true,
+                                fullName: true, registrationNumber: true,
                                 role: true,
                                 avatarUrl: true
                             }
@@ -300,7 +300,7 @@ export const getConversationById = async (req: AuthRequest, res: Response) => {
                                 user: {
                                     select: {
                                         id: true,
-                                        fullName: true
+                                        fullName: true, registrationNumber: true
                                     }
                                 }
                             }
@@ -389,7 +389,7 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
                 sender: {
                     select: {
                         id: true,
-                        fullName: true,
+                        fullName: true, registrationNumber: true,
                         role: true,
                         avatarUrl: true
                     }
@@ -524,7 +524,7 @@ export const addParticipants = async (req: AuthRequest, res: Response) => {
                         user: {
                             select: {
                                 id: true,
-                                fullName: true,
+                                fullName: true, registrationNumber: true,
                                 role: true,
                                 avatarUrl: true
                             }
@@ -654,6 +654,66 @@ export const deleteConversation = async (req: AuthRequest, res: Response) => {
 };
 
 /**
+ * Clear all messages in a conversation
+ * 
+ * @route DELETE /api/messaging/conversations/:id/messages
+ * @access Principal, Admin (or conversation participant)
+ */
+export const clearMessages = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id: conversationId } = req.params;
+        const userId = req.user?.userId;
+        const userRole = req.user?.role?.toUpperCase();
+
+        if (!userId) return res.status(401).json({ message: 'Unauthorized' });
+
+        // Verify participant
+        const participant = await prisma.conversationParticipant.findUnique({
+            where: {
+                conversationId_userId: {
+                    conversationId,
+                    userId
+                }
+            }
+        });
+
+        if (!participant) {
+            return res.status(403).json({
+                message: 'You are not a participant in this conversation'
+            });
+        }
+
+        // Deletion authority: Principal, Admin, or Participant (if they want to clear their own view? 
+        // No, this deletes for everyone. So restrict to Principal/Admin/Owner)
+        const conversation = await prisma.conversation.findUnique({
+            where: { id: conversationId },
+            include: { participants: true }
+        });
+
+        const isOwner = conversation?.participants.some(p => p.userId === userId && p.role === 'OWNER');
+        
+        if (!['PRINCIPAL', 'ADMIN'].includes(userRole!) && !isOwner) {
+            return res.status(403).json({
+                message: 'Only Principal, Admin, or group owner can clear the chat for everyone'
+            });
+        }
+
+        // Delete all messages in the conversation
+        await prisma.message.deleteMany({
+            where: { conversationId }
+        });
+
+        // Audit log
+        await createAuditLog(userId, 'MESSAGES_CLEARED', 'conversation', conversationId);
+
+        res.json({ message: 'Chat cleared successfully' });
+    } catch (error: any) {
+        console.error('[Messaging] Error clearing messages:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+/**
  * Get contacts for messaging based on authority matrix
  * @route GET /api/messaging/contacts
  */
@@ -671,7 +731,7 @@ export const getMessagingContacts = async (req: AuthRequest, res: Response) => {
         // Authority Matrix
         switch (role) {
             case 'PRINCIPAL':
-                eligibleRoles = ['ADMIN', 'HOD'];
+                eligibleRoles = ['ADMIN', 'HOD', 'TEACHER'];
                 break;
             case 'ADMIN':
                 eligibleRoles = ['PRINCIPAL', 'HOD'];
@@ -696,7 +756,7 @@ export const getMessagingContacts = async (req: AuthRequest, res: Response) => {
             },
             select: {
                 id: true,
-                fullName: true,
+                fullName: true, registrationNumber: true,
                 email: true,
                 role: true,
                 avatarUrl: true

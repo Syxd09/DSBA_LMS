@@ -36,6 +36,7 @@ interface FeedbackTemplate {
 interface Student {
   id: string;
   fullName: string;
+  registrationNumber?: string;
   email: string;
 }
 
@@ -210,7 +211,10 @@ export default function CreateTeacherFeedback() {
             <div>
               <h1 className="text-3xl font-bold tracking-tight">Give Feedback</h1>
               {student && (
-                <p className="text-muted-foreground">For: {student.fullName}</p>
+                <div className="space-y-0.5 mt-1">
+                  <p className="text-muted-foreground">For: <span className="font-medium text-foreground">{student.fullName}</span></p>
+                  {student.registrationNumber && <p className="text-xs font-mono text-muted-foreground">Reg: {student.registrationNumber}</p>}
+                </div>
               )}
             </div>
           </div>

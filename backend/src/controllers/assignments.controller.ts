@@ -37,7 +37,7 @@ export const getAssignments = async (req: AuthRequest, res: Response) => {
         const assignments = await prisma.teacherAssignment.findMany({
             where,
             include: {
-                teacher: { select: { id: true, fullName: true, email: true } },
+                teacher: { select: { id: true, fullName: true, registrationNumber: true, email: true } },
                 subject: { select: { id: true, name: true, code: true, semester: true } },
                 cohort: { select: { id: true, name: true, currentSemester: true } },
                 department: { select: { id: true, name: true, code: true } }
@@ -45,18 +45,38 @@ export const getAssignments = async (req: AuthRequest, res: Response) => {
             orderBy: { createdAt: 'desc' }
         });
 
-        // Enrich with student counts if needed (e.g. for dashboard)
-        const enrichedAssignments = await Promise.all(assignments.map(async (a) => {
-            const studentCount = await prisma.studentEnrollment.count({
-                where: {
-                    cohortId: a.cohortId,
-                    departmentId: a.departmentId,
-                    semester: a.semester,
-                    status: 'active'
-                }
-            });
-            return { ...a, studentCount };
+        // M-3 Optimization: Fetch all student counts in one query instead of N (one per assignment)
+        // Group by cohortId, departmentId, and semester to match assignment structure
+        const classCombos = assignments.map(a => ({
+            cohortId: a.cohortId,
+            departmentId: a.departmentId,
+            semester: a.semester
         }));
+
+        // Remove duplicates to minimize the IN clause
+        const uniqueCohorts = [...new Set(classCombos.map(c => c.cohortId))];
+
+        const studentCounts = await prisma.studentEnrollment.groupBy({
+            by: ['cohortId', 'departmentId', 'semester'],
+            where: {
+                cohortId: { in: uniqueCohorts },
+                status: 'active'
+            },
+            _count: { _all: true }
+        });
+
+        // Map counts back to assignments
+        const enrichedAssignments = assignments.map(a => {
+            const countObj = studentCounts.find(c => 
+                c.cohortId === a.cohortId && 
+                c.departmentId === a.departmentId && 
+                c.semester === a.semester
+            );
+            return {
+                ...a,
+                studentCount: countObj?._count._all || 0
+            };
+        });
 
         res.json(enrichedAssignments);
     } catch (error) {
@@ -84,7 +104,7 @@ export const getTeachersByClass = async (req: AuthRequest, res: Response) => {
                 teacher: {
                     select: {
                         id: true,
-                        fullName: true,
+                        fullName: true, registrationNumber: true,
                         email: true
                     }
                 },
@@ -144,13 +164,36 @@ export const getAssignmentPreview = async (req: AuthRequest, res: Response) => {
 // Create assignment with strict validation
 export const createAssignment = async (req: AuthRequest, res: Response) => {
     try {
-        const { teacherId, subjectId, cohortId, departmentId, semester, academicYear } = req.body;
+        let { teacherId, subjectId, cohortId, departmentId, semester, academicYear } = req.body;
         console.log('DEBUG: createAssignment start', { teacherId, subjectId, cohortId, departmentId, semester, academicYear });
 
-        if (!teacherId || !subjectId || !cohortId || !departmentId) {
+        if (!teacherId || !subjectId || !cohortId) {
             return res.status(400).json({
-                message: 'Teacher ID, Subject ID, Cohort ID, and Department ID are required'
+                message: 'Teacher ID, Subject ID, and Cohort ID are required'
             });
+        }
+
+        // If departmentId is missing, try to fetch it from the subject's curriculum/program
+        if (!departmentId) {
+            const subject = await prisma.subject.findUnique({
+                where: { id: subjectId },
+                include: {
+                    curriculum: {
+                        include: {
+                            program: true
+                        }
+                    }
+                }
+            });
+            
+            if (subject?.curriculum?.program?.departmentId) {
+                departmentId = subject.curriculum.program.departmentId;
+                console.log('DEBUG: Resolved departmentId from subject', departmentId);
+            } else {
+                return res.status(400).json({
+                    message: 'Department ID is required and could not be resolved from the subject'
+                });
+            }
         }
 
         // RBAC: HOD strict check
@@ -198,7 +241,7 @@ export const createAssignment = async (req: AuthRequest, res: Response) => {
                 academicYear: academicYear || new Date().getFullYear().toString()
             },
             include: {
-                teacher: { select: { fullName: true, email: true } },
+                teacher: { select: { fullName: true, registrationNumber: true, email: true } },
                 subject: { select: { name: true, code: true } },
                 cohort: { select: { name: true } },
                 department: { select: { name: true, code: true } }

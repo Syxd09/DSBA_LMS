@@ -41,11 +41,11 @@ export const mockBloomPerformance: BloomPerformance[] = [
 ];
 
 export const mockStudentMarks: StudentMark[] = [
-  { studentId: '1', studentName: 'Rahul Mehta', rollNumber: 'CS2021001', marks: { 'q1a': 8, 'q1b': 7, 'q2a': 9, 'q2b': 6, 'q3a': 8, 'q3b': 7 }, totalMarks: 45, selectedQuestions: ['q1', 'q2', 'q3'] },
-  { studentId: '2', studentName: 'Priya Singh', rollNumber: 'CS2021002', marks: { 'q1a': 9, 'q1b': 8, 'q2a': 7, 'q2b': 8, 'q3a': 9, 'q3b': 8 }, totalMarks: 49, selectedQuestions: ['q1', 'q2', 'q3'] },
-  { studentId: '3', studentName: 'Amit Kumar', rollNumber: 'CS2021003', marks: { 'q1a': 6, 'q1b': 5, 'q2a': 7, 'q2b': 6, 'q3a': 5, 'q3b': 6 }, totalMarks: 35, selectedQuestions: ['q1', 'q2', 'q3'] },
-  { studentId: '4', studentName: 'Sneha Patel', rollNumber: 'CS2021004', marks: { 'q1a': 10, 'q1b': 9, 'q2a': 8, 'q2b': 9, 'q3a': 10, 'q3b': 8 }, totalMarks: 54, selectedQuestions: ['q1', 'q2', 'q3'] },
-  { studentId: '5', studentName: 'Vikram Joshi', rollNumber: 'CS2021005', marks: { 'q1a': 7, 'q1b': 6, 'q2a': 8, 'q2b': 7, 'q3a': 7, 'q3b': 7 }, totalMarks: 42, selectedQuestions: ['q1', 'q2', 'q3'] },
+  { studentId: '1', studentName: 'Rahul Mehta', registrationNumber: 'CS2021001', marks: { 'q1a': 8, 'q1b': 7, 'q2a': 9, 'q2b': 6, 'q3a': 8, 'q3b': 7 }, totalMarks: 45, selectedQuestions: ['q1', 'q2', 'q3'] },
+  { studentId: '2', studentName: 'Priya Singh', registrationNumber: 'CS2021002', marks: { 'q1a': 9, 'q1b': 8, 'q2a': 7, 'q2b': 8, 'q3a': 9, 'q3b': 8 }, totalMarks: 49, selectedQuestions: ['q1', 'q2', 'q3'] },
+  { studentId: '3', studentName: 'Amit Kumar', registrationNumber: 'CS2021003', marks: { 'q1a': 6, 'q1b': 5, 'q2a': 7, 'q2b': 6, 'q3a': 5, 'q3b': 6 }, totalMarks: 35, selectedQuestions: ['q1', 'q2', 'q3'] },
+  { studentId: '4', studentName: 'Sneha Patel', registrationNumber: 'CS2021004', marks: { 'q1a': 10, 'q1b': 9, 'q2a': 8, 'q2b': 9, 'q3a': 10, 'q3b': 8 }, totalMarks: 54, selectedQuestions: ['q1', 'q2', 'q3'] },
+  { studentId: '5', studentName: 'Vikram Joshi', registrationNumber: 'CS2021005', marks: { 'q1a': 7, 'q1b': 6, 'q2a': 8, 'q2b': 7, 'q3a': 7, 'q3b': 7 }, totalMarks: 42, selectedQuestions: ['q1', 'q2', 'q3'] },
 ];
 
 export const examPerformanceData = [

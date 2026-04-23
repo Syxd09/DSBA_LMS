@@ -8,15 +8,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   User, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, 
-  Target, Brain, BarChart3, Award, Loader2, MessageSquareQuote, Star 
+  Target, Brain, BarChart3, Award, Loader2, MessageSquareQuote, Star,
+  Building2, BookOpen
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend } from 'recharts';
 import api from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
+import { useAcademicContext } from '@/contexts/AcademicContext';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
 
 interface StudentAnalytics {
   studentId: string;
   studentName: string;
-  rollNumber: string;
+  registrationNumber: string;
   cohortName: string;
   overallPerformance: {
     totalExams: number;
@@ -77,15 +89,66 @@ const getRiskBadgeVariant = (risk: string) => {
 };
 
 export default function StudentAnalytics() {
+  const { user } = useAuth();
+  const role = user?.role?.toLowerCase();
+  const { 
+    cohortId, setCohortId, 
+    semester, setSemester, 
+    departmentId, setDepartmentId 
+  } = useAcademicContext();
+  
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
-  // Fetch students for selection
-  const { data: students } = useQuery({
-    queryKey: ['students-list'],
+  // Fetch departments (for HOD/Admin)
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments'],
     queryFn: async () => {
-      const { data } = await api.get('/users?role=STUDENT');
+      const { data } = await api.get('/departments');
       return data || [];
     },
+    enabled: role !== 'teacher' && role !== 'student'
+  });
+
+  // Fetch teacher assignments
+  const { data: assignments = [] } = useQuery({
+    queryKey: ['my-assignments', user?.id],
+    queryFn: async () => {
+      const { data } = await api.get('/assignments');
+      return data.filter((a: any) => a.teacherId === user?.id) || [];
+    },
+    enabled: role === 'teacher'
+  });
+
+  // Fetch cohorts (filtered by department for HOD)
+  const { data: cohorts = [] } = useQuery({
+    queryKey: ['cohorts', departmentId],
+    queryFn: async () => {
+      const { data } = await api.get('/cohorts');
+      if (departmentId && role !== 'teacher') {
+        return data.filter((c: any) => c.program?.departmentId === departmentId);
+      }
+      return data || [];
+    },
+    enabled: !!(role !== 'teacher' && role !== 'student')
+  });
+
+  // Fetch students for selection - filtered by cohort
+  const { data: students = [] } = useQuery({
+    queryKey: ['students-list', cohortId, semester],
+    queryFn: async () => {
+      // If we have a cohortId, fetch enrollments to get students for that cohort
+      if (cohortId) {
+        const { data } = await api.get(`/enrollments?cohortId=${cohortId}&semester=${semester}`);
+        return (data || []).map((e: any) => e.student);
+      }
+      // Only for Admin/HOD: if no cohort selected, return all students (or empty)
+      if (role === 'admin' || role === 'principal') {
+          const { data } = await api.get('/users?role=STUDENT');
+          return data || [];
+      }
+      return [];
+    },
+    enabled: !!(cohortId || (role === 'admin' || role === 'principal'))
   });
 
   // Fetch student analytics
@@ -124,26 +187,138 @@ export default function StudentAnalytics() {
           <p className="text-muted-foreground">Comprehensive student performance tracking and analysis</p>
         </div>
 
-        {/* Student Selection */}
+        {/* Academic Context Selector */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base font-semibold">Select Student</CardTitle>
+          <CardHeader className="pb-3 border-b bg-muted/20">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-primary" />
+              Academic Context
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <select
-              className="w-full max-w-md px-3 py-2 border rounded-md"
-              value={selectedStudentId}
-              onChange={(e) => setSelectedStudentId(e.target.value)}
-            >
-              <option value="">-- Select a student --</option>
-              {students?.map((student: any) => (
-                <option key={student.id} value={student.id}>
-                  {student.fullName} ({student.email})
-                </option>
-              ))}
-            </select>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {role === 'teacher' ? (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Assigned Subject</Label>
+                    <Select
+                      value={cohortId}
+                      onValueChange={(val) => {
+                        const ass = assignments.find((a: any) => a.cohortId === val);
+                        if (ass) {
+                          setCohortId(ass.cohortId);
+                          setSemester(ass.semester);
+                          setDepartmentId(ass.departmentId);
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a subject" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {assignments.map((ass: any) => (
+                          <SelectItem key={ass.id} value={ass.cohortId}>
+                            {ass.subject?.name} ({ass.cohort?.name}) - Sem {ass.semester}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Semester</Label>
+                    <Input value={`Semester ${semester || '-'}`} disabled className="bg-muted" />
+                  </div>
+                  <div className="flex items-end pb-1">
+                    <Badge variant="outline" className="h-9 px-4 border-dashed capitalize">
+                      {role} Access
+                    </Badge>
+                  </div>
+                </>
+              ) : role === 'student' ? (
+                 <div className="md:col-span-3 py-2">
+                    <p className="text-sm text-muted-foreground italic">Viewing performance for your enrolled cohorts.</p>
+                 </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Department</Label>
+                    <Select value={departmentId} onValueChange={setDepartmentId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments.map((dept: any) => (
+                          <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cohort</Label>
+                    <Select value={cohortId} onValueChange={setCohortId} disabled={!departmentId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Cohort" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {cohorts.map((cohort: any) => (
+                          <SelectItem key={cohort.id} value={cohort.id}>{cohort.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Semester</Label>
+                    <Select value={String(semester)} onValueChange={(val) => setSemester(Number(val))} disabled={!cohortId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Semester" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                          <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+            </div>
           </CardContent>
         </Card>
+
+        {/* Student Selection */}
+        {role !== 'student' && (
+          !cohortId ? (
+            <div className="py-12 text-center text-muted-foreground bg-muted/10 border border-dashed rounded-lg">
+              <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-20 text-primary" />
+              <h3 className="text-lg font-semibold text-foreground mb-1">No Context Selected</h3>
+              <p>Please select an academic context above to view student analytics.</p>
+            </div>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Select Student
+                </CardTitle>
+                <CardDescription>Filtering students in selected cohort</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <select
+                  className="w-full max-w-md px-3 py-2 border border-input rounded-md bg-background"
+                  value={selectedStudentId}
+                  onChange={(e) => setSelectedStudentId(e.target.value)}
+                >
+                  <option value="">-- Select a student --</option>
+                  {students?.map((student: any) => (
+                    <option key={student.id} value={student.id}>
+                      {student.fullName} {student.registrationNumber ? `| Reg: ${student.registrationNumber}` : ''} | {student.email}
+                    </option>
+                  ))}
+                </select>
+              </CardContent>
+            </Card>
+          )
+        )}
 
         {/* Loading State */}
         {isLoading && (
@@ -173,7 +348,7 @@ export default function StudentAnalytics() {
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Student</p>
                       <p className="text-2xl font-bold">{studentData.studentName}</p>
-                      <p className="text-sm text-muted-foreground">{studentData.rollNumber}</p>
+                      <p className="text-sm text-muted-foreground">{studentData.registrationNumber}</p>
                     </div>
                     <User className="h-8 w-8 text-muted-foreground" />
                   </div>

@@ -77,6 +77,8 @@ interface MessagingContextType {
   setTyping: (conversationId: string, isTyping: boolean) => void;
   refreshConversations: () => Promise<void>;
   loadMessages: (conversationId: string) => Promise<void>;
+  deleteConversation: (id: string) => Promise<void>;
+  clearChat: (id: string) => Promise<void>;
 }
 
 const MessagingContext = createContext<MessagingContextType | undefined>(undefined);
@@ -220,6 +222,21 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
     return response.data;
   }, [refreshConversations]);
 
+  const deleteConversation = useCallback(async (id: string) => {
+    await api.delete(`/messaging/conversations/${id}`);
+    if (activeConversation?.id === id) {
+      setActiveConversation(null);
+    }
+    await refreshConversations();
+  }, [activeConversation?.id, refreshConversations]);
+
+  const clearChat = useCallback(async (id: string) => {
+    await api.delete(`/messaging/conversations/${id}/messages`);
+    if (activeConversation?.id === id) {
+      setMessages([]);
+    }
+  }, [activeConversation?.id]);
+
   const sendMessage = useCallback(async (conversationId: string, content: string) => {
     if (!socket) return;
 
@@ -272,7 +289,9 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
     markAsRead,
     setTyping,
     refreshConversations,
-    loadMessages
+    loadMessages,
+    deleteConversation,
+    clearChat
   };
 
   return (

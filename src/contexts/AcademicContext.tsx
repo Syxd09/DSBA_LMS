@@ -12,6 +12,7 @@ interface AcademicContextValue extends AcademicContextState {
   setCohortId: (id: string) => void;
   setSemester: (sem: number) => void;
   setAcademicYear: (year: string) => void;
+  setAcademicContext: (data: Partial<AcademicContextState>) => void;
   resetContext: () => void;
   isContextComplete: boolean;
 }
@@ -46,30 +47,34 @@ export function AcademicContextProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
-  const setDepartmentId = (id: string) => {
+  const setDepartmentId = React.useCallback((id: string) => {
     setState(prev => ({ 
       ...prev, 
       departmentId: id,
       cohortId: '', // Reset cohort when department changes
     }));
-  };
+  }, []);
 
-  const setCohortId = (id: string) => {
+  const setCohortId = React.useCallback((id: string) => {
     setState(prev => ({ ...prev, cohortId: id }));
-  };
+  }, []);
 
-  const setSemester = (sem: number) => {
+  const setSemester = React.useCallback((sem: number) => {
     setState(prev => ({ ...prev, semester: sem }));
-  };
+  }, []);
 
-  const setAcademicYear = (year: string) => {
+  const setAcademicYear = React.useCallback((year: string) => {
     setState(prev => ({ ...prev, academicYear: year }));
-  };
+  }, []);
 
-  const resetContext = () => {
+  const setAcademicContext = React.useCallback((data: Partial<AcademicContextState>) => {
+    setState(prev => ({ ...prev, ...data }));
+  }, []);
+
+  const resetContext = React.useCallback(() => {
     setState(defaultState);
     localStorage.removeItem(STORAGE_KEY);
-  };
+  }, []);
 
   const isContextComplete = !!(state.departmentId && state.cohortId && state.semester);
 
@@ -81,6 +86,7 @@ export function AcademicContextProvider({ children }: { children: ReactNode }) {
         setCohortId,
         setSemester,
         setAcademicYear,
+        setAcademicContext,
         resetContext,
         isContextComplete,
       }}

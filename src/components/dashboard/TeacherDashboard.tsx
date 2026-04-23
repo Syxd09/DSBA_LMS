@@ -9,10 +9,12 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useAcademicContext } from '@/contexts/AcademicContext';
 
 export function TeacherDashboard() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
+  const { setCohortId, setSemester, setDepartmentId } = useAcademicContext();
 
   const { data: teacherAssignments = [] } = useQuery({
     queryKey: ['teacher-my-assignments', user?.id],
@@ -112,6 +114,23 @@ export function TeacherDashboard() {
     ? Math.round(allMarks.reduce((sum: number, mark: any) => sum + (mark.totalMarks || 0), 0) / allMarks.length)
     : 0;
 
+  // Calculate chart data from all marks for performance overview
+  const chartData = assignedSubjects.map(subject => {
+    const subjectMarks = allMarks.filter((m: any) => m.exam?.subjectId === subject.id);
+    const marks = subjectMarks.map((m: any) => {
+        const marksObtained = Number(m.marks || 0);
+        const maxMarks = m.sub_question?.maxMarks || 1;
+        return (marksObtained / maxMarks) * 100;
+    });
+    
+    return {
+      subject: subject.code,
+      highest: Math.round(marks.length > 0 ? Math.max(...marks) : 0),
+      lowest: Math.round(marks.length > 0 ? Math.min(...marks) : 0),
+      average: Math.round(marks.length > 0 ? marks.reduce((a, b) => a + b, 0) / marks.length : 0)
+    };
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -189,7 +208,16 @@ export function TeacherDashboard() {
               const int1Done = subjectExams.some((e: any) => e.examType === 'I1' && e.status === 'PUBLISHED');
               const int2Done = subjectExams.some((e: any) => e.examType === 'I2' && e.status === 'PUBLISHED');
               return (
-                <div key={subject?.id} className="p-4 border border-border">
+                <div 
+                  key={subject?.id} 
+                  className="p-4 border border-border hover:border-primary/50 transition-colors cursor-pointer group"
+                  onClick={() => {
+                    if (subject.cohortId) setCohortId(subject.cohortId);
+                    if (subject.semester) setSemester(subject.semester);
+                    if (subject.departmentId) setDepartmentId(subject.departmentId);
+                    navigate('/students');
+                  }}
+                >
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <h4 className="font-medium text-foreground">{subject?.name}</h4>
@@ -249,12 +277,13 @@ export function TeacherDashboard() {
         <CardContent>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={[]}>
+              <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="subject" />
-                <YAxis />
+                <YAxis unit="%" />
                 <Tooltip />
                 <Legend />
+                <Bar dataKey="average" name="Average" fill="hsl(var(--primary))" />
                 <Bar dataKey="highest" name="Highest" fill="hsl(var(--chart-3))" />
                 <Bar dataKey="lowest" name="Lowest" fill="hsl(var(--chart-5))" />
               </BarChart>

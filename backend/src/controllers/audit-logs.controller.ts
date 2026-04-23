@@ -1,7 +1,7 @@
-
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../services/db';
+import { getAtRiskStudentsCount } from './student-analytics.controller';
 
 export const getAuditLogs = async (req: AuthRequest, res: Response) => {
     try {
@@ -20,7 +20,7 @@ export const getAuditLogs = async (req: AuthRequest, res: Response) => {
         // Fetch all users in one query
         const users = await prisma.user.findMany({
             where: { id: { in: userIds } },
-            select: { id: true, fullName: true, email: true, role: true }
+            select: { id: true, fullName: true, registrationNumber: true, email: true, role: true }
         });
 
         // Create lookup map
@@ -103,6 +103,8 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
             where: { courseOutcomes: { none: {} } }
         });
 
+        const studentsAtRisk = await getAtRiskStudentsCount();
+
         res.json({
             departments: departmentCount,
             programs: programCount,
@@ -116,7 +118,7 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
                 pendingApprovals: pendingApprovalsCount,
                 departmentsWithoutSubjects: departmentsWithoutSubjects,
                 incompleteAttainments: subjectsWithoutAttainments,
-                studentsAtRisk: 0
+                studentsAtRisk: studentsAtRisk
             }
         });
     } catch (error) {

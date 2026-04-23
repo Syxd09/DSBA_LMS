@@ -117,11 +117,10 @@ async function smokeTest() {
                 studentId: student.id,
                 cohortId: cohort.id,
                 departmentId: dept.id,
-                rollNumber: `RN-${generateId().toUpperCase()}`,
                 semester: 1
             }
         });
-        console.log(`✅ Student Enrolled: ${enrollment.rollNumber}`);
+        console.log(`✅ Student Enrolled: ${enrollment.id}`);
 
         console.log('🎉 SMOKE TEST PASSED: All core entities created successfully.');
 

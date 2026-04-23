@@ -10,7 +10,7 @@ interface AtRiskStudent {
   studentId: string;
   studentName: string;
   email: string;
-  rollNumber: string;
+  registrationNumber: string;
   cohort: string;
   department: string;
   currentPercentage: number;
@@ -53,12 +53,10 @@ export function AtRiskStudentsWidget({
       return data;
     },
     refetchInterval: 60000, // Refresh every minute
-    // Temporarily disabled until endpoint is implemented
-    enabled: false,
+    enabled: true,
   });
 
-  // Use mock data until API endpoint is ready
-  const students = [];
+  const students = data?.data || [];
   const totalAtRisk = data?.count || 0;
 
   return (
@@ -102,9 +100,9 @@ export function AtRiskStudentsWidget({
 
         {!isLoading && !error && students.length > 0 && (
           <div className="space-y-3">
-            {students.map((student) => (
+            {students.map((student, index) => (
               <div 
-                key={student.studentId}
+                key={`${student.studentId}-${index}`}
                 className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
               >
                 <div className="flex-shrink-0">
@@ -116,7 +114,7 @@ export function AtRiskStudentsWidget({
                 <div className="flex-1 min-w-0">
                   <p className="font-medium truncate">{student.studentName}</p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{student.rollNumber}</span>
+                    <span>{student.registrationNumber}</span>
                     <span>•</span>
                     <span>{student.cohort}</span>
                   </div>

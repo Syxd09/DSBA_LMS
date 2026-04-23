@@ -6,7 +6,7 @@ export interface Exam {
   id: string;
   subject_id: string;
   cohort_id: string;
-  exam_type: string;
+  examType: string;
   max_marks: number;
   status: string;
   teacher_id: string | null;
