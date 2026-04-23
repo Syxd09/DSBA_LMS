@@ -111,7 +111,15 @@ export const requireDepartmentAccess = async (
         return next();
     }
 
-    // Teachers and students have different access patterns
-    // This should be handled in individual controllers
+    // Teachers and students must match the department if it's specified
+    if (userRole === Role.TEACHER || userRole === Role.STUDENT) {
+        if (targetDepartmentId && userDepartmentId !== targetDepartmentId) {
+            return res.status(403).json({
+                message: 'You can only access data from your assigned department',
+                code: 'DEPARTMENT_ACCESS_DENIED'
+            });
+        }
+    }
+
     next();
 };

@@ -22,6 +22,9 @@ import Cohorts from "./pages/Cohorts";
 import Exams from "./pages/Exams";
 import CourseOutcomes from "./pages/CourseOutcomes";
 import StudentEnrollments from "./pages/StudentEnrollments";
+import Attendance from './pages/Attendance';
+import Reports from './pages/Reports';
+import AuditLogs from './pages/AuditLogs';
 import Students from "./pages/Students";
 import TeacherAssignments from "./pages/TeacherAssignments";
 import GradeManagement from "./pages/GradeManagement";
@@ -69,10 +72,12 @@ const App = () => (
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-
-            {/* Protected routes — redirect to /auth if not logged in */}
             <Route path="/dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
+            <Route path="/students" element={<AuthGuard><Students /></AuthGuard>} />
+            <Route path="/attendance" element={<AuthGuard><Attendance /></AuthGuard>} />
+            <Route path="/reports" element={<AuthGuard><Reports /></AuthGuard>} />
+            <Route path="/audit-logs" element={<AuthGuard><AuditLogs /></AuthGuard>} />
+            <Route path="/auth" element={<Auth />} />
             <Route path="/approvals" element={<AuthGuard><HODDashboard /></AuthGuard>} />
             <Route path="/marks-entry" element={<AuthGuard><MarksEntry /></AuthGuard>} />
             <Route path="/analytics" element={<AuthGuard><Analytics /></AuthGuard>} />

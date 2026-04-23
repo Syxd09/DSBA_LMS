@@ -59,7 +59,7 @@ export function MessageBubble({ message, isOwn, showSender }: Props) {
       <div className="flex justify-end mb-3 w-full">
         <div className="flex flex-col items-end max-w-[70%] md:max-w-[55%]">
           {/* Message Bubble - RIGHT */}
-          <div className="rounded-lg px-3 py-2 shadow-sm bg-primary text-primary-foreground rounded-br-none">
+          <div className="rounded-2xl px-4 py-2.5 shadow-sm bg-primary text-primary-foreground rounded-br-none">
             {/* Attachments */}
             {message.attachments && message.attachments.length > 0 && (
               <div className="space-y-1.5 mb-2">

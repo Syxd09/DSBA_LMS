@@ -119,9 +119,21 @@ export const getEnrollments = async (req: AuthRequest, res: Response) => {
 export const getStudentsByClass = async (req: AuthRequest, res: Response) => {
     try {
         const { departmentId, cohortId, semester } = req.query;
+        const userRole = req.user?.role?.toUpperCase();
+        const userId = req.user?.userId;
 
         if (!cohortId) {
             return res.status(400).json({ message: 'Cohort ID is required' });
+        }
+
+        // RBAC: Teachers only see students in their assigned cohorts
+        if (userRole === 'TEACHER') {
+            const assignment = await prisma.teacherAssignment.findFirst({
+                where: { teacherId: userId, cohortId: String(cohortId) }
+            });
+            if (!assignment && userRole !== 'ADMIN') {
+                return res.status(403).json({ message: 'Access denied: You are not assigned to this cohort' });
+            }
         }
 
         const where: import('@prisma/client').Prisma.StudentEnrollmentWhereInput = { cohortId: String(cohortId) };

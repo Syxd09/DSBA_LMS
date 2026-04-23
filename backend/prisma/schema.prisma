@@ -15,6 +15,7 @@ model User {
   fullName                 String
   role                     Role                      @default(STUDENT)
   isActive                 Boolean                   @default(true)
+  deletedAt                DateTime?
   createdAt                DateTime                  @default(now())
   updatedAt                DateTime                  @updatedAt
   avatarUrl                String?
@@ -47,6 +48,7 @@ model User {
   feedbackApprovals        TeacherStudentFeedback[]  @relation("FeedbackApprover")
   studentFeedbackReceived  TeacherStudentFeedback[]  @relation("StudentFeedbackReceived")
   teacherFeedbackGiven     TeacherStudentFeedback[]  @relation("TeacherFeedbackGiven")
+  attendances              Attendance[]
   department               Department?               @relation("UserDepartment", fields: [departmentId], references: [id])
   presence                 UserPresence?             @relation("UserPresence")
 }
@@ -66,6 +68,7 @@ model Department {
   studentEnrollments StudentEnrollment[]
   teacherAssignments TeacherAssignment[]
   users              User[]              @relation("UserDepartment")
+  attendances        Attendance[]
 }
 
 model Program {
@@ -136,6 +139,7 @@ model Subject {
   curriculum          CurriculumVersion        @relation(fields: [curriculumVersionId], references: [id])
   teacherAssignments  TeacherAssignment[]
   teacherFeedbacks    TeacherStudentFeedback[]
+  attendances         Attendance[]
 }
 
 /// Course learning outcomes (COs) defining specific skills students should achieve.
@@ -823,4 +827,31 @@ enum UnlockStatus {
   UNLOCKED
   EXPIRED
   RELOCKED
+}
+
+model Attendance {
+  id           String           @id @default(uuid())
+  studentId    String
+  subjectId    String
+  departmentId String?
+  date         DateTime
+  status       AttendanceStatus @default(PRESENT)
+  remarks      String?
+  recordedBy   String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  department   Department?      @relation(fields: [departmentId], references: [id])
+  student      User             @relation(fields: [studentId], references: [id])
+  subject      Subject          @relation(fields: [subjectId], references: [id])
+
+  @@unique([studentId, subjectId, date])
+  @@index([studentId, date])
+  @@index([subjectId, date])
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
 }

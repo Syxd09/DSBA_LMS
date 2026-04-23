@@ -11,7 +11,9 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
         const userRole = req.user?.role?.toUpperCase();
         const userId = req.user?.userId;
         
-        const where: any = {};
+        const where: any = {
+            deletedAt: null
+        };
         
         if (role) {
             where.role = (role as string).toUpperCase();
@@ -62,7 +64,8 @@ export const getTeachers = async (req: AuthRequest, res: Response) => {
 
         const where: any = {
             role: 'TEACHER',
-            isActive: true
+            isActive: true,
+            deletedAt: null
         };
 
         // RBAC: HOD sees only their department teachers
@@ -316,41 +319,20 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        await prisma.$transaction(async (tx) => {
-            // 1. Academic Relations
-            await tx.teacherAssignment.deleteMany({ where: { teacherId: id } });
-            await tx.studentEnrollment.deleteMany({ where: { studentId: id } });
-            await tx.studentMark.deleteMany({ where: { OR: [{ studentId: id }, { enteredBy: id }] } });
-            await tx.marksComputed.deleteMany({ where: { studentId: id } });
-            await tx.finalMark.deleteMany({ where: { studentId: id } });
-            await tx.semesterResult.deleteMany({ where: { studentId: id } });
+        await prisma.user.update({
+            where: { id },
+            data: {
+                isActive: false,
+                deletedAt: new Date(),
+                email: `deleted_${Date.now()}_${userToDelete.email}` // Suffix email to allow reuse of original email for new accounts
+            }
+        });
 
-            // 2. Exam Snapshots & Approvals
-            await tx.examSnapshot.deleteMany({ where: { createdBy: id } });
-            await tx.approvalRequest.deleteMany({ where: { OR: [{ requesterId: id }, { approverId: id }] } });
-            await tx.marksUnlockRequest.deleteMany({ where: { OR: [{ requesterId: id }, { hodApprovedBy: id }, { principalApprovedBy: id }] } });
-
-            // 3. Feedback Relations (must precede user delete to avoid FK violations)
-            await tx.feedbackCategoryRating.deleteMany({
-                where: { feedback: { OR: [{ studentId: id }, { teacherId: id }] } }
-            });
-            await tx.teacherStudentFeedback.deleteMany({
-                where: { OR: [{ studentId: id }, { teacherId: id }] }
-            });
-            await tx.feedback.deleteMany({ where: { OR: [{ studentId: id }, { teacherId: id }] } });
-
-            // 4. Communication
-            await tx.messageReadReceipt.deleteMany({ where: { userId: id } });
-            await tx.message.deleteMany({ where: { senderId: id } });
-            await tx.conversationParticipant.deleteMany({ where: { userId: id } });
-            await tx.conversation.deleteMany({ where: { createdBy: id } });
-            await tx.userPresence.deleteMany({ where: { userId: id } });
-
-            // 5. System Logs
-            await tx.auditLog.deleteMany({ where: { userId: id } });
-
-            // 6. Finally delete user
-            await tx.user.delete({ where: { id } });
+        // Optional: Cancel all active assignments or enrollments
+        await prisma.teacherAssignment.deleteMany({ where: { teacherId: id } });
+        await prisma.studentEnrollment.updateMany({ 
+            where: { studentId: id },
+            data: { status: 'DELETED' }
         });
 
         // Audit Log (Logged by the admin deleting, NOT the user being deleted)

@@ -6,7 +6,13 @@ import { toCSV, sendCSV, formatDate } from '../utils/export';
 
 export const getStudentResults = async (req: AuthRequest, res: Response) => {
     try {
-        const studentId = req.query.studentId as string || req.user?.userId;
+        const userRole = req.user?.role?.toUpperCase();
+        let studentId = req.query.studentId as string || req.user?.userId;
+
+        // RBAC: Students can only view their own results
+        if (userRole === 'STUDENT' && studentId !== req.user?.userId) {
+            return res.status(403).json({ message: 'Access denied: You can only view your own results' });
+        }
 
         if (!studentId) {
             return res.status(400).json({ message: 'Student ID is required' });
@@ -166,10 +172,22 @@ export const publishSemesterResults = async (req: AuthRequest, res: Response) =>
  */
 export const exportCohortResults = async (req: AuthRequest, res: Response) => {
     try {
+        const userRole = req.user?.role?.toUpperCase();
+        const userId = req.user?.userId;
         const { cohortId, semester } = req.query;
 
         if (!cohortId) {
             return res.status(400).json({ message: 'Cohort ID is required' });
+        }
+
+        // RBAC: Teachers only see students in their assigned cohorts
+        if (userRole === 'TEACHER') {
+            const assignment = await prisma.teacherAssignment.findFirst({
+                where: { teacherId: userId, cohortId: String(cohortId) }
+            });
+            if (!assignment && userRole !== 'ADMIN') {
+                return res.status(403).json({ message: 'Access denied: You are not assigned to this cohort' });
+            }
         }
 
         const semesterNum = semester ? parseInt(String(semester)) : undefined;
