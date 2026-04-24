@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useAcademic } from '../contexts/AcademicContext';
-import { useAuth } from '../contexts/AuthContext';
+import { useAcademicContext } from '../contexts/AcademicContext';
+import { useAuth } from '../hooks/useAuth';
+import { useTeacherAssignments } from '../hooks/useTeacherAssignments';
 import { 
     Calendar, 
     CheckCircle2, 
@@ -13,7 +14,7 @@ import {
     ChevronRight,
     Search
 } from 'lucide-react';
-import api from '../services/api';
+import api from '../lib/api';
 import { format } from 'date-fns';
 
 interface Student {
@@ -33,12 +34,17 @@ const Attendance: React.FC = () => {
         departmentId, 
         cohortId, 
         semester, 
-        subjects, 
-        subjectId, 
-        setSubjectId,
-        loading: academicLoading 
-    } = useAcademic();
+        setAcademicContext,
+    } = useAcademicContext();
     const { user } = useAuth();
+
+    const { assignments, isLoading: assignmentsLoading } = useTeacherAssignments();
+    const [subjectId, setSubjectId] = useState<string>('');
+    const subjects = assignments.map((a: any) => ({
+        id: a.subjectId,
+        name: a.subject?.name,
+        code: a.subject?.code
+    }));
 
     const [date, setDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
     const [students, setStudents] = useState<Student[]>([]);
@@ -55,12 +61,17 @@ const Attendance: React.FC = () => {
             setLoading(true);
             try {
                 // Reuse existing endpoint or create new one if needed
-                const response = await api.get(`/exams/cohort/${cohortId}/students`);
-                setStudents(response.data);
+                const response = await api.get(`/enrollments/students?cohortId=${cohortId}`);
+                const studentsData = response.data.map((e: any) => ({
+                    studentId: e.student.id,
+                    studentName: e.student.fullName,
+                    registrationNumber: e.student.registrationNumber
+                }));
+                setStudents(studentsData);
                 
                 // Initialize attendance as PRESENT by default
                 const initial: Record<string, any> = {};
-                response.data.forEach((s: Student) => {
+                studentsData.forEach((s: any) => {
                     initial[s.studentId] = 'PRESENT';
                 });
                 setAttendance(initial);

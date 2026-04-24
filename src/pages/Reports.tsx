@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAcademic } from '../contexts/AcademicContext';
+import { useAcademicContext } from '../contexts/AcademicContext';
 import { 
     FileText, 
     Download, 
@@ -11,7 +11,8 @@ import {
     ChevronRight,
     Loader2
 } from 'lucide-react';
-import api from '../services/api';
+import api from '../lib/api';
+import { useTeacherAssignments } from '../hooks/useTeacherAssignments';
 
 interface AttainmentReport {
     institution: string;
@@ -26,11 +27,18 @@ interface AttainmentReport {
 
 const Reports: React.FC = () => {
     const { 
-        subjects, 
-        subjectId, 
-        setSubjectId,
-        cohortId 
-    } = useAcademic();
+        cohortId,
+        semester,
+        departmentId
+    } = useAcademicContext();
+
+    const { assignments, isLoading: assignmentsLoading } = useTeacherAssignments();
+    const [subjectId, setSubjectId] = useState<string>('');
+    const subjects = assignments.map((a: any) => ({
+        id: a.subjectId,
+        name: a.subject?.name,
+        code: a.subject?.code
+    }));
 
     const [loading, setLoading] = useState(false);
     const [report, setReport] = useState<AttainmentReport | null>(null);

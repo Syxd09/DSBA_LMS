@@ -29,7 +29,6 @@ import Students from "./pages/Students";
 import TeacherAssignments from "./pages/TeacherAssignments";
 import GradeManagement from "./pages/GradeManagement";
 import COPOAnalytics from "./pages/COPOAnalytics";
-import AuditLogs from "./pages/AuditLogs";
 import HODDashboard from "./pages/HODDashboard";
 import StudentFeedback from "./pages/StudentFeedback";
 import Messages from "./pages/Messages";
@@ -76,7 +75,6 @@ const App = () => (
             <Route path="/students" element={<AuthGuard><Students /></AuthGuard>} />
             <Route path="/attendance" element={<AuthGuard><Attendance /></AuthGuard>} />
             <Route path="/reports" element={<AuthGuard><Reports /></AuthGuard>} />
-            <Route path="/audit-logs" element={<AuthGuard><AuditLogs /></AuthGuard>} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/approvals" element={<AuthGuard><HODDashboard /></AuthGuard>} />
             <Route path="/marks-entry" element={<AuthGuard><MarksEntry /></AuthGuard>} />
@@ -94,7 +92,6 @@ const App = () => (
             <Route path="/course-outcomes" element={<AuthGuard><CourseOutcomes /></AuthGuard>} />
             <Route path="/program-outcomes" element={<AuthGuard><ProgramOutcomes /></AuthGuard>} />
             <Route path="/student-enrollments" element={<AuthGuard><StudentEnrollments /></AuthGuard>} />
-            <Route path="/students" element={<AuthGuard><Students /></AuthGuard>} />
             <Route path="/teacher-assignments" element={<AuthGuard><TeacherAssignments /></AuthGuard>} />
             <Route path="/grade-management" element={<AuthGuard><GradeManagement /></AuthGuard>} />
             <Route path="/co-po-analytics" element={<AuthGuard><COPOAnalytics /></AuthGuard>} />

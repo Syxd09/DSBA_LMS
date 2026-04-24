@@ -185,7 +185,7 @@ export const exportCohortResults = async (req: AuthRequest, res: Response) => {
             const assignment = await prisma.teacherAssignment.findFirst({
                 where: { teacherId: userId, cohortId: String(cohortId) }
             });
-            if (!assignment && userRole !== 'ADMIN') {
+            if (!assignment) {
                 return res.status(403).json({ message: 'Access denied: You are not assigned to this cohort' });
             }
         }
