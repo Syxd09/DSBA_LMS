@@ -9,10 +9,13 @@ async function main() {
     // 1. Clear existing data in order
     console.log('Clearing existing data...');
     try {
-        // Unlink HODs from Departments first to break circular dependency
         await prisma.department.updateMany({ data: { hodId: null } });
-
         await prisma.studentMark.deleteMany();
+        await prisma.marksComputed.deleteMany();
+        await prisma.finalMark.deleteMany();
+        await prisma.semesterResult.deleteMany();
+        await prisma.studentEnrollment.deleteMany();
+        await prisma.teacherAssignment.deleteMany();
         await prisma.subQuestion.deleteMany();
         await prisma.question.deleteMany();
         await prisma.examSection.deleteMany();
@@ -20,55 +23,41 @@ async function main() {
         await prisma.coPoMapping.deleteMany();
         await prisma.cOAttainment.deleteMany();
         await prisma.courseOutcome.deleteMany();
-        await prisma.teacherAssignment.deleteMany();
         await prisma.subject.deleteMany();
         await prisma.curriculumVersion.deleteMany();
-        await prisma.studentEnrollment.deleteMany();
         await prisma.cohort.deleteMany();
         await prisma.pOAttainment.deleteMany();
         await prisma.programOutcome.deleteMany();
         await prisma.program.deleteMany();
-
-        // Delete Users before Departments (Users belong to Dept)
         await prisma.user.deleteMany();
         await prisma.department.deleteMany();
-
     } catch (e) {
-        console.log('Note: Some tables might be empty or missing, continuing...', e.message);
+        console.log('Note: Some tables might be empty or missing, continuing...');
     }
 
-    const hashedPassword = await bcrypt.hash('password', 10);
+    const hashedPassword = await bcrypt.hash('password123', 10);
 
     // 2. Create Departments
     console.log('Creating departments...');
     const cse = await prisma.department.create({
-        data: {
-            name: 'Computer Science and Engineering',
-            code: 'CSE'
-        }
+        data: { name: 'Computer Science and Engineering', code: 'CSE' }
     });
 
     const ece = await prisma.department.create({
-        data: {
-            name: 'Electronics and Communication Engineering',
-            code: 'ECE'
-        }
+        data: { name: 'Electronics and Communication Engineering', code: 'ECE' }
     });
 
-    // 3. Create Users
-    console.log('Creating users...');
-
-    // Principal (The one user requested)
+    // 3. Create Key Users
+    console.log('Creating key users...');
     const principal = await prisma.user.create({
         data: {
             email: 'syxdmatheen.09@gmail.com',
             fullName: 'System Principal',
-            password: await bcrypt.hash('#761936', 10),
+            password: hashedPassword,
             role: 'PRINCIPAL'
         }
     });
 
-    // Admin
     await prisma.user.create({
         data: {
             email: 'admin@college.edu',
@@ -78,25 +67,23 @@ async function main() {
         }
     });
 
-    // HOD
     const hodCSE = await prisma.user.create({
         data: {
             email: 'hod.cse@college.edu',
             fullName: 'Dr. Priya Sharma',
             password: hashedPassword,
             role: 'HOD',
-            departmentId: cse.id,
-            departmentLed: { connect: { id: cse.id } } // Connect as HOD of department? Schema line 121 hodId
+            departmentId: cse.id
         }
     });
-    // Update department with HOD (since it's a circular relation sometimes)
+
     await prisma.department.update({
         where: { id: cse.id },
         data: { hodId: hodCSE.id }
     });
 
-
-    // Teachers
+    // 4. Create Teachers
+    console.log('Creating teachers...');
     const teachers = [];
     for (let i = 1; i <= 3; i++) {
         teachers.push(await prisma.user.create({
@@ -110,10 +97,10 @@ async function main() {
         }));
     }
 
-    // Students
-    const students = [];
+    // 5. Create Students
+    console.log('Creating students...');
     const studentNames = ['Aarav', 'Vivaan', 'Aditya', 'Vihaan', 'Arjun', 'Sai', 'Arnav', 'Ayush', 'Krishna', 'Ishaan'];
-
+    const students = [];
     for (let i = 0; i < studentNames.length; i++) {
         students.push(await prisma.user.create({
             data: {
@@ -127,8 +114,8 @@ async function main() {
         }));
     }
 
-    // 4. Create Program & POs
-    console.log('Creating programs...');
+    // 6. Program, Cohort, Enrollment
+    console.log('Setting up academic structure...');
     const bca = await prisma.program.create({
         data: {
             name: 'Bachelor of Computer Applications',
@@ -138,16 +125,12 @@ async function main() {
             programOutcomes: {
                 create: [
                     { poNumber: 1, description: 'Knowledge Application', targetPercent: 60 },
-                    { poNumber: 2, description: 'Problem Analysis', targetPercent: 60 },
-                    { poNumber: 3, description: 'Design Solutions', targetPercent: 60 },
-                    { poNumber: 4, description: 'Modern Tool Usage', targetPercent: 60 }
+                    { poNumber: 2, description: 'Problem Analysis', targetPercent: 60 }
                 ]
             }
         }
     });
 
-    // 5. Create Cohort
-    console.log('Creating cohort...');
     const cohort2025 = await prisma.cohort.create({
         data: {
             name: 'Class of 2025',
@@ -157,65 +140,33 @@ async function main() {
         }
     });
 
-    // 6. Enroll Students
-    console.log('Enrolling students...');
     for (const student of students) {
         await prisma.studentEnrollment.create({
-            data: {
-                studentId: student.id,
-                cohortId: cohort2025.id,
-                departmentId: cse.id,
-                semester: 1
-            }
+            data: { studentId: student.id, cohortId: cohort2025.id, departmentId: cse.id, semester: 1 }
         });
     }
 
-    // 7. Curriculum & Subjects & COs
-    console.log('Creating curriculum...');
+    // 7. Curriculum & Subjects
     const curriculum = await prisma.curriculumVersion.create({
-        data: {
-            programId: bca.id,
-            versionName: 'v1.0',
-            effectiveFrom: 2024
-        }
+        data: { programId: bca.id, versionName: 'v1.0', effectiveFrom: 2024 }
     });
 
     const mathSubject = await prisma.subject.create({
-        data: {
-            name: 'Advanced Mathematics',
-            code: 'MATH101',
-            credits: 4,
-            semester: 1,
-            curriculumVersionId: curriculum.id
-        }
+        data: { name: 'Advanced Mathematics', code: 'MATH101', credits: 4, semester: 1, curriculumVersionId: curriculum.id }
     });
 
-    // Create COs for Math
     const mathCOs = [];
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 3; i++) {
         mathCOs.push(await prisma.courseOutcome.create({
             data: {
                 subjectId: mathSubject.id,
                 coNumber: i,
                 description: `Understand math concept ${i}`,
-                bloomLevel: 'Understand' // Enum
+                bloomLevel: 'Understand'
             }
         }));
     }
 
-    // Map COs to POs
-    const pos = await prisma.programOutcome.findMany({ where: { programId: bca.id } });
-    if (pos.length > 0) {
-        await prisma.coPoMapping.create({
-            data: {
-                coId: mathCOs[0].id,
-                poId: pos[0].id,
-                correlationLevel: 3
-            }
-        });
-    }
-
-    // Assign Teacher
     await prisma.teacherAssignment.create({
         data: {
             teacherId: teachers[0].id,
@@ -227,8 +178,7 @@ async function main() {
         }
     });
 
-    // 8. Create Exam with Structure
-    console.log('Creating exam...');
+    // 8. Exam
     const exam = await prisma.exam.create({
         data: {
             subjectId: mathSubject.id,
@@ -236,62 +186,36 @@ async function main() {
             examType: 'INTERNAL_1',
             maxMarks: 50,
             passingMarks: 20,
-            examDate: new Date('2025-09-15T10:00:00Z'),
-            duration: 90,
-            instructions: 'Answer all questions',
             status: 'SCHEDULED',
             teacherId: teachers[0].id,
             semester: 1
         }
     });
 
-    // Create Section
     const section = await prisma.examSection.create({
-        data: {
-            examId: exam.id,
-            name: 'Part A',
-            sequence: 1,
-            maxMarks: 50
-        }
+        data: { examId: exam.id, name: 'Part A', sequence: 1, maxMarks: 50 }
     });
 
-    // Create Questions with SubQuestions
-    for (let i = 1; i <= 5; i++) {
-        const question = await prisma.question.create({
+    for (let i = 1; i <= 3; i++) {
+        await prisma.question.create({
             data: {
                 sectionId: section.id,
                 sequence: i,
                 maxMarks: 10,
                 bloomLevel: 'Apply',
-                coId: mathCOs[i - 1]?.id, // Assign CO to question
+                coId: mathCOs[i - 1]?.id,
                 subQuestions: {
                     create: [
-                        {
-                            label: 'a',
-                            maxMarks: 5,
-                            bloomLevel: 'Apply',
-                            coId: mathCOs[i - 1]?.id
-                        },
-                        {
-                            label: 'b',
-                            maxMarks: 5,
-                            bloomLevel: 'Understand',
-                            coId: mathCOs[i - 1]?.id
-                        }
+                        { label: 'a', maxMarks: 10, bloomLevel: 'Apply', coId: mathCOs[i - 1]?.id }
                     ]
                 }
             }
         });
     }
 
-    console.log('✅ Seeding complete! Login with syxdmatheen.09@gmail.com / #761936');
+    console.log('✅ Seeding complete! All users now have password: password123');
 }
 
 main()
-    .catch(e => {
-        console.error(e);
-        process.exit(1);
-    })
-    .finally(async () => {
-        await prisma.$disconnect();
-    });
+    .catch(console.error)
+    .finally(() => prisma.$disconnect());

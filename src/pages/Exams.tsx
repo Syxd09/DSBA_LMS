@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { useTeacherExams, useCreateExam, useUnlockExam } from '@/hooks/useExams';
+import { useTeacherExams, useCreateExam, useUnlockExam, type Exam } from '@/hooks/useExams';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,22 +14,8 @@ import { ExamCard } from '@/components/exams/ExamCard';
 import { ExamWizard } from '@/components/exams/ExamWizard';
 import { FeedbackStats } from '@/components/FeedbackStats';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { TabsContent } from '@/components/ui/tabs';
 
-interface Exam {
-  id: string;
-  examType: string;
-  customTypeName?: string;
-  maxMarks: number;
-  passingMarks?: number;
-  examDate?: string;
-  duration?: number;
-  status: string;
-  publishedAt: string | null;
-  createdAt: string;
-  subject?: { name: string; code: string };
-  cohort?: { name: string; year: number };
-}
+// Using Exam type from @/hooks/useExams
 
 interface Subject {
   id: string;
@@ -40,20 +26,26 @@ interface Subject {
 interface Cohort {
   id: string;
   name: string;
-  year: number;
+  year?: number;
 }
 
 export default function Exams() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  
+  // All hooks MUST be at the top level and unconditional
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('drafts');
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [viewFeedback, setViewFeedback] = useState<string | null>(null);
 
-  const { data: exams = [], isLoading, refetch } = useTeacherExams();
+  const { data: rawExams = [], isLoading, refetch } = useTeacherExams();
   const createExam = useCreateExam();
   const unlockExam = useUnlockExam();
+
+  // Ensure unique exams to prevent duplicate key errors
+  const exams = Array.from(new Map(rawExams.map((e: Exam) => [e.id, e])).values());
+
 
   const { data: subjects = [] } = useQuery<Subject[]>({
     queryKey: ['subjects-list'],
@@ -117,13 +109,14 @@ export default function Exams() {
     }
   };
 
-  // Filter and organize exams by status
-  const examsByStatus = {
-    drafts: exams?.filter((e: Exam) => e.status === 'DRAFT') || [],
-    scheduled: exams?.filter((e: Exam) => e.status === 'SCHEDULED') || [],
-    published: exams?.filter((e: Exam) => e.status === 'PUBLISHED') || [],
-    completed: exams?.filter((e: Exam) => e.status === 'COMPLETED') || []
+  // Filter and organize exams by status with all lifecycle stages included
+  const examsByStatus: Record<string, Exam[]> = {
+    drafts: exams.filter((e: Exam) => ['DRAFT', 'PENDING_APPROVAL'].includes(e.status?.toUpperCase())),
+    scheduled: exams.filter((e: Exam) => e.status?.toUpperCase() === 'SCHEDULED'),
+    published: exams.filter((e: Exam) => e.status?.toUpperCase() === 'PUBLISHED'),
+    completed: exams.filter((e: Exam) => ['COMPLETED', 'LOCKED'].includes(e.status?.toUpperCase()))
   };
+
 
   // Apply search filter
   const filterExams = (examList: Exam[]) => {

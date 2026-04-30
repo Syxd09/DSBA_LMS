@@ -131,7 +131,7 @@ export default function GradeManagement() {
     try {
       await api.post('/grading/bulk-calculate-sgpa', {
         cohortId: selectedCohort,
-        semester: finalMarks?.[0]?.semester || 1
+        semester: finalMarks?.[0]?.subject?.semester || 1
       });
       toast({ title: 'SGPA/CGPA computed for entire class' });
     } catch (error: any) {

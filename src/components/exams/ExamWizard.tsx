@@ -17,7 +17,7 @@ interface Subject {
 interface Cohort {
   id: string;
   name: string;
-  year: number;
+  year?: number;
 }
 
 interface ExamWizardProps {

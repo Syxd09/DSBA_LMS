@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { AppRole } from '@/hooks/useAuth';
+import { useMessaging } from '@/contexts/MessagingContext';
 import {
   LayoutDashboard,
   Users,
@@ -11,15 +12,13 @@ import {
   ClipboardList,
   TrendingUp,
   Award,
-  Building2,
   LogOut,
-  UserCheck,
   Target,
-  Settings,
   History,
   UserCheck2,
   CheckCircle2,
   MessageSquare,
+  UserCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -34,10 +33,9 @@ interface SidebarProps {
   onSignOut: () => void;
 }
 
-const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon: typeof LayoutDashboard }>> = {
+const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon: any }>> = {
   admin: [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Departments', href: '/departments', icon: Building2 },
     { name: 'Programs', href: '/programs', icon: GraduationCap },
     { name: 'Cohorts', href: '/cohorts', icon: Users },
     { name: 'Subjects', href: '/subjects', icon: BookOpen },
@@ -53,11 +51,11 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Feedback Templates', href: '/feedback/templates', icon: CheckCircle2 },
     { name: 'Messages', href: '/messages', icon: MessageSquare },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+    { name: 'Reports', href: '/reports', icon: FileText },
     { name: 'Audit Logs', href: '/audit-logs', icon: History },
   ],
   principal: [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Departments', href: '/departments', icon: Building2 },
     { name: 'Programs', href: '/programs', icon: GraduationCap },
     { name: 'Cohorts', href: '/cohorts', icon: Users },
     { name: 'Subjects', href: '/subjects', icon: BookOpen },
@@ -73,11 +71,12 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Feedback Templates', href: '/feedback/templates', icon: CheckCircle2 },
     { name: 'Messages', href: '/messages', icon: MessageSquare },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+    { name: 'Reports', href: '/reports', icon: FileText },
     { name: 'Audit Logs', href: '/audit-logs', icon: History },
   ],
   hod: [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Programs', href: '/programs', icon: GraduationCap },
+    { name: 'Department Analytics', href: '/analytics/hod/dashboard', icon: BarChart3 },
     { name: 'Cohorts', href: '/cohorts', icon: Users },
     { name: 'Subjects', href: '/subjects', icon: BookOpen },
     { name: 'Student Enrollments', href: '/student-enrollments', icon: UserCheck },
@@ -92,6 +91,7 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Feedback Templates', href: '/feedback/templates', icon: CheckCircle2 },
     { name: 'Messages', href: '/messages', icon: MessageSquare },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+    { name: 'Reports', href: '/reports', icon: FileText },
   ],
   teacher: [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -101,12 +101,9 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Course Outcomes', href: '/course-outcomes', icon: FileText },
     { name: 'Exams', href: '/exams', icon: ClipboardList },
     { name: 'Marks Entry', href: '/marks-entry', icon: ClipboardList },
-    { name: 'CO-PO Analytics', href: '/co-po-analytics', icon: Target },
-    { name: 'Student Analytics', href: '/student-analytics', icon: UserCheck2 },
     { name: 'Messages', href: '/messages', icon: MessageSquare },
     { name: 'Analytics', href: '/analytics', icon: BarChart3 },
     { name: 'Attendance', href: '/attendance', icon: UserCheck2 },
-    { name: 'Reports', href: '/reports', icon: BarChart3 },
   ],
   student: [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -117,6 +114,8 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
 };
 
 export function Sidebar({ role, profile, onSignOut }: SidebarProps) {
+  const { totalUnreadCount } = useMessaging();
+  
   if (!role) return null;
 
   const navigation = navigationConfig[role] || navigationConfig.student;
@@ -142,7 +141,7 @@ export function Sidebar({ role, profile, onSignOut }: SidebarProps) {
             to={item.href}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors rounded-md',
+                'flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors rounded-md group relative',
                 isActive
                   ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -150,7 +149,12 @@ export function Sidebar({ role, profile, onSignOut }: SidebarProps) {
             }
           >
             <item.icon className="w-5 h-5 flex-shrink-0" />
-            {item.name}
+            <span className="flex-1">{item.name}</span>
+            {item.name === 'Messages' && totalUnreadCount > 0 && (
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground animate-pulse shadow-sm">
+                {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

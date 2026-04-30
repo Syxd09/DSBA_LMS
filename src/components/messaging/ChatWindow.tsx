@@ -32,11 +32,12 @@ interface Props {
 
 export function ChatWindow({ conversation, onBack }: Props) {
   const { user, role } = useAuth();
-  const { messages, loadMessages, typingUsers, onlineUsers, deleteConversation, clearChat } = useMessaging();
+  const { messages, loadMessages, typingUsers, onlineUsers, deleteConversation, clearChat, markAsRead } = useMessaging();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<any>(null);
 
   // Load messages on conversation change
   useEffect(() => {
@@ -205,6 +206,8 @@ export function ChatWindow({ conversation, onBack }: Props) {
                   index === 0 ||
                   messages[index - 1].senderId !== message.senderId
                 }
+                onReply={(msg) => setReplyingTo(msg)}
+                onIgnore={(id) => markAsRead(conversation.id)}
               />
             );
           })
@@ -220,8 +223,22 @@ export function ChatWindow({ conversation, onBack }: Props) {
       </div>
 
       {/* Input */}
-      <div className="border-t border-border bg-card p-4">
-        <MessageInput conversationId={conversation.id} />
+      <div className="border-t border-border bg-card p-4 space-y-2">
+        {replyingTo && (
+          <div className="flex items-center justify-between bg-muted/30 p-2 rounded-md border border-border animate-in slide-in-from-bottom-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] uppercase font-bold text-primary">Replying to {replyingTo.sender.fullName}</p>
+              <p className="text-sm truncate text-muted-foreground">{replyingTo.content}</p>
+            </div>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setReplyingTo(null)}>
+              <ArrowLeft className="w-3 h-3 rotate-45" />
+            </Button>
+          </div>
+        )}
+        <MessageInput 
+          conversationId={conversation.id} 
+          onSend={() => setReplyingTo(null)}
+        />
       </div>
     </div>
   );

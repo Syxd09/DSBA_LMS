@@ -90,7 +90,7 @@ export const seedDemoData = async (req: AuthRequest, res: Response) => {
         }
 
         // 6. Create Teachers
-        const hashedPassword = await bcrypt.hash('Teacher@123', 10);
+        const hashedPassword = await bcrypt.hash('password123', 10);
         const teacherEmails = [
             { email: 'john.doe@college.edu', fullName: 'Dr. John Doe', deptId: deptCS.id },
             { email: 'jane.smith@college.edu', fullName: 'Prof. Jane Smith', deptId: deptCS.id },
@@ -113,7 +113,7 @@ export const seedDemoData = async (req: AuthRequest, res: Response) => {
         }
 
         // 7. Create Students
-        const studentPassword = await bcrypt.hash('Student@123', 10);
+        const studentPassword = hashedPassword;
         const studentData = [
             { email: 'student1@college.edu', fullName: 'Amit Kumar', registrationNumber: '2024BCA001', cohortId: cohortBCA.id, deptId: deptCS.id },
             { email: 'student2@college.edu', fullName: 'Priya Sharma', registrationNumber: '2024BCA002', cohortId: cohortBCA.id, deptId: deptCS.id },
@@ -184,7 +184,7 @@ export const seedDemoData = async (req: AuthRequest, res: Response) => {
         }
 
         // 9. Create Admin/Principal/HOD users
-        const adminPassword = await bcrypt.hash('Admin@123', 10);
+        const adminPassword = hashedPassword;
         await prisma.user.upsert({
             where: { email: 'admin@college.edu' },
             update: {},
@@ -211,11 +211,11 @@ export const seedDemoData = async (req: AuthRequest, res: Response) => {
             message: 'Demo data seeded successfully!',
             results,
             credentials: {
-                admin: { email: 'admin@college.edu', password: 'Admin@123' },
-                principal: { email: 'principal@college.edu', password: 'Admin@123' },
-                hod: { email: 'hod.cs@college.edu', password: 'Admin@123' },
-                teacher: { email: 'john.doe@college.edu', password: 'Teacher@123' },
-                student: { email: 'student1@college.edu', password: 'Student@123' }
+                admin: { email: 'admin@college.edu', password: 'password123' },
+                principal: { email: 'principal@college.edu', password: 'password123' },
+                hod: { email: 'hod.cs@college.edu', password: 'password123' },
+                teacher: { email: 'john.doe@college.edu', password: 'password123' },
+                student: { email: 'student1@college.edu', password: 'password123' }
             }
         });
     } catch (error) {

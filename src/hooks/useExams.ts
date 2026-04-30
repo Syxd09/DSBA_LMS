@@ -4,14 +4,17 @@ import { useAuth } from './useAuth';
 
 export interface Exam {
   id: string;
-  subject_id: string;
-  cohort_id: string;
+  subjectId: string;
+  cohortId: string;
   examType: string;
-  max_marks: number;
+  maxMarks: number;
   status: string;
-  teacher_id: string | null;
-  created_at: string;
-  published_at: string | null;
+  teacherId: string | null;
+  createdAt: string;
+  publishedAt: string | null;
+  customTypeName?: string;
+  examDate?: string;
+  duration?: number;
   subject?: {
     id: string;
     name: string;
@@ -20,6 +23,7 @@ export interface Exam {
   cohort?: {
     id: string;
     name: string;
+    year?: number;
   };
 }
 
@@ -35,7 +39,7 @@ export interface Exam {
 export function useTeacherExams() {
   const { user } = useAuth();
 
-  return useQuery({
+  return useQuery<Exam[]>({
     queryKey: ['teacher-exams', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];

@@ -17,6 +17,7 @@ interface AuditLog {
   tableName: string;
   recordId: string | null;
   userId: string | null;
+  userName?: string; // Add this
   oldData: Record<string, unknown> | null;
   newData: Record<string, unknown> | null;
   createdAt: string;
@@ -51,19 +52,13 @@ export default function AuditLogs() {
     log.user?.name?.toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
   
-  const getActionBadgeVariant = (action: string) => {
-    switch (action?.toLowerCase()) {
-      case 'insert':
-      case 'create':
-        return 'default';
-      case 'update':
-        return 'secondary';
-      case 'delete':
-        return 'destructive';
-      default:
+    const getActionBadgeVariant = (action: string) => {
+        const a = action?.toLowerCase() || '';
+        if (a.includes('delete')) return 'destructive';
+        if (a.includes('create') || a.includes('insert')) return 'default';
+        if (a.includes('update')) return 'secondary';
         return 'outline';
-    }
-  };
+    };
   
   const exportLogs = () => {
     const csv = [
@@ -155,40 +150,64 @@ export default function AuditLogs() {
                 <p>No audit logs found</p>
               </div>
             ) : (
-              <Table>
+        <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+            <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Table</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Record ID</TableHead>
-                  </TableRow>
+                    <TableRow className="bg-muted/50 hover:bg-muted/50 border-b border-border">
+                        <TableHead className="py-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground w-[220px]">Timestamp</TableHead>
+                        <TableHead className="py-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground w-[180px]">Action</TableHead>
+                        <TableHead className="py-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground w-[150px]">Table</TableHead>
+                        <TableHead className="py-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground">User</TableHead>
+                        <TableHead className="py-4 font-black uppercase text-[10px] tracking-widest text-muted-foreground text-right pr-6">Record ID</TableHead>
+                    </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="text-sm">
+                    <TableRow key={log.id} className="hover:bg-accent/30 transition-colors border-b border-border/50 last:border-0 group">
+                      <TableCell className="py-4 text-sm font-medium text-foreground/80">
                         {format(new Date(log.createdAt), 'MMM dd, yyyy HH:mm:ss')}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant={getActionBadgeVariant(log.action)}>
-                          {log.action}
-                        </Badge>
+                      <TableCell className="py-4">
+                        <span className="inline-flex">
+                            <Badge 
+                                variant={getActionBadgeVariant(log.action)}
+                                className="font-mono text-[9px] font-black tracking-widest px-2.5 py-0.5 rounded-full border shadow-none uppercase"
+                            >
+                                {log.action?.replace(/_/g, ' ')}
+                            </Badge>
+                        </span>
                       </TableCell>
-                      <TableCell className="font-mono text-sm">
+                      <TableCell className="py-4 font-mono text-xs text-muted-foreground lowercase">
                         {log.tableName}
                       </TableCell>
-                      <TableCell>
-                        {log.user?.name || log.userId || 'System'}
+                      <TableCell className="py-4">
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-bold text-foreground">
+                            {log.user?.name || log.userName || 'system_service'}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {log.user?.email || ''}
+                          </p>
+                        </div>
                       </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {log.recordId ? log.recordId.slice(0, 8) + '...' : '—'}
+                      <TableCell className="py-4 font-mono text-[11px] text-muted-foreground/80 text-right pr-6">
+                        {log.recordId ? (
+                            <span title={log.recordId}>
+                                {log.recordId.slice(0, 8)}...
+                            </span>
+                        ) : '—'}
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+            {filteredLogs.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground bg-muted/5">
+                    <FileText className="w-10 h-10 mb-4 opacity-20" />
+                    <p className="text-sm font-medium italic">No audit records found in this sequence.</p>
+                </div>
+            )}
+        </div>
             )}
           </CardContent>
         </Card>

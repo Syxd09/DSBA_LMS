@@ -166,7 +166,7 @@ export default function MarksEntry() {
   };
 
   const isLoading = examsLoading || detailsLoading || studentsLoading || marksLoading || cosLoading;
-  const isPublished = examDetails?.exam?.status === 'PUBLISHED';
+  const isPublished = ['PUBLISHED', 'COMPLETED', 'LOCKED'].includes(examDetails?.exam?.status);
 
   return (
     <AuthenticatedLayout allowedRoles={['teacher', 'hod', 'principal']}>
@@ -218,11 +218,8 @@ export default function MarksEntry() {
                   </CardTitle>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{selectedExam?.cohort?.name}</Badge>
-                    <Badge variant={isPublished ? 'default' : 'secondary'}>
-                      {selectedExam?.examType}
-                    </Badge>
-                    <Badge variant={isPublished ? 'default' : 'outline'}>
-                      {isPublished ? 'Published' : 'Draft'}
+                    <Badge variant={['PUBLISHED', 'COMPLETED', 'LOCKED', 'SCHEDULED'].includes(selectedExam?.status) ? 'default' : 'secondary'}>
+                      {selectedExam?.status}
                     </Badge>
                   </div>
                 </div>
@@ -230,8 +227,8 @@ export default function MarksEntry() {
               <CardContent>
                 <div className="grid grid-cols-4 gap-4 text-sm">
                   <div>
-                    <p className="text-muted-foreground">Total Students</p>
-                    <p className="font-semibold">{students?.length || 0}</p>
+                    <p className="text-muted-foreground">Status</p>
+                    <p className="font-semibold capitalize">{selectedExam?.status?.toLowerCase().replace('_', ' ')}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Max Marks</p>

@@ -14,42 +14,60 @@ interface StatsCardProps {
   variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger';
 }
 
-const variantStyles = {
-  default: 'bg-card',
-  primary: 'bg-primary text-primary-foreground',
-  success: 'bg-card border-l-4 border-l-green-500',
-  warning: 'bg-card border-l-4 border-l-yellow-500',
-  danger: 'bg-card border-l-4 border-l-destructive',
-};
 
 export function StatsCard({ title, value, subtitle, icon: Icon, trend, variant = 'default' }: StatsCardProps) {
   const isPrimary = variant === 'primary';
 
+  const variantConfigs = {
+    default: 'bg-card border-border/50 shadow-sm',
+    primary: 'bg-primary text-primary-foreground shadow-lg shadow-primary/20',
+    success: 'bg-card border-l-4 border-l-green-500 shadow-sm',
+    warning: 'bg-card border-l-4 border-l-yellow-500 shadow-sm',
+    danger: 'bg-card border-l-4 border-l-destructive shadow-sm',
+  };
+
   return (
-    <div className={cn('p-6 border border-border', variantStyles[variant])}>
+    <div className={cn(
+      'p-6 rounded-xl border transition-all duration-200 hover:shadow-md', 
+      variantConfigs[variant]
+    )}>
       <div className="flex items-start justify-between">
-        <div>
-          <p className={cn('text-sm font-medium', isPrimary ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
+        <div className="space-y-1">
+          <p className={cn(
+            'text-sm font-medium tracking-tight uppercase opacity-80', 
+            isPrimary ? 'text-primary-foreground' : 'text-muted-foreground'
+          )}>
             {title}
           </p>
-          <p className={cn('text-3xl font-bold mt-2', isPrimary ? 'text-primary-foreground' : 'text-foreground')}>
+          <p className={cn(
+            'text-4xl font-extrabold tracking-tighter', 
+            isPrimary ? 'text-primary-foreground' : 'text-foreground'
+          )}>
             {value}
           </p>
           {subtitle && (
-            <p className={cn('text-sm mt-1', isPrimary ? 'text-primary-foreground/70' : 'text-muted-foreground')}>
+            <p className={cn(
+              'text-xs font-medium opacity-70', 
+              isPrimary ? 'text-primary-foreground' : 'text-muted-foreground'
+            )}>
               {subtitle}
             </p>
           )}
           {trend && (
-            <p className={cn('text-sm mt-2 flex items-center gap-1', trend.isPositive ? 'text-green-500' : 'text-destructive')}>
-              <span>{trend.isPositive ? '↑' : '↓'}</span>
-              <span>{Math.abs(trend.value)}%</span>
-              <span className="text-muted-foreground">vs last semester</span>
-            </p>
+            <div className={cn(
+              'text-xs mt-3 inline-flex items-center gap-1.5 px-2 py-1 rounded-full font-semibold', 
+              trend.isPositive ? 'bg-green-500/10 text-green-500' : 'bg-destructive/10 text-destructive'
+            )}>
+              <span>{trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value)}%</span>
+              <span className="opacity-70 font-normal">vs prev.</span>
+            </div>
           )}
         </div>
-        <div className={cn('p-3', isPrimary ? 'bg-primary-foreground/10' : 'bg-secondary')}>
-          <Icon className={cn('w-6 h-6', isPrimary ? 'text-primary-foreground' : 'text-foreground')} />
+        <div className={cn(
+          'p-3.5 rounded-xl transition-colors', 
+          isPrimary ? 'bg-white/20' : 'bg-secondary/50'
+        )}>
+          <Icon className={cn('w-6 h-6', isPrimary ? 'text-primary-foreground' : 'text-primary')} />
         </div>
       </div>
     </div>

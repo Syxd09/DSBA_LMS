@@ -41,9 +41,11 @@ export function StudentResultCard({
   const isPassing = percentage >= 40;
 
   const getGradeBadgeVariant = (g: string) => {
-    if (['A+', 'A'].includes(g)) return 'default';
-    if (['B+', 'B'].includes(g)) return 'secondary';
-    if (g === 'F') return 'destructive';
+    const highGrades = ['S', 'O', 'A+', 'A'];
+    const midGrades = ['B+', 'B', 'C', 'P'];
+    if (highGrades.includes(g)) return 'default';
+    if (midGrades.includes(g)) return 'secondary';
+    if (g === 'F' || g === 'FAIL') return 'destructive';
     return 'outline';
   };
 

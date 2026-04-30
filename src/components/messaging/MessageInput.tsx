@@ -17,9 +17,10 @@ import { cn } from '@/lib/utils';
 
 interface Props {
   conversationId: string;
+  onSend?: () => void;
 }
 
-export function MessageInput({ conversationId }: Props) {
+export function MessageInput({ conversationId, onSend }: Props) {
   const { sendMessage, sendFile, setTyping } = useMessaging();
   const [content, setContent] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -64,6 +65,7 @@ export function MessageInput({ conversationId }: Props) {
       
       setContent('');
       setTyping(conversationId, false);
+      onSend?.();
       
       // Focus back on textarea
       textareaRef.current?.focus();

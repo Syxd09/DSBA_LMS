@@ -1,13 +1,13 @@
 import { StatsCard } from './StatsCard';
 import { DepartmentTable } from './DepartmentTable';
 import { RecentActivity } from './RecentActivity';
-import { COAttainmentChart } from './COAttainmentChart';
+import { AcademicPerformanceInsights } from './AcademicPerformanceInsights';
 import { AtRiskStudentsWidget } from './AtRiskStudentsWidget';
-import { PerformanceTrendChart } from './PerformanceTrendChart';
-// import { mockCOAttainment, coTrendData } from '@/lib/mock-data'; // REMOVED MOCK DATA
-import { Users, GraduationCap, BookOpen, AlertTriangle, CheckCircle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Users, GraduationCap, BookOpen, AlertTriangle, CheckCircle, Search, Filter, Zap, ArrowRight } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 
@@ -50,22 +50,20 @@ export function PrincipalDashboard() {
 
   const departmentStats = departments.map((dept: any) => ({
     name: dept.name,
-    passPercentage: 0, // Still need a per-dept pass rate if not in /departments
-    averageScore: 0,   // Still need a per-dept average score
+    passPercentage: 0,
+    averageScore: 0,
     totalStudents: dept._count?.users || 0,
-    atRiskStudents: 0, // We could count this by filtering the at-risk list if needed
+    atRiskStudents: 0,
   }));
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Principal Dashboard</h2>
-        <p className="text-muted-foreground">Institutional overview and academic performance</p>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="mb-6">
-        <RecentActivity limit={3} />
+    <div className="space-y-8 pb-10 animate-in fade-in duration-700">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-black tracking-tight text-foreground">Institution Overview</h2>
+          <p className="text-muted-foreground font-medium">Real-time academic oversight & departmental performance</p>
+        </div>
       </div>
 
       {/* Stats Grid */}
@@ -73,129 +71,96 @@ export function PrincipalDashboard() {
         <StatsCard
           title="Total Students"
           value={studentCount.toLocaleString()}
-          subtitle="Across all departments"
+          subtitle="Enrolled population"
           icon={GraduationCap}
           trend={{ value: 5.2, isPositive: true }}
           variant="primary"
         />
         <StatsCard
-          title="Teaching Faculty"
+          title="Academic Faculty"
           value={teacherCount.toString()}
-          subtitle="Active this semester"
+          subtitle="Directing pedagogy"
           icon={Users}
         />
         <StatsCard
-          title="Active Subjects"
+          title="Operational Subjects"
           value={(stats?.subjects || 0).toString()}
-          subtitle="Current semester"
+          subtitle="Live curriculum"
           icon={BookOpen}
         />
         <StatsCard
-          title="At-Risk Students"
+          title="Critical Alerts"
           value={atRiskCount.toString()}
-          subtitle="Need attention"
+          subtitle="Requiring attention"
           icon={AlertTriangle}
           variant="danger"
         />
       </div>
 
-      {/* Alerts */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-destructive" />
-            Attention Required
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {/* Students At Risk Alert */}
-          {stats?.alerts?.studentsAtRisk > 0 && (
-            <div className="flex items-center justify-between p-3 bg-destructive/5 border border-destructive/20">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-destructive rounded-full" />
-                <span className="text-sm">{stats.alerts.studentsAtRisk} students identified as at-risk across all departments</span>
-              </div>
-              <Badge variant="destructive">Critical</Badge>
-            </div>
-          )}
+      {/* Main Intelligence Row */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        {/* Left: Insights (Replaces Graphs) */}
+        <div className="xl:col-span-2 h-full">
+          <AcademicPerformanceInsights 
+            attainmentData={globalAttainment} 
+            trendData={performanceTrend} 
+          />
+        </div>
 
-          {/* Pending Approvals Alert */}
-          {stats?.alerts?.pendingApprovals > 0 && (
-            <div className="flex items-center justify-between p-3 bg-blue-500/5 border border-blue-500/20">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                <span className="text-sm">{stats.alerts.pendingApprovals} pending approval{stats.alerts.pendingApprovals !== 1 ? 's' : ''} need review</span>
-              </div>
-              <Badge className="bg-blue-500">Action Required</Badge>
-            </div>
-          )}
-
-          {/* Incomplete CO Attainments Alert */}
-          {stats?.alerts?.incompleteAttainments > 0 && (
-            <div className="flex items-center justify-between p-3 bg-muted/50 border border-border">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-                <span className="text-sm">{stats.alerts.incompleteAttainments} subject{stats.alerts.incompleteAttainments !== 1 ? 's' : ''} without Course Outcomes defined</span>
-              </div>
-              <Badge variant="outline">Warning</Badge>
-            </div>
-          )}
-
-          {/* Departments Without Subjects Alert */}
-          {stats?.alerts?.departmentsWithoutSubjects > 0 && (
-            <div className="flex items-center justify-between p-3 bg-muted/50 border border-border">
-              <div className="flex items-center gap-3">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-                <span className="text-sm">{stats.alerts.departmentsWithoutSubjects} department{stats.alerts.departmentsWithoutSubjects !== 1 ? 's' : ''} have no active subjects</span>
-              </div>
-              <Badge variant="outline">Warning</Badge>
-            </div>
-          )}
-
-          {/* Success State - All Active */}
-          {stats?.departments > 0 && stats?.subjects > 0 && (
-            <div className="flex items-center justify-between p-3 bg-green-500/5 border border-green-500/20">
-              <div className="flex items-center gap-3">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                <span className="text-sm">{stats.departments} department{stats.departments !== 1 ? 's' : ''} active with {stats.subjects} subject{stats.subjects !== 1 ? 's' : ''}</span>
-              </div>
-              <Badge className="bg-green-500">Active</Badge>
-            </div>
-          )}
-
-          {/* No Alerts State - All Clear */}
-          {stats?.alerts && 
-           stats.alerts.studentsAtRisk === 0 && 
-           stats.alerts.pendingApprovals === 0 && 
-           stats.alerts.incompleteAttainments === 0 && 
-           stats.alerts.departmentsWithoutSubjects === 0 && (
-            <div className="flex items-center justify-between p-3 bg-green-500/5 border border-green-500/20">
-              <div className="flex items-center gap-3">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                <span className="text-sm">No attention required - all systems running smoothly</span>
-              </div>
-              <Badge className="bg-green-500">All Clear</Badge>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <AtRiskStudentsWidget riskLevel="medium" maxDisplay={5} />
-        <COAttainmentChart data={globalAttainment} />
+        {/* Right: At-Risk Students */}
+        <div className="xl:col-span-1 h-full">
+          <AtRiskStudentsWidget riskLevel="medium" maxDisplay={6} />
+        </div>
       </div>
 
-      {/* Performance Trend */}
-      <div>
-        <PerformanceTrendChart data={performanceTrend} />
+      {/* Tertiary Row: Activity & Alerts */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+         {/* System Alerts */}
+         <Card className="lg:col-span-4 border-none shadow-lg bg-card/40 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <Zap className="h-4 w-4 text-amber-500" />
+              Operational Continuity
+            </CardTitle>
+            <CardDescription>Real-time system health alerts</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 px-4">
+            {stats?.alerts?.pendingApprovals > 0 && (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 group hover:bg-blue-500/15 transition-colors cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                  <span className="text-xs font-bold">{stats.alerts.pendingApprovals} Pending Reviews</span>
+                </div>
+                <ArrowRight className="h-3 w-3 text-blue-500 transition-transform group-hover:translate-x-1" />
+              </div>
+            )}
+            {stats?.alerts?.incompleteAttainments > 0 && (
+              <div className="flex items-center justify-between p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 group hover:bg-orange-500/15 transition-colors cursor-pointer">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+                  <span className="text-xs font-bold">{stats.alerts.incompleteAttainments} CO Gaps</span>
+                </div>
+                <ArrowRight className="h-3 w-3 text-orange-500 transition-transform group-hover:translate-x-1" />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Recent Activity */}
+        <Card className="lg:col-span-8 border-none shadow-lg bg-card/40 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-base font-bold">Protocol Ledger</CardTitle>
+            <CardDescription>Latest instructional and administrative activities</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <RecentActivity limit={5} />
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Recent Activity & Departments */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="lg:col-span-2">
-            <DepartmentTable departments={departmentStats} />
-          </div>
+      {/* Department Performance */}
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
+        <DepartmentTable departments={departmentStats} />
       </div>
     </div>
   );

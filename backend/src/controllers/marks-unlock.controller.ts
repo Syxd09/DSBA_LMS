@@ -26,9 +26,9 @@ export const requestUnlock = async (req: AuthRequest, res: Response) => {
 
         if (!exam) return res.status(404).json({ message: 'Exam not found' });
 
-        if (exam.status !== 'PUBLISHED') {
+        if (!['PUBLISHED', 'COMPLETED', 'LOCKED'].includes(exam.status)) {
             return res.status(400).json({
-                message: 'Only PUBLISHED exams can request unlock',
+                message: 'Only PUBLISHED, COMPLETED, or LOCKED exams can request unlock',
                 currentStatus: exam.status
             });
         }

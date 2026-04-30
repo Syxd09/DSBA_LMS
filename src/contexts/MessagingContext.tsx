@@ -62,6 +62,7 @@ interface MessagingContextType {
   messages: Message[];
   onlineUsers: Set<string>;
   typingUsers: Map<string, Set<string>>;
+  totalUnreadCount: number;
   
   // Actions
   setActiveConversation: (conversation: Conversation | null) => void;
@@ -126,13 +127,19 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
         setMessages(prev => [...prev, message]);
       }
       
-      // Update conversation list
+      // Update conversation list and unread count
       setConversations(prev => 
-        prev.map(conv => 
-          conv.id === message.conversationId
-            ? { ...conv, updatedAt: new Date().toISOString() }
-            : conv
-        ).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        prev.map(conv => {
+          if (conv.id === message.conversationId) {
+            const isInactive = activeConversation?.id !== message.conversationId;
+            return { 
+              ...conv, 
+              updatedAt: new Date().toISOString(),
+              unreadCount: isInactive ? (conv.unreadCount || 0) + 1 : 0
+            };
+          }
+          return conv;
+        }).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       );
     });
 
@@ -275,6 +282,8 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
     socket.emit('typing', { conversationId, isTyping });
   }, [socket]);
 
+  const totalUnreadCount = conversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0);
+
   const value: MessagingContextType = {
     socket,
     conversations,
@@ -282,6 +291,7 @@ export function MessagingProvider({ children }: { children: React.ReactNode }) {
     messages,
     onlineUsers,
     typingUsers,
+    totalUnreadCount,
     setActiveConversation,
     createConversation,
     sendMessage,

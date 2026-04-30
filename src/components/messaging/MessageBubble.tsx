@@ -33,9 +33,11 @@ interface Props {
   message: Message;
   isOwn: boolean;
   showSender: boolean;
+  onReply?: (message: Message) => void;
+  onIgnore?: (messageId: string) => void;
 }
 
-export function MessageBubble({ message, isOwn, showSender }: Props) {
+export function MessageBubble({ message, isOwn, showSender, onReply, onIgnore }: Props) {
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -162,9 +164,27 @@ export function MessageBubble({ message, isOwn, showSender }: Props) {
                 </p>
               )}
 
-              {/* Timestamp */}
-              <div className="text-[10px] mt-1.5 opacity-60 text-slate-500 flex justify-start">
-                {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+              {/* Timestamp & Actions */}
+              <div className="flex items-center gap-3 mt-1.5">
+                <div className="text-[10px] opacity-60 text-slate-500 whitespace-nowrap">
+                  {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+                </div>
+                
+                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={() => onReply?.(message)}
+                    className="text-[10px] font-bold text-primary hover:underline uppercase tracking-wider"
+                  >
+                    Reply
+                  </button>
+                  <span className="text-[10px] text-slate-300">|</span>
+                  <button 
+                    onClick={() => onIgnore?.(message.id)}
+                    className="text-[10px] font-bold text-slate-400 hover:text-slate-600 uppercase tracking-wider"
+                  >
+                    Ignore
+                  </button>
+                </div>
               </div>
             </div>
           </div>

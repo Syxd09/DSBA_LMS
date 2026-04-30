@@ -173,6 +173,7 @@ export const calculateGrades = async (req: AuthRequest, res: Response) => {
             const external = studentExamMarks['EXTERNAL'] ?? 0;
             
             // Get max marks for the involved exams to calculate correct percentage
+            // Default to institutional standards if exams are missing
             const int1Exam = exams.find(e => e.examType === 'INTERNAL_1');
             const int2Exam = exams.find(e => e.examType === 'INTERNAL_2');
             const extExam = exams.find(e => e.examType === 'EXTERNAL');
@@ -184,8 +185,8 @@ export const calculateGrades = async (req: AuthRequest, res: Response) => {
             const bestInternal = Math.max(internal1, internal2);
             const totalMarks = bestInternal + external;
 
-            // Calculate percentage dynamically
-            const percentage = parseFloat(((totalMarks / maxTotal) * 100).toFixed(2));
+            // Calculate percentage with precision
+            const percentage = Math.round(((totalMarks / maxTotal) * 100) * 100) / 100;
 
             // Assign grade based on percentage
             let grade = 'F';

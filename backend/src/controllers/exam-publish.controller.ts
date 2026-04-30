@@ -82,8 +82,8 @@ export const unlockExam = async (req: AuthRequest, res: Response) => {
             return res.status(403).json({ message: 'Access denied' });
         }
 
-        if (exam.status !== 'PUBLISHED') {
-            return res.status(400).json({ message: 'Only published exams can be unlocked' });
+        if (!['PUBLISHED', 'COMPLETED', 'LOCKED'].includes(exam.status)) {
+            return res.status(400).json({ message: 'Only published, completed, or locked exams can be unlocked' });
         }
 
         await prisma.exam.update({
