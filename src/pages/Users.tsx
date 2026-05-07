@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, Search, Loader2, Trash2, Pencil, Key, Plus, AlertCircle, BookOpen } from 'lucide-react';
+import { UserPlus, Search, Loader2, Trash2, Pencil, Key, Plus, AlertCircle, BookOpen, Eye, EyeOff } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -84,6 +84,8 @@ export default function Users() {
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [resettingUser, setResettingUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -138,6 +140,7 @@ export default function Users() {
 
   const handleOpenCreate = () => {
     resetForm();
+    setShowPassword(false);
     setIsDialogOpen(true);
   };
 
@@ -241,6 +244,7 @@ export default function Users() {
   const handleOpenReset = (user: User) => {
     setResettingUser(user);
     setNewPassword('');
+    setShowResetPassword(false);
     setResetDialogOpen(true);
   };
 
@@ -343,12 +347,28 @@ export default function Users() {
               {!isEditMode && (
                 <div className="space-y-2">
                   <Label>Password *</Label>
-                  <Input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="••••••••"
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               )}
                 <div className="grid grid-cols-2 gap-4">
@@ -592,12 +612,28 @@ export default function Users() {
              <div className="space-y-4 py-4">
                <div className="space-y-2">
                  <Label>New Password</Label>
-                 <Input 
-                   type="password" 
-                   value={newPassword} 
-                   onChange={(e) => setNewPassword(e.target.value)}
-                   placeholder="Enter new password"
-                 />
+                 <div className="relative">
+                   <Input 
+                     type={showResetPassword ? "text" : "password"} 
+                     value={newPassword} 
+                     onChange={(e) => setNewPassword(e.target.value)}
+                     placeholder="Enter new password"
+                     className="pr-10"
+                   />
+                   <Button
+                     type="button"
+                     variant="ghost"
+                     size="sm"
+                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                     onClick={() => setShowResetPassword(!showResetPassword)}
+                   >
+                     {showResetPassword ? (
+                       <EyeOff className="h-4 w-4 text-muted-foreground" />
+                     ) : (
+                       <Eye className="h-4 w-4 text-muted-foreground" />
+                     )}
+                   </Button>
+                 </div>
                </div>
                <Button className="w-full" onClick={handleResetPassword} disabled={isSubmitting || !newPassword}>
                  {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Updating...</> : 'Set New Password'}

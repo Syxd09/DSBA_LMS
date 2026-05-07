@@ -66,13 +66,15 @@ export function TeacherDashboard() {
           return data || [];
         })
       );
-      const uniqueStudents = new Map();
+      const enrollmentMap = new Map();
       allData.flat().forEach((enrollment: any) => {
         if (enrollment.studentId) {
-          uniqueStudents.set(enrollment.studentId, enrollment);
+          // Use studentId + semester as key to treat enrollments in different semesters as distinct
+          const key = `${enrollment.studentId}-${enrollment.semester}`;
+          enrollmentMap.set(key, enrollment);
         }
       });
-      return Array.from(uniqueStudents.values());
+      return Array.from(enrollmentMap.values());
     },
     enabled: teacherAssignments.length > 0
   });
@@ -131,78 +133,79 @@ export function TeacherDashboard() {
   });
 
   return (
-    <div className="space-y-8 pb-10 animate-in fade-in duration-700">
+    <div className="space-y-10 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-1000">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-black tracking-tight text-foreground flex items-center gap-2">
-            <Sparkles className="h-8 w-8 text-primary" />
-            Instructional Hub
-          </h2>
-          <p className="text-muted-foreground font-medium">Monitoring academic delivery for {profile?.full_name}</p>
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border/40 pb-10">
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+             <div className="p-2.5 bg-slate-900 text-white rounded-xl shadow-2xl">
+                <Target className="h-6 w-6" />
+             </div>
+             <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 uppercase">
+               Instructional Command
+             </h2>
+          </div>
+          <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em] opacity-60">
+            Pedagogical Ledger • {profile?.full_name} • Operational Delivery
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Button onClick={() => navigate('/exams')} className="gap-2 font-black shadow-lg shadow-primary/25">
-            <Plus className="h-4 w-4" />
-            New Assessment
+        <div className="flex items-center gap-4">
+          <Button variant="outline" className="h-12 px-6 rounded-xl border-slate-900/10 hover:border-slate-900 hover:bg-slate-900 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all duration-500" onClick={() => navigate('/settings')}>
+             Config
           </Button>
-          <Button variant="outline" className="gap-2 font-bold shadow-sm">
-            <Settings className="h-4 w-4" />
-            Config
+          <Button className="h-12 px-8 rounded-xl bg-slate-900 hover:bg-slate-800 text-white shadow-2xl shadow-slate-900/20 text-[10px] font-extrabold uppercase tracking-widest transition-all duration-500 gap-3 group" onClick={() => navigate('/exams')}>
+            <Plus className="h-4 w-4 group-hover:rotate-90 transition-transform duration-500" />
+            New Assessment
           </Button>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard
           title="Assigned Domain"
           value={assignedSubjects.length.toString()}
-          subtitle="Core subjects"
+          subtitle="Core Curricular Units"
           icon={BookOpen}
-          variant="primary"
         />
         <StatsCard
-          title="Student Cohort"
+          title="Direct Cohort"
           value={totalStudents.toString()}
-          subtitle="Direct supervisees"
+          subtitle="Validated Student IDs"
           icon={Users}
         />
         <StatsCard
           title="Open Graded"
           value={pendingExams.toString()}
-          subtitle="Pending reviews"
+          subtitle="Pending Audit Reviews"
           icon={ClipboardList}
-          variant="warning"
         />
         <StatsCard
-          title="Cohort Merit"
+          title="Merit Index"
           value={`${classAverage}%`}
-          subtitle="Avg attainment"
+          subtitle="Aggregated Attainment"
           icon={TrendingUp}
-          trend={{ value: 6, isPositive: true }}
-          variant="success"
         />
       </div>
 
       {/* Main Content Area */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         {/* Left: Subject Management */}
-        <div className="xl:col-span-2 space-y-6 text-foreground">
-          <Card className="border-none shadow-xl bg-card/60 backdrop-blur-xl overflow-hidden">
-            <CardHeader className="border-b border-border/50 bg-muted/20">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <Activity className="h-5 w-5 text-primary" />
+        <div className="xl:col-span-2 space-y-6">
+          <Card className="border-border/40 shadow-2xl bg-card/30 backdrop-blur-md overflow-hidden h-full">
+            <CardHeader className="border-b border-border/40 bg-slate-900/5 p-8">
+              <CardTitle className="text-sm font-extrabold tracking-[0.2em] uppercase flex items-center gap-3 text-slate-900">
+                <Activity className="h-4 w-4 opacity-50" />
                 Pedagogical Delivery
               </CardTitle>
-              <CardDescription>Live tracking of assigned subject progression</CardDescription>
+              <CardDescription className="text-[11px] font-medium tracking-tight">Real-time status of academic progression milestones.</CardDescription>
             </CardHeader>
-            <CardContent className="p-6 space-y-4">
+            <CardContent className="p-8 space-y-4">
               {assignedSubjects.length === 0 ? (
-                <div className="text-center text-muted-foreground py-20 bg-muted/10 rounded-2xl border-2 border-dashed border-border">
+                <div className="text-center py-20 bg-slate-900/5 rounded-3xl border border-dashed border-border/60">
                   <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                  <p className="font-bold">No Operational Domains</p>
-                  <p className="text-sm">Contact administration for domain assignment.</p>
+                  <p className="text-[10px] font-extrabold uppercase tracking-widest opacity-40">No Assigned Subjects</p>
+                  <p className="text-[10px] font-medium uppercase tracking-tight mt-1">Contact administration for subject assignment.</p>
                 </div>
               ) : (
                 assignedSubjects.map((subject: any, index) => {
@@ -213,7 +216,7 @@ export function TeacherDashboard() {
                   return (
                     <div 
                       key={subject?.id} 
-                      className="group p-5 rounded-2xl border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-all cursor-pointer animate-in fade-in slide-in-from-left-4"
+                      className="group p-6 rounded-2xl border border-border/60 hover:border-slate-900 hover:bg-slate-900 transition-all duration-500 cursor-pointer"
                       style={{ animationDelay: `${index * 100}ms` }}
                       onClick={() => {
                         if (subject.cohortId) setCohortId(subject.cohortId);
@@ -222,34 +225,35 @@ export function TeacherDashboard() {
                         navigate('/students');
                       }}
                     >
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h4 className="text-lg font-black leading-none group-hover:text-primary transition-colors">{subject?.name}</h4>
-                          <p className="text-xs font-bold text-muted-foreground mt-1.5 uppercase tracking-widest">{subject?.code} • SEMESTER {subject?.semester}</p>
+                      <div className="flex items-start justify-between mb-6">
+                        <div className="space-y-1">
+                          <h4 className="text-lg font-extrabold tracking-tight group-hover:text-white transition-colors uppercase">{subject?.name}</h4>
+                          <p className="text-[9px] font-bold text-muted-foreground group-hover:text-white/60 uppercase tracking-[0.2em]">{subject?.code} • SEMESTER {subject?.semester}</p>
                         </div>
                         <div className="flex gap-2">
-                            <Badge variant="secondary" className="font-black px-2.5">{subject?.studentCount || 0} SEATS</Badge>
-                            <Badge variant="outline" className="font-bold">{subject?.credits} CR</Badge>
+                            <div className="px-3 py-1 rounded-lg bg-slate-900/5 group-hover:bg-white/10 text-[9px] font-bold text-slate-900 group-hover:text-white tracking-widest uppercase border border-border/40 group-hover:border-white/20 transition-all">
+                               {subject?.studentCount || 0} SEATS
+                            </div>
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-black uppercase text-muted-foreground tracking-tighter">Milestone I1</p>
+                      <div className="grid grid-cols-2 gap-8 pt-4 border-t border-border/40 group-hover:border-white/10">
+                        <div className="space-y-1.5">
+                          <p className="text-[9px] font-bold uppercase text-muted-foreground group-hover:text-white/40 tracking-widest">Milestone I1</p>
                           <div className="flex items-center gap-2">
-                            {int1Done ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Clock className="h-4 w-4 text-amber-500" />}
-                            <span className={cn("text-sm font-bold", int1Done ? "text-green-600" : "text-amber-600")}>
-                                {int1Done ? "SYNCED" : "PENDING"}
+                            <div className={cn("w-1.5 h-1.5 rounded-full shadow-sm", int1Done ? "bg-emerald-500 shadow-emerald-500/50" : "bg-slate-900/20 group-hover:bg-white/20")} />
+                            <span className={cn("text-[10px] font-bold tracking-widest", int1Done ? "text-emerald-600 group-hover:text-emerald-400" : "text-muted-foreground group-hover:text-white/40")}>
+                                {int1Done ? "VALIDATED" : "PENDING"}
                             </span>
                           </div>
                         </div>
-                        <div className="space-y-2 text-right">
-                          <p className="text-[10px] font-black uppercase text-muted-foreground tracking-tighter">Milestone I2</p>
+                        <div className="space-y-1.5 text-right">
+                          <p className="text-[9px] font-bold uppercase text-muted-foreground group-hover:text-white/40 tracking-widest">Milestone I2</p>
                           <div className="flex items-center justify-end gap-2">
-                            {int2Done ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Clock className="h-4 w-4 text-amber-500" />}
-                            <span className={cn("text-sm font-bold", int2Done ? "text-green-600" : "text-amber-600")}>
-                                {int2Done ? "SYNCED" : "PENDING"}
+                            <span className={cn("text-[10px] font-bold tracking-widest", int2Done ? "text-emerald-600 group-hover:text-emerald-400" : "text-muted-foreground group-hover:text-white/40")}>
+                                {int2Done ? "VALIDATED" : "PENDING"}
                             </span>
+                            <div className={cn("w-1.5 h-1.5 rounded-full shadow-sm", int2Done ? "bg-emerald-500 shadow-emerald-500/50" : "bg-slate-900/20 group-hover:bg-white/20")} />
                           </div>
                         </div>
                       </div>
@@ -263,38 +267,43 @@ export function TeacherDashboard() {
 
         {/* Right: Operational Insights */}
         <div className="xl:col-span-1 space-y-8">
-           <Card className="border-none shadow-xl bg-card border-l-4 border-l-primary overflow-hidden">
-             <CardHeader>
-               <CardTitle className="text-base font-bold flex items-center gap-2 uppercase tracking-tighter">
-                 <Target className="h-5 w-5 text-primary" />
+           <Card className="border-border/40 shadow-2xl bg-card/30 backdrop-blur-md overflow-hidden">
+             <CardHeader className="border-b border-border/40 bg-slate-900/5 p-8">
+               <CardTitle className="text-sm font-extrabold tracking-[0.2em] uppercase flex items-center gap-3">
+                 <Activity className="h-4 w-4 opacity-50" />
                  Merit Distribution
                </CardTitle>
              </CardHeader>
-             <CardContent className="space-y-6">
+             <CardContent className="p-8 space-y-8">
                 {subjectMetrics.map((sm, i) => (
-                  <div key={sm.code} className="space-y-2 animate-in zoom-in-95 duration-500" style={{ animationDelay: `${i * 150}ms` }}>
+                  <div key={sm.code} className="space-y-3 animate-in zoom-in-95 duration-500" style={{ animationDelay: `${i * 150}ms` }}>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-muted-foreground">{sm.code}</span>
-                      <span className="text-sm font-black text-foreground">{sm.average}%</span>
+                      <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-muted-foreground">{sm.code}</span>
+                      <span className="text-lg font-extrabold tracking-tighter text-slate-900">{sm.average}%</span>
                     </div>
-                    <Progress value={sm.average} className="h-2 bg-muted" indicatorClassName="bg-primary shadow-[0_0_8px_rgba(var(--primary),0.5)]" />
+                    <div className="h-1.5 w-full bg-slate-900/5 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-slate-900 transition-all duration-1000" 
+                        style={{ width: `${sm.average}%` }} 
+                      />
+                    </div>
                   </div>
                 ))}
              </CardContent>
            </Card>
 
-           <Card className="border-none shadow-xl bg-card/60 backdrop-blur-xl">
-             <CardHeader>
-               <CardTitle className="text-base font-bold">Quick Protocols</CardTitle>
+           <Card className="border-border/40 shadow-2xl bg-card/30 backdrop-blur-md overflow-hidden">
+             <CardHeader className="border-b border-border/40 bg-slate-900/5 p-8">
+               <CardTitle className="text-sm font-extrabold tracking-[0.2em] uppercase">Quick Protocols</CardTitle>
              </CardHeader>
-             <CardContent className="space-y-3">
-                <Button onClick={() => navigate('/marks-entry')} className="w-full justify-between font-bold group bg-primary/10 text-primary hover:bg-primary hover:text-white" variant="ghost">
+             <CardContent className="p-6 space-y-3">
+                <Button onClick={() => navigate('/marks-entry')} className="w-full justify-between h-12 px-6 rounded-xl border-slate-900/10 hover:border-slate-900 hover:bg-slate-900 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all duration-500 group" variant="ghost">
                   <span>Batch Sync Marks</span>
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-2" />
                 </Button>
-                <Button onClick={() => navigate('/co-po-analytics')} className="w-full justify-between font-bold group" variant="ghost">
+                <Button onClick={() => navigate('/co-po-analytics')} className="w-full justify-between h-12 px-6 rounded-xl border-slate-900/10 hover:border-slate-900 hover:bg-slate-900 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all duration-500 group" variant="ghost">
                   <span>Traceability Ledger</span>
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-2" />
                 </Button>
              </CardContent>
            </Card>

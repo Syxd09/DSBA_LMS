@@ -14,6 +14,7 @@ import { Loader2, Search, AlertCircle, Lock } from 'lucide-react';
 import { teacherFeedbackApi, apiCall } from '@/api/feedbackApi';
 import { toast } from '@/hooks/use-toast';
 import api from '@/lib/api';
+import { useAvailableSemesters } from '@/hooks/useAvailableSemesters';
 
 export default function FinalApprovals() {
   const { user } = useAuth();
@@ -24,6 +25,7 @@ export default function FinalApprovals() {
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [semesterFilter, setSemesterFilter] = useState<string>('all');
   const [lockingIds, setLockingIds] = useState<Set<string>>(new Set());
+  const availableSemesters = useAvailableSemesters();
 
   // RBAC:Only Principal/Admin can access
   if (user?.role !== 'PRINCIPAL' && user?.role !== 'ADMIN') {
@@ -172,7 +174,7 @@ export default function FinalApprovals() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Semesters</SelectItem>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                  {availableSemesters.map((sem) => (
                     <SelectItem key={sem} value={sem.toString()}>
                       Semester {sem}
                     </SelectItem>

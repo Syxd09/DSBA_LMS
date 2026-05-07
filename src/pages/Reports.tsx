@@ -1,445 +1,325 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { useAcademicContext } from '../contexts/AcademicContext';
-import { 
-    FileText, Download, TrendingUp, Award, BarChart3, Printer, 
-    Search, Loader2, Users, BookOpen, UserCheck, ShieldCheck,
-    PieChart as PieChartIcon, Filter
-} from 'lucide-react';
-import api from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useAcademicContext } from '@/contexts/AcademicContext';
 import { 
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-    Cell, PieChart, Pie, Legend
-} from 'recharts';
-import { downloadCSV } from '../utils/report-utils';
-import { useAuth } from '../hooks/useAuth';
+  FileText, Download, Printer, Search, 
+  Users, BookOpen, Layers, Sparkles, 
+  Activity, Info, FileSpreadsheet, ChevronRight,
+  Star, GraduationCap, School
+} from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
-const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'];
+export default function Reports() {
+  const { cohortId: globalCohortId, departmentId: globalDeptId } = useAcademicContext();
+  const { toast } = useToast();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedDeptId, setSelectedDeptId] = useState<string>(globalDeptId || '');
+  const [selectedCohortId, setSelectedCohortId] = useState<string>(globalCohortId || '');
+  const [selectedSemester, setSelectedSemester] = useState<string>('Semester 1');
+  const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
 
-const Reports: React.FC = () => {
-    const { departmentId, cohortId } = useAcademicContext();
-    const { role } = useAuth();
-    
-    const [activeTab, setActiveTab] = useState('distribution');
-    const [loading, setLoading] = useState(false);
-    
-    // Distribution Data
-    const [distributionData, setDistributionData] = useState<any[]>([]);
-    const [workloadData, setWorkloadData] = useState<any[]>([]);
-    const [academicSummary, setAcademicSummary] = useState<any[]>([]);
+  // Fetch departments
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments-list'],
+    queryFn: async () => {
+      const { data } = await api.get('/departments');
+      return data || [];
+    }
+  });
 
-    const fetchDistribution = async () => {
-        setLoading(true);
-        try {
-            const { data } = await api.get('/reports/distribution', { params: { departmentId } });
-            setDistributionData(data);
-        } catch (error) {
-            console.error('Error fetching distribution:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+  // Fetch cohorts
+  const { data: cohorts = [] } = useQuery({
+    queryKey: ['cohorts-list', selectedDeptId],
+    queryFn: async () => {
+      const { data } = await api.get('/cohorts');
+      return data || [];
+    }
+  });
 
-    const fetchWorkload = async () => {
-        setLoading(true);
-        try {
-            const { data } = await api.get('/reports/faculty-workload', { params: { departmentId } });
-            setWorkloadData(data);
-        } catch (error) {
-            console.error('Error fetching workload:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const effectiveCohortId = selectedCohortId || globalCohortId;
 
-    const fetchAcademicSummary = async () => {
-        if (!cohortId) return;
-        setLoading(true);
-        try {
-            const { data } = await api.get('/reports/academic-summary', { params: { cohortId } });
-            setAcademicSummary(data);
-        } catch (error) {
-            console.error('Error fetching academic summary:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const semesterNumber = selectedSemester.split(' ')[1];
 
-    useEffect(() => {
-        if (activeTab === 'distribution') fetchDistribution();
-        if (activeTab === 'workload') fetchWorkload();
-        if (activeTab === 'summary') fetchAcademicSummary();
-    }, [activeTab, departmentId, cohortId]);
+  const { data: reportData, isLoading } = useQuery({
+    queryKey: ['class-detailed-report', effectiveCohortId, semesterNumber],
+    queryFn: async () => {
+      if (!effectiveCohortId) return null;
+      const { data } = await api.get(`/reports/class-detailed?cohortId=${effectiveCohortId}&semester=${semesterNumber}`);
+      return data;
+    },
+    enabled: !!effectiveCohortId
+  });
 
-    const handlePrint = () => {
-        window.print();
-    };
-
-    const exportToExcel = () => {
-        if (activeTab === 'distribution') {
-            const exportData = distributionData.map(d => ({
-                'Cohort Name': d.cohortName,
-                'Program': d.program,
-                'Total Students': d.stats.total,
-                'Above 80%': d.stats.above80,
-                '60% - 80%': d.stats.between60And80,
-                'Below 60%': d.stats.below60
-            }));
-            downloadCSV(exportData, `Performance_Distribution_${new Date().toLocaleDateString()}`);
-        } else if (activeTab === 'workload') {
-            const exportData = workloadData.map(w => ({
-                'Faculty Name': w.teacher.fullName,
-                'Email': w.teacher.email,
-                'Subject': w.subject.name,
-                'Code': w.subject.code,
-                'Semester': w.subject.semester,
-                'Cohort': w.cohort.name,
-                'Students Enrolled': w.metrics?.studentCount || 0,
-                'Avg Performance (%)': w.metrics?.averagePercentage?.toFixed(2) || '0.00',
-                'Academic Year': w.academicYear
-            }));
-            downloadCSV(exportData, `Faculty_Workload_${new Date().toLocaleDateString()}`);
-        } else if (activeTab === 'summary') {
-            const exportData = academicSummary.map(s => ({
-                'Reg Number': s.registrationNumber,
-                'Name': s.name,
-                'Email': s.email,
-                'Cohort': s.cohort,
-                'Average %': s.overallAvg.toFixed(2)
-            }));
-            downloadCSV(exportData, `Academic_Summary_${new Date().toLocaleDateString()}`);
-        }
-    };
-
-    return (
-        <AuthenticatedLayout allowedRoles={['admin', 'principal', 'hod', 'teacher']}>
-            <div className="max-w-[1600px] mx-auto px-6 py-8 pb-20 space-y-8">
-                {/* Header Section */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 no-print">
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-indigo-600 rounded-xl">
-                                <FileText className="w-6 h-6 text-white" />
-                            </div>
-                            <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Institutional Reports</h1>
-                        </div>
-                        <p className="text-slate-500 font-medium">Advanced academic intelligence and faculty auditing suite</p>
-                    </div>
-
-                    <div className="flex gap-3">
-                        <Button variant="outline" size="lg" className="bg-white border-slate-200 shadow-sm" onClick={handlePrint}>
-                            <Printer className="w-4 h-4 mr-2" />
-                            Print Structured PDF
-                        </Button>
-                        <Button size="lg" className="bg-slate-900 hover:bg-slate-800 shadow-md" onClick={exportToExcel}>
-                            <Download className="w-4 h-4 mr-2" />
-                            Export Excel (CSV)
-                        </Button>
-                    </div>
-                </div>
-
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-                    <TabsList className="bg-slate-100/80 p-1 no-print h-auto flex-wrap gap-1">
-                        <TabsTrigger value="distribution" className="data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 py-2.5 rounded-lg">
-                            <BarChart3 className="w-4 h-4 mr-2" />
-                            Performance Distribution
-                        </TabsTrigger>
-                        <TabsTrigger value="workload" className="data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 py-2.5 rounded-lg">
-                            <Users className="w-4 h-4 mr-2" />
-                            Faculty Workload
-                        </TabsTrigger>
-                        <TabsTrigger value="summary" className="data-[state=active]:bg-white data-[state=active]:shadow-sm px-6 py-2.5 rounded-lg">
-                            <BookOpen className="w-4 h-4 mr-2" />
-                            Academic Summary
-                        </TabsTrigger>
-                    </TabsList>
-
-                    {/* Performance Distribution Tab */}
-                    <TabsContent value="distribution" className="animate-in fade-in duration-500 space-y-8">
-                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-                            <div className="xl:col-span-2 space-y-8">
-                                {distributionData.map((cohort) => (
-                                    <Card key={cohort.cohortId} className="overflow-hidden border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                                        <CardHeader className="bg-slate-50/50 border-b">
-                                            <div className="flex justify-between items-center">
-                                                <div>
-                                                    <CardTitle className="text-xl font-bold text-slate-900">{cohort.cohortName}</CardTitle>
-                                                    <CardDescription>{cohort.program}</CardDescription>
-                                                </div>
-                                                <Badge variant="outline" className="bg-white px-3 py-1 text-xs font-bold text-slate-600">
-                                                    {cohort.stats.total} Expected Returns
-                                                </Badge>
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent className="pt-8">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                                                <div className="h-[250px]">
-                                                    <ResponsiveContainer width="100%" height="100%">
-                                                        <BarChart 
-                                                            layout="vertical"
-                                                            data={[
-                                                                { name: 'Above 80%', value: cohort.stats.above80, color: '#10b981' },
-                                                                { name: '60% - 80%', value: cohort.stats.between60And80, color: '#3b82f6' },
-                                                                { name: 'Below 60%', value: cohort.stats.below60, color: '#ef4444' }
-                                                            ]}
-                                                            margin={{ left: 50 }}
-                                                        >
-                                                            <XAxis type="number" hide />
-                                                            <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600 }} />
-                                                            <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }} />
-                                                            <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                                                                {[0, 1, 2].map((i) => (
-                                                                    <Cell key={i} fill={['#10b981', '#3b82f6', '#ef4444'][i]} />
-                                                                ))}
-                                                            </Bar>
-                                                        </BarChart>
-                                                    </ResponsiveContainer>
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
-                                                        <p className="text-emerald-700 text-xs font-bold uppercase tracking-wider mb-1">Distinction Plus</p>
-                                                        <h4 className="text-2xl font-black text-emerald-900">{cohort.stats.above80}</h4>
-                                                        <p className="text-emerald-600/60 text-[10px] font-bold">ATTAINED {cohort.stats.above80Percent.toFixed(1)}%</p>
-                                                    </div>
-                                                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl">
-                                                        <p className="text-blue-700 text-xs font-bold uppercase tracking-wider mb-1">Standard Merit</p>
-                                                        <h4 className="text-2xl font-black text-blue-900">{cohort.stats.between60And80}</h4>
-                                                        <p className="text-blue-600/60 text-[10px] font-bold">ATTAINED {cohort.stats.between60And80Percent.toFixed(1)}%</p>
-                                                    </div>
-                                                    <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl">
-                                                        <p className="text-rose-700 text-xs font-bold uppercase tracking-wider mb-1">Need Support</p>
-                                                        <h4 className="text-2xl font-black text-rose-900">{cohort.stats.below60}</h4>
-                                                        <p className="text-rose-600/60 text-[10px] font-bold">CRITICAL {cohort.stats.below60Percent.toFixed(1)}%</p>
-                                                    </div>
-                                                    <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-                                                        <p className="text-slate-700 text-xs font-bold uppercase tracking-wider mb-1">Total Count</p>
-                                                        <h4 className="text-2xl font-black text-slate-900">{cohort.stats.total}</h4>
-                                                        <p className="text-slate-600/60 text-[10px] font-bold">FULL ENROLLMENT</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
-                            
-                            <div className="xl:col-span-1 space-y-6">
-                                <Card className="bg-indigo-600 text-white border-none shadow-xl">
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <ShieldCheck className="w-5 h-5" /> Reporting Parameters
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4 text-sm text-indigo-100">
-                                        <p>This report is generated based on real-time examination data. Student performance is calculated using the following bands:</p>
-                                        <ul className="list-disc pl-5 space-y-2">
-                                            <li><strong>High Performers:</strong> &gt;80% overall average. Candidates for institutional awards.</li>
-                                            <li><strong>Standard Cohort:</strong> 60% to 80% average. Regular academic progress.</li>
-                                            <li><strong>At Risk:</strong> Below 60% average. Mandatory remedial counseling recommended.</li>
-                                        </ul>
-                                        <div className="pt-4 border-t border-white/10 flex items-center justify-between font-bold text-white">
-                                            <span>Institutional Compliance</span>
-                                            <Badge className="bg-white/20 text-white border-white/30">NAAC v4.2</Badge>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </div>
-                        </div>
-                    </TabsContent>
-
-                    {/* Faculty Workload Tab */}
-                    <TabsContent value="workload" className="animate-in fade-in duration-500">
-                        <Card className="border-slate-200 shadow-sm overflow-hidden">
-                            <CardHeader className="bg-slate-50/50 border-b flex flex-row items-center justify-between">
-                                <div>
-                                    <CardTitle>Teacher Assignments Registry</CardTitle>
-                                    <CardDescription>Comprehensive audit of faculty subject mappings and semester workload</CardDescription>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs font-bold text-slate-400">STATUS:</span>
-                                    <Badge className="bg-emerald-500 text-white border-none">ACTIVE CYCLE</Badge>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="p-0">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead className="bg-slate-50 border-b">
-                                            <tr>
-                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase">Faculty Member</th>
-                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase">Academic Subject</th>
-                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase">Cohort Assignment</th>
-                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase text-center">Students</th>
-                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase text-center">Avg. Perf. (%)</th>
-                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase text-center">Semester</th>
-                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase text-center">Credits</th>
-                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase text-center">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y">
-                                            {workloadData.map((assign, idx) => (
-                                                <tr key={idx} className="group hover:bg-indigo-50/30 transition-colors">
-                                                    <td className="p-4">
-                                                        <p className="font-bold text-slate-900">{assign.teacher.fullName}</p>
-                                                        <p className="text-xs text-slate-400">{assign.teacher.email}</p>
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <div className="flex items-center gap-2">
-                                                           <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-[10px] font-black text-indigo-600 border border-indigo-100">
-                                                               {assign.subject.code}
-                                                           </div>
-                                                           <p className="text-sm font-semibold text-slate-700">{assign.subject.name}</p>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <p className="text-sm font-medium text-slate-600">{assign.cohort.name}</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold tracking-tighter uppercase">{assign.academicYear}</p>
-                                                    </td>
-                                                    <td className="p-4 text-center font-bold text-indigo-600">
-                                                        {assign.metrics?.studentCount || 0}
-                                                    </td>
-                                                    <td className="p-4 text-center font-bold">
-                                                        <span className={assign.metrics?.averagePercentage >= 60 ? 'text-emerald-600' : 'text-rose-600'}>
-                                                            {assign.metrics?.averagePercentage?.toFixed(1) || '0.0'}%
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-4 text-center">
-                                                        <Badge variant="secondary" className="font-mono">{assign.subject.semester}</Badge>
-                                                    </td>
-                                                    <td className="p-4 text-center font-bold text-slate-700">
-                                                        {assign.subject.credits}
-                                                    </td>
-                                                    <td className="p-4 text-center">
-                                                        <div className="flex justify-center">
-                                                            <div className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] ${
-                                                                (assign.metrics?.studentCount > 0) ? 'bg-emerald-500' : 'bg-slate-300'
-                                                            }`} />
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                    {loading && workloadData.length === 0 && (
-                                        <div className="py-20 flex flex-col items-center justify-center gap-3">
-                                            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-                                            <p className="text-sm text-slate-400 font-medium italic">Synchronizing workload registry...</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    {/* Academic Summary Tab */}
-                    <TabsContent value="summary" className="animate-in fade-in duration-500 space-y-6">
-                        {!cohortId ? (
-                             <Card className="border-2 border-dashed bg-slate-50/50 py-20 text-center">
-                                <Search className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-                                <h3 className="text-xl font-bold text-slate-900">Context Required</h3>
-                                <p className="text-slate-500 max-w-sm mx-auto mt-2">Please select an academic cohort from the sidebar or settings to generate the comprehensive master sheet.</p>
-                             </Card>
-                        ) : (
-                            <div className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 no-print">
-                                    <Card className="bg-white shadow-sm border-slate-200">
-                                        <CardContent className="pt-6">
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Total Students</p>
-                                            <h4 className="text-2xl font-black text-slate-900">{academicSummary.length}</h4>
-                                        </CardContent>
-                                    </Card>
-                                    <Card className="bg-white shadow-sm border-slate-200">
-                                        <CardContent className="pt-6">
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Mean Academic Score</p>
-                                            <h4 className="text-2xl font-black text-indigo-600">
-                                                {academicSummary.length > 0 
-                                                    ? (academicSummary.reduce((a, b) => a + b.overallAvg, 0) / academicSummary.length).toFixed(1) 
-                                                    : 0}%
-                                            </h4>
-                                        </CardContent>
-                                    </Card>
-                                    <Card className="bg-white shadow-sm border-slate-200">
-                                        <CardContent className="pt-6">
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Report Type</p>
-                                            <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2 mt-2">
-                                                <ShieldCheck className="w-4 h-4 text-emerald-500" /> MASTER_ACADEMIC_LEDGER
-                                            </h4>
-                                        </CardContent>
-                                    </Card>
-                                </div>
-
-                                <Card className="border-slate-200 shadow-sm">
-                                    <CardContent className="p-0">
-                                        <div className="overflow-x-auto">
-                                            <table className="w-full text-left border-collapse text-sm">
-                                                <thead className="bg-slate-50 border-b">
-                                                    <tr>
-                                                        <th className="p-4 font-bold text-slate-700">Reg Number</th>
-                                                        <th className="p-4 font-bold text-slate-700">Student Identity</th>
-                                                        <th className="p-4 font-bold text-slate-700">Academic Program</th>
-                                                        <th className="p-4 font-bold text-slate-700 text-center">Subjects Evaluated</th>
-                                                        <th className="p-4 font-bold text-slate-700 text-center">Aggregate Result</th>
-                                                        <th className="p-4 font-bold text-slate-700 text-center">Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y">
-                                                    {academicSummary.map((student, idx) => (
-                                                        <tr key={idx} className="hover:bg-slate-50/50">
-                                                            <td className="p-4 font-mono font-medium text-slate-500 italic">
-                                                                {student.registrationNumber}
-                                                            </td>
-                                                            <td className="p-4">
-                                                                <p className="font-bold text-slate-900">{student.name}</p>
-                                                                <p className="text-[11px] text-slate-400">{student.email}</p>
-                                                            </td>
-                                                            <td className="p-4 font-medium text-slate-600">
-                                                                {student.program}
-                                                                <p className="text-[10px] opacity-50 uppercase">{student.cohort}</p>
-                                                            </td>
-                                                            <td className="p-4 text-center">
-                                                                <Badge variant="outline" className="font-bold border-slate-200">{student.subjects.length} Subjects</Badge>
-                                                            </td>
-                                                            <td className="p-4 text-center">
-                                                                <span className={`text-lg font-black ${student.overallAvg >= 60 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                                    {student.overallAvg.toFixed(1)}%
-                                                                </span>
-                                                            </td>
-                                                            <td className="p-4 text-center">
-                                                                <Badge className={student.overallAvg >= 40 ? 'bg-emerald-50 text-emerald-600 border-none' : 'bg-rose-50 text-rose-600 border-none'}>
-                                                                    {student.overallAvg >= 40 ? 'PASSED' : 'REMEDIAL'}
-                                                                </Badge>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </div>
-                        )}
-                    </TabsContent>
-                </Tabs>
-            </div>
-            
-            {/* Print Styling */}
-            <style dangerouslySetInnerHTML={{ __html: `
-                @media print {
-                    .no-print { display: none !important; }
-                    body { background: white !important; font-size: 12px; }
-                    .card { border: none !important; box-shadow: none !important; }
-                    .max-w-7xl, .max-w-\[1600px\] { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
-                    table { page-break-inside: auto; }
-                    tr { page-break-inside: avoid; page-break-after: auto; }
-                    thead { display: table-header-group; }
-                    @page { margin: 2cm; }
-                }
-            ` }} />
-        </AuthenticatedLayout>
+  const handleExportExcel = () => {
+    if (!reportData?.students?.length) return;
+    // ... same excel logic ...
+    const flattenedData = reportData.students.flatMap((student: any) => 
+      student.subjects.map((sub: any) => ({
+        'Reg Number': student.registrationNumber,
+        'Student Name': student.name,
+        'Overall SGPA': student.overallSgpa,
+        'PO Attainment %': student.poAttainment,
+        'Feedback Rating': student.feedbackRating,
+        'Subject Code': sub.subjectCode,
+        'Subject Name': sub.subjectName,
+        'Faculty': sub.faculty,
+        'Internal 1': sub.internal1,
+        'Internal 2': sub.internal2,
+        'External': sub.external,
+        'Total Marks': sub.total,
+        'Grade': sub.grade,
+        'Subject Grade Point': sub.subjectSgpa,
+        'CO Attainment %': sub.coAttainment,
+        'Subject Feedback': sub.feedbackRating
+      }))
     );
-};
+    const worksheet = XLSX.utils.json_to_sheet(flattenedData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Detailed Report');
+    XLSX.writeFile(workbook, `Class_Report_${reportData.cohortName}.xlsx`);
+    toast({ title: "Export Successful", description: "Report downloaded." });
+  };
 
-export default Reports;
+  const filteredStudents = reportData?.students?.filter((s: any) => {
+    const search = searchTerm.toLowerCase().trim();
+    return s.name.toLowerCase().includes(search) || 
+           s.registrationNumber.toLowerCase().includes(search);
+  }) || [];
+
+  const selectedDeptName = departments.find((d: any) => d.id === selectedDeptId)?.name || 'Department';
+  const selectedCohortName = cohorts.find((c: any) => c.id === selectedCohortId)?.name || 'Cohort';
+
+  return (
+    <AuthenticatedLayout allowedRoles={['admin', 'principal', 'hod']}>
+      <div className="p-6 space-y-6 bg-[#f8fafc] min-h-screen font-inter">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1e293b]">Class Detailed Reports</h1>
+            <p className="text-sm text-slate-500 mt-1">View detailed performance, marks, and attainment reports by class</p>
+          </div>
+          <div className="flex gap-2">
+             <Button variant="outline" className="bg-white border-slate-200 text-slate-700 font-semibold" onClick={() => window.print()}>
+               <Printer className="w-4 h-4 mr-2" /> Print PDF
+             </Button>
+             <Button 
+               className="bg-[#1e293b] hover:bg-[#0f172a] text-white font-semibold" 
+               onClick={handleExportExcel}
+               disabled={!reportData?.students?.length}
+             >
+               <FileSpreadsheet className="w-4 h-4 mr-2" /> Export Excel
+             </Button>
+          </div>
+        </div>
+
+        {/* Select Context Card */}
+        <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
+          <CardHeader className="bg-slate-50/50 border-b border-slate-100 py-4 px-6">
+            <div className="flex items-center gap-2 text-slate-700">
+               <Layers className="w-4 h-4" />
+               <span className="text-sm font-bold uppercase tracking-wider">Select Context</span>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-tight">Department</label>
+                <Select 
+                  value={selectedDeptId}
+                  onValueChange={(val) => {
+                    setSelectedDeptId(val);
+                    setSelectedCohortId('');
+                  }}
+                >
+                  <SelectTrigger className="h-10 bg-white border-slate-200">
+                    <SelectValue placeholder="Select Department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((d: any) => (
+                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-tight">Cohort</label>
+                <Select 
+                  value={selectedCohortId}
+                  onValueChange={setSelectedCohortId}
+                  disabled={!selectedDeptId}
+                >
+                  <SelectTrigger className="h-10 bg-white border-slate-200">
+                    <SelectValue placeholder="Select Cohort" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cohorts.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name} ({c.year})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-tight">Semester</label>
+                <Select 
+                  value={selectedSemester}
+                  onValueChange={setSelectedSemester}
+                >
+                  <SelectTrigger className="h-10 bg-white border-slate-200">
+                    <SelectValue placeholder="Select Semester" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Semester 1">Semester 1</SelectItem>
+                    <SelectItem value="Semester 2">Semester 2</SelectItem>
+                    <SelectItem value="Semester 3">Semester 3</SelectItem>
+                    <SelectItem value="Semester 4">Semester 4</SelectItem>
+                    <SelectItem value="Semester 5">Semester 5</SelectItem>
+                    <SelectItem value="Semester 6">Semester 6</SelectItem>
+                    <SelectItem value="Semester 7">Semester 7</SelectItem>
+                    <SelectItem value="Semester 8">Semester 8</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Search Bar Row */}
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Input 
+            placeholder="Search by name, reg. number, email, or mobile..."
+            className="pl-11 h-11 bg-white border-slate-200 shadow-sm"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        {/* Report Content */}
+        {!effectiveCohortId ? (
+          <div className="bg-white border border-slate-200 rounded-xl p-20 flex flex-col items-center justify-center space-y-4">
+             <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
+                <Info className="w-8 h-8" />
+             </div>
+             <p className="text-slate-500 font-medium text-sm">Please select a class context to generate the report</p>
+          </div>
+        ) : (
+          <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
+            <CardContent className="p-0">
+               {/* List Header */}
+               <div className="p-6 border-b border-slate-100 bg-white">
+                  <div className="flex items-center gap-3">
+                     <h2 className="text-lg font-bold text-slate-800">Class Student Records</h2>
+                     <Badge className="bg-slate-500 hover:bg-slate-500 text-white rounded-full px-2 py-0 h-5 text-[10px] font-black">
+                        {filteredStudents.length}
+                     </Badge>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">
+                     {selectedDeptName} → {selectedCohortName} → {selectedSemester}
+                  </p>
+               </div>
+
+               {/* Table Header Style */}
+               <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50/50 border-b border-slate-100 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                  <div className="col-span-2">Reg. Number</div>
+                  <div className="col-span-3">Name</div>
+                  <div className="col-span-2 text-center">Overall SGPA</div>
+                  <div className="col-span-2 text-center">PO Attainment</div>
+                  <div className="col-span-2 text-center">Feedback</div>
+                  <div className="col-span-1 text-right">Action</div>
+               </div>
+
+               {isLoading ? (
+                 <div className="p-20 flex flex-col items-center gap-4">
+                    <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">Analyzing Performance Records...</p>
+                 </div>
+               ) : filteredStudents.length > 0 ? (
+                 <div className="divide-y divide-slate-100">
+                    {filteredStudents.map((student: any) => (
+                      <div key={student.registrationNumber} className="group">
+                         {/* Student Row */}
+                         <div 
+                           className={cn(
+                             "grid grid-cols-12 gap-4 px-6 py-4 items-center cursor-pointer hover:bg-slate-50 transition-colors",
+                             expandedStudentId === student.registrationNumber ? "bg-slate-50/80" : ""
+                           )}
+                           onClick={() => setExpandedStudentId(expandedStudentId === student.registrationNumber ? null : student.registrationNumber)}
+                         >
+                            <div className="col-span-2 text-sm font-bold text-slate-900">{student.registrationNumber}</div>
+                            <div className="col-span-3 text-sm font-black text-slate-800">{student.name}</div>
+                            <div className="col-span-2 text-center">
+                               <Badge variant="outline" className="bg-white font-bold text-blue-700 border-blue-100">{student.overallSgpa}</Badge>
+                            </div>
+                            <div className="col-span-2 text-center">
+                               <Badge className="bg-emerald-50 text-emerald-700 border-none font-bold">{student.poAttainment}%</Badge>
+                            </div>
+                            <div className="col-span-2 text-center flex justify-center items-center gap-1">
+                               <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                               <span className="text-sm font-bold text-slate-700">{student.feedbackRating}</span>
+                            </div>
+                            <div className="col-span-1 text-right">
+                               <ChevronRight className={cn("w-4 h-4 text-slate-300 transition-transform ml-auto", expandedStudentId === student.registrationNumber ? "rotate-90" : "")} />
+                            </div>
+                         </div>
+
+                         {/* Expanded Details */}
+                         <div className={cn(
+                           "overflow-hidden transition-all duration-300 bg-[#fbfcfd]",
+                           expandedStudentId === student.registrationNumber ? "max-h-[1000px] border-t border-slate-100" : "max-h-0"
+                         )}>
+                            <div className="p-6">
+                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                  {student.subjects.map((sub: any, idx: number) => (
+                                    <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                                       <div className="flex justify-between items-start">
+                                          <div className="space-y-0.5">
+                                             <p className="text-[11px] font-black text-slate-900 uppercase tracking-tight line-clamp-1">{sub.subjectName}</p>
+                                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{sub.faculty}</p>
+                                          </div>
+                                          <Badge className="bg-[#1e293b] text-white text-[9px] font-black h-5">{sub.grade}</Badge>
+                                       </div>
+                                       <div className="flex gap-2">
+                                          <div className="flex-1 bg-slate-50 p-1.5 rounded-lg text-center">
+                                             <p className="text-[8px] font-black text-slate-400 uppercase">I1</p>
+                                             <p className="text-xs font-black text-slate-800">{sub.internal1}</p>
+                                          </div>
+                                          <div className="flex-1 bg-slate-50 p-1.5 rounded-lg text-center">
+                                             <p className="text-[8px] font-black text-slate-400 uppercase">I2</p>
+                                             <p className="text-xs font-black text-slate-800">{sub.internal2}</p>
+                                          </div>
+                                          <div className="flex-1 bg-slate-50 p-1.5 rounded-lg text-center">
+                                             <p className="text-[8px] font-black text-slate-400 uppercase">EXT</p>
+                                             <p className="text-xs font-black text-slate-800">{sub.external}</p>
+                                          </div>
+                                       </div>
+                                       <div className="flex justify-between items-center pt-2 border-t border-slate-50">
+                                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">CO Attainment</span>
+                                          <span className="text-xs font-black text-slate-900">{sub.coAttainment}%</span>
+                                       </div>
+                                    </div>
+                                  ))}
+                               </div>
+                            </div>
+                         </div>
+                      </div>
+                    ))}
+                 </div>
+               ) : (
+                 <div className="p-20 text-center text-slate-400 font-medium italic text-sm">No student records found matching search</div>
+               )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </AuthenticatedLayout>
+  );
+}

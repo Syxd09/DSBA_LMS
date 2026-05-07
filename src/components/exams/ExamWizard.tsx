@@ -25,6 +25,7 @@ interface ExamWizardProps {
   onOpenChange: (open: boolean) => void;
   subjects: Subject[];
   cohorts: Cohort[];
+  availableSemesters?: number[];
   onSubmit: (data: any) => Promise<void>;
   isSubmitting?: boolean;
 }
@@ -35,7 +36,7 @@ const EXAM_TYPES = [
   { value: 'EXTERNAL', label: 'End-Semester Exam' }
 ];
 
-export function ExamWizard({ open, onOpenChange, subjects, cohorts, onSubmit, isSubmitting }: ExamWizardProps) {
+export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSemesters = [], onSubmit, isSubmitting }: ExamWizardProps) {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     subjectId: '',
@@ -155,7 +156,7 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, onSubmit, is
                     <SelectValue placeholder="Select semester" />
                   </SelectTrigger>
                   <SelectContent>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
+                    {availableSemesters.map(sem => (
                       <SelectItem key={sem} value={sem.toString()}>Semester {sem}</SelectItem>
                     ))}
                   </SelectContent>

@@ -198,8 +198,9 @@ export default function POAttainmentDashboard() {
                   <SelectContent>
                     {(selectedCohort && activeSemesters.length > 0 
                       ? activeSemesters 
-                      : [1, 2, 3, 4, 5, 6, 7, 8]
-                    ).map(sem => (
+                      : [1, 2, 3, 4, 5, 6, 7, 8] // Default for initial state
+                    )
+.map(sem => (
                       <SelectItem key={sem} value={sem.toString()}>
                         Semester {sem}
                       </SelectItem>

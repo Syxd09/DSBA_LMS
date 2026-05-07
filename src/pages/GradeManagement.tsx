@@ -1,7 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
+import { cn } from '@/lib/utils';
 import { useAcademicContext } from '@/contexts/AcademicContext';
-import { useGradingRules, useFinalMarks, useCalculateGrades, useCreateGradingRule, useDeleteGradingRule } from '@/hooks/useGrading';
+import { 
+  useGradingRules, useFinalMarks, useCalculateGrades, 
+  useCreateGradingRule, useUpdateGradingRule, useDeleteGradingRule 
+} from '@/hooks/useGrading';
 import api from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -10,16 +14,19 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { 
-  Calculator, Award, Settings, Loader2, MessageSquare, Save, 
-  Download, Eye, Lock, TrendingUp, Users, CheckCircle2 
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger 
+} from '@/components/ui/dialog';
+import { 
+  Calculator, Award, Settings, Loader2, Save, 
+  Download, Eye, Lock, TrendingUp, Users, CheckCircle2,
+  ChevronRight, Info, Search, RefreshCw, Zap, Sparkles, Brain, Layers, ShieldCheck, Activity, Plus, Trash2, Edit2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import * as XLSX from 'xlsx';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
@@ -29,22 +36,32 @@ export default function GradeManagement() {
   const [selectedCohort, setSelectedCohort] = useState<string>(cohortId || '');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [filterText, setFilterText] = useState('');
+  const [internalMethod, setInternalMethod] = useState<'best' | 'avg' | 'latest'>('best');
   
-  // Rule generation state
-  const [addRuleOpen, setAddRuleOpen] = useState(false);
-  const [newRule, setNewRule] = useState({ grade: '', minPercentage: '', maxPercentage: '', gradePoint: '' });
+  // Rule Management State
+  const [isRuleDialogOpen, setIsRuleDialogOpen] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [ruleForm, setRuleForm] = useState({
+    grade: '',
+    minPercentage: 0,
+    maxPercentage: 100,
+    gradePoint: 0,
+    departmentId: departmentId || null
+  });
   
   const { user } = useAuth();
   const { toast } = useToast();
   
-  const createRuleMutation = useCreateGradingRule();
-  const deleteRuleMutation = useDeleteGradingRule();
+  const calculateGrades = useCalculateGrades();
+  const createRule = useCreateGradingRule();
+  const updateRule = useUpdateGradingRule();
+  const deleteRule = useDeleteGradingRule();
   
   useEffect(() => {
     if (cohortId) setSelectedCohort(cohortId);
   }, [cohortId]);
   
-  const { data: gradingRules, isLoading: rulesLoading } = useGradingRules(departmentId);
+  const { data: gradingRules, refetch: refetchRules } = useGradingRules(departmentId);
   
   const { data: rawCohorts } = useQuery({
     queryKey: ['cohorts-list'],
@@ -70,29 +87,28 @@ export default function GradeManagement() {
     cohort_id: selectedCohort || undefined,
     subject_id: selectedSubject || undefined,
   });
-  
-  const calculateGrades = useCalculateGrades();
-  
-  // Analytics Calculations
+
   const analytics = useMemo(() => {
     if (!finalMarks?.length) return null;
-    
     const count = finalMarks.length;
-    const scores = finalMarks.map((m: any) => m.percentage);
-    const avg = scores.reduce((a: number, b: number) => a + b, 0) / count;
     const passCount = finalMarks.filter((m: any) => m.grade !== 'F').length;
     const passRate = (passCount / count) * 100;
-    
-    // Grade distribution for chart
     const dist: Record<string, number> = {};
     finalMarks.forEach((m: any) => {
       dist[m.grade] = (dist[m.grade] || 0) + 1;
     });
-    
     const chartData = Object.entries(dist).map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.name.localeCompare(a.name));
+    return { passRate, chartData, count };
+  }, [finalMarks]);
 
-    return { avg, passRate, chartData, count };
+  const stats = useMemo(() => {
+    if (!finalMarks?.length) return null;
+    const percentages = finalMarks.map((m: any) => m.percentage);
+    const mean = percentages.reduce((a, b) => a + b, 0) / percentages.length;
+    const min = Math.min(...percentages);
+    const max = Math.max(...percentages);
+    return { mean, min, max };
   }, [finalMarks]);
 
   const handleCalculateGrades = async () => {
@@ -101,10 +117,49 @@ export default function GradeManagement() {
       await calculateGrades.mutateAsync({
         cohort_id: selectedCohort,
         subject_id: selectedSubject,
+        internal_method: internalMethod,
       });
       refetchMarks();
-      toast({ title: 'Grades calculated successfully' });
     } catch (error) {}
+  };
+
+  const handleExportExcel = () => {
+    if (!finalMarks?.length) return;
+
+    const exportData = finalMarks.map((m: any) => ({
+      'Registration Number': m.student?.registrationNumber,
+      'Full Name': m.student?.fullName,
+      'Internal 1': m.internal1,
+      'Internal 2': m.internal2,
+      'Best Internal': m.bestInternal,
+      'External Marks': m.externalMarks,
+      'Total Marks': m.totalMarks,
+      'Percentage': `${m.percentage.toFixed(2)}%`,
+      'Grade': m.grade,
+      'Grade Point': m.gradePoint,
+      'Status': m.status
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Grade Ledger');
+
+    // Add some styling (column widths)
+    const wscols = [
+      { wch: 20 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 15 },
+      { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 12 }
+    ];
+    worksheet['!cols'] = wscols;
+
+    const cohortName = cohorts.find(c => c.id === selectedCohort)?.name || 'Unknown_Cohort';
+    const subjectName = subjects.find(s => s.id === selectedSubject)?.name || 'Unknown_Subject';
+
+    XLSX.writeFile(workbook, `Grade_Report_${cohortName}_${subjectName}.xlsx`);
+
+    toast({
+      title: "Export Successful",
+      description: "The grade ledger has been downloaded as an Excel file.",
+    });
   };
 
   const handleBulkStatusUpdate = async (status: 'PUBLISHED' | 'LOCKED') => {
@@ -126,508 +181,371 @@ export default function GradeManagement() {
     }
   };
 
-  const handleBulkSGPA = async () => {
-    if (!selectedCohort) return;
+  const handleOpenAddDialog = () => {
+    setEditingRuleId(null);
+    setRuleForm({ grade: '', minPercentage: 0, maxPercentage: 100, gradePoint: 0, departmentId: departmentId || null });
+    setIsRuleDialogOpen(true);
+  };
+
+  const handleOpenEditDialog = (rule: any) => {
+    setEditingRuleId(rule.id);
+    setRuleForm({
+      grade: rule.grade,
+      minPercentage: rule.minPercentage,
+      maxPercentage: rule.maxPercentage,
+      gradePoint: rule.gradePoint,
+      departmentId: rule.departmentId
+    });
+    setIsRuleDialogOpen(true);
+  };
+
+  const handleSaveRule = async () => {
     try {
-      await api.post('/grading/bulk-calculate-sgpa', {
-        cohortId: selectedCohort,
-        semester: finalMarks?.[0]?.subject?.semester || 1
-      });
-      toast({ title: 'SGPA/CGPA computed for entire class' });
-    } catch (error: any) {
-      toast({ 
-        title: 'Computation failed', 
-        description: error.response?.data?.message || 'Check if all subjects are graded', 
-        variant: 'destructive' 
-      });
-    }
+      if (editingRuleId) {
+        await updateRule.mutateAsync({
+          id: editingRuleId,
+          ...ruleForm
+        } as any);
+      } else {
+        await createRule.mutateAsync({
+          ...ruleForm,
+          departmentId: departmentId || null
+        } as any);
+      }
+      setIsRuleDialogOpen(false);
+      refetchRules();
+    } catch (error) {}
   };
 
-  const exportCSV = () => {
-    if (!finalMarks?.length) return;
-    const headers = ['Student', 'Email', 'Internal 1', 'Internal 2', 'Best Internal', 'External', 'Total', 'Percentage', 'Grade', 'Points'];
-    const rows = finalMarks.map((m: any) => [
-      m.student?.registrationNumber || m.student?.fullName || 'N/A',
-      m.student?.email || 'N/A',
-      m.internal1,
-      m.internal2,
-      m.bestInternal,
-      m.externalMarks,
-      m.totalMarks,
-      `${m.percentage}%`,
-      m.grade,
-      m.gradePoint
-    ]);
-    
-    const csvContent = [headers.join(','), ...rows.map((r: any) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Grades_${selectedCohort}_${selectedSubject}.csv`;
-    a.click();
+  const handleDeleteRule = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this grading rule?')) return;
+    try {
+      await deleteRule.mutateAsync(id);
+      refetchRules();
+    } catch (error) {}
   };
 
-  const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
-
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [selectedMark, setSelectedMark] = useState<any>(null);
-  const [feedbackText, setFeedbackText] = useState('');
+  const COLORS = ['#0f172a', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1'];
 
   return (
     <AuthenticatedLayout allowedRoles={['admin', 'principal', 'hod', 'teacher']}>
-      <div className="space-y-6 max-w-[1600px] mx-auto pb-10">
-        <div className="flex justify-between items-end">
+      <div className="p-8 space-y-8 bg-slate-50/50 min-h-screen">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-extrabold tracking-tight text-foreground">Grade Analytics & Management</h2>
-            <p className="text-muted-foreground mt-1">High-fidelity grading engine with NAAC-compliant data auditing</p>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Grade Management</h1>
+            <p className="text-slate-500 mt-2">Compute SGPA, process final grades, and manage assessment records.</p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={exportCSV} disabled={!finalMarks?.length}>
-              <Download className="w-4 h-4 mr-2" />
-              Export CSV
+          <div className="flex items-center gap-3">
+            <Button variant="outline" className="border-slate-200" onClick={() => handleBulkStatusUpdate('PUBLISHED')}>
+              <Eye className="w-4 h-4 mr-2" /> Publish Results
             </Button>
-            <Button 
-                variant="outline" 
-                className="text-indigo-600 border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100" 
-                onClick={handleBulkSGPA} 
-                disabled={!finalMarks?.length}
-            >
-              <TrendingUp className="w-4 h-4 mr-2" />
-              Compute SGPA
-            </Button>
-            <Button variant="outline" className="text-blue-600 border-blue-200 bg-blue-50/50 hover:bg-blue-100" onClick={() => handleBulkStatusUpdate('PUBLISHED')} disabled={!finalMarks?.length}>
-              <Eye className="w-4 h-4 mr-2" />
-              Publish All
-            </Button>
-            <Button variant="default" className="bg-slate-900" onClick={() => handleBulkStatusUpdate('LOCKED')} disabled={!finalMarks?.length}>
-              <Lock className="w-4 h-4 mr-2" />
-              Lock Permanently
+            <Button className="bg-slate-900 hover:bg-slate-800 text-white" onClick={() => handleBulkStatusUpdate('LOCKED')}>
+              <Lock className="w-4 h-4 mr-2" /> Lock Grades
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card className="bg-gradient-to-br from-indigo-50 to-white border-indigo-100 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-500 flex items-center gap-2">
-                <Users className="w-4 h-4" /> Class Statistics
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{analytics?.count || 0} Students</div>
-              <p className="text-xs text-muted-foreground mt-1">Total enrollments for cohort</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-emerald-50 to-white border-emerald-100 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-500 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" /> Pass Percentage
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-emerald-600">{analytics?.passRate.toFixed(1) || 0}%</div>
-              <div className="w-full bg-slate-100 h-1.5 mt-2 rounded-full overflow-hidden">
-                <div className="bg-emerald-500 h-full transition-all duration-1000" style={{ width: `${analytics?.passRate || 0}%` }} />
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-blue-50 to-white border-blue-100 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-slate-500 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4" /> Average Marks
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{analytics?.avg.toFixed(1) || 0}%</div>
-              <p className="text-xs text-muted-foreground mt-1">Median class performance</p>
-            </CardContent>
-          </Card>
-          <Card className="bg-white shadow-sm border-slate-200">
-            <CardHeader className="pb-2 pt-4">
-              <CardTitle className="text-sm font-medium text-slate-500">Grading Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2">
-                <Badge variant={finalMarks?.[0]?.status === 'LOCKED' ? 'default' : 'secondary'} className="capitalize">
-                  {finalMarks?.[0]?.status || 'Draft'}
-                </Badge>
-                <span className="text-xs text-muted-foreground">Subject specific state</span>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[
+            { label: 'Students', value: analytics?.count || '0', icon: Users, color: 'text-slate-600' },
+            { label: 'Pass Rate', value: `${analytics?.passRate.toFixed(1) || 0}%`, icon: CheckCircle2, color: 'text-emerald-600' },
+            { label: 'Average Score', value: `${stats?.mean.toFixed(1) || 0}%`, icon: TrendingUp, color: 'text-blue-600' },
+            { label: 'Subject Range', value: `${stats?.min.toFixed(0) || 0}-${stats?.max.toFixed(0) || 0}%`, icon: Layers, color: 'text-indigo-600' },
+          ].map((stat, i) => (
+            <Card key={i} className="border-slate-200 shadow-sm">
+              <CardContent className="p-6 flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-slate-100">
+                  <stat.icon className={cn("w-5 h-5", stat.color)} />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
+                  <h4 className="text-xl font-bold text-slate-900">{stat.value}</h4>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
         <Tabs defaultValue="calculate" className="space-y-6">
-          <TabsList className="bg-slate-100 p-1">
-            <TabsTrigger value="calculate" className="data-[state=active]:bg-white data-[state=active]:shadow-sm px-6">
-              <Calculator className="w-4 h-4 mr-2" />
-              Grading Engine
+          <TabsList className="bg-slate-100 p-1 border border-slate-200 h-12">
+            <TabsTrigger value="calculate" className="data-[state=active]:bg-white data-[state=active]:shadow-sm px-8 font-semibold">
+              <Calculator className="w-4 h-4 mr-2" /> Grading Cycle
             </TabsTrigger>
-            <TabsTrigger value="rules" className="data-[state=active]:bg-white data-[state=active]:shadow-sm px-6">
-              <Settings className="w-4 h-4 mr-2" />
-              Grading Rules
+            <TabsTrigger value="rules" className="data-[state=active]:bg-white data-[state=active]:shadow-sm px-8 font-semibold">
+              <Settings className="w-4 h-4 mr-2" /> Grading Rules
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="calculate" className="space-y-6 animate-in fade-in duration-500">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <Card className="lg:col-span-1 shadow-sm border-slate-200 h-fit">
-                <CardHeader>
-                  <CardTitle className="text-lg">Execution Context</CardTitle>
-                  <CardDescription>Target cohort and subject for computation</CardDescription>
+          <TabsContent value="calculate" className="space-y-8 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+              <Card className="lg:col-span-1 border-slate-200 shadow-sm h-fit">
+                <CardHeader className="border-b border-slate-100">
+                  <CardTitle className="text-lg font-semibold">Configuration</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="p-6 space-y-6">
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-500 uppercase">Academic Cohort</label>
+                    <Label className="text-xs font-bold text-slate-500 uppercase">Cohort</Label>
                     <Select value={selectedCohort} onValueChange={setSelectedCohort}>
-                      <SelectTrigger className="w-full bg-slate-50/50">
-                        <SelectValue placeholder="Select cohort" />
+                      <SelectTrigger className="border-slate-200">
+                        <SelectValue placeholder="Select Cohort" />
                       </SelectTrigger>
                       <SelectContent>
                         {cohorts?.map((cohort: any) => (
-                          <SelectItem key={cohort.id} value={cohort.id}>
-                            {cohort.name}
-                          </SelectItem>
+                          <SelectItem key={cohort.id} value={cohort.id}>{cohort.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-500 uppercase">Subject Code</label>
+                    <Label className="text-xs font-bold text-slate-500 uppercase">Subject</Label>
                     <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                      <SelectTrigger className="w-full bg-slate-50/50">
-                        <SelectValue placeholder="Select subject" />
+                      <SelectTrigger className="border-slate-200">
+                        <SelectValue placeholder="Select Subject" />
                       </SelectTrigger>
                       <SelectContent>
                         {subjects?.map((subject: any) => (
-                          <SelectItem key={subject.id} value={subject.id}>
-                            {subject.name} ({subject.code})
-                          </SelectItem>
+                          <SelectItem key={subject.id} value={subject.id}>{subject.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase">Method</Label>
+                    <Select value={internalMethod} onValueChange={(v: any) => setInternalMethod(v)}>
+                      <SelectTrigger className="border-slate-200">
+                        <SelectValue placeholder="Calculation Method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="best">Best of Internals</SelectItem>
+                        <SelectItem value="avg">Weighted Average</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   <Button 
-                    variant="default"
-                    className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 shadow-md transition-all active:scale-95"
+                    className="w-full bg-slate-900 text-white hover:bg-slate-800"
                     onClick={handleCalculateGrades}
                     disabled={!selectedCohort || !selectedSubject || calculateGrades.isPending}
                   >
-                    {calculateGrades.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Calculator className="w-4 h-4 mr-2" />}
-                    Calculate Grades
+                    {calculateGrades.isPending ? <Loader2 className="animate-spin w-4 h-4" /> : <Zap className="w-4 h-4 mr-2" />}
+                    Run Grading Cycle
                   </Button>
                 </CardContent>
               </Card>
 
-              <Card className="lg:col-span-2 shadow-sm border-slate-200">
-                <CardHeader>
-                  <CardTitle className="text-lg">Grade Distribution</CardTitle>
-                  <CardDescription>Frequency analysis of student performance</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[250px] pt-0">
-                  {analytics?.chartData.length ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={analytics.chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                        <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                        <Tooltip 
-                          cursor={{ fill: '#f8fafc' }}
-                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                        />
-                        <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}>
-                          {analytics.chartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                       <TrendingUp className="w-12 h-12 mb-2 opacity-20" />
-                       <p className="text-sm">Compute grades to see visual analytics</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {selectedCohort && selectedSubject && (
-              <Card className="shadow-lg border-slate-200 overflow-hidden">
-                <CardHeader className="bg-slate-50/50 border-b">
-                  <div className="flex justify-between items-center">
+              <div className="lg:col-span-3 space-y-6">
+                <Card className="border-slate-200 shadow-sm overflow-hidden">
+                  <CardHeader className="border-b border-slate-100 flex flex-row items-center justify-between">
                     <div>
-                      <CardTitle className="text-xl font-bold">Students List</CardTitle>
-                      <CardDescription>Detailed breakdown of raw marks and computed grades</CardDescription>
+                      <CardTitle className="text-lg font-semibold">Student Marks Ledger</CardTitle>
+                      <CardDescription>Consolidated results for the selected context</CardDescription>
                     </div>
-                    <div className="relative">
-                      <input 
-                        className="bg-white border text-sm rounded-lg px-3 py-2 w-64 focus:ring-2 focus:ring-indigo-100 transition-all outline-none"
-                        placeholder="Search student or email..."
-                        value={filterText}
-                        onChange={(e) => setFilterText(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  {marksLoading ? (
-                    <div className="flex items-center justify-center py-20">
-                      <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-                        <p className="text-sm text-slate-500 font-medium">Crunching academic data...</p>
+                    <div className="flex items-center gap-3">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="border-slate-200 h-10 px-4 font-semibold text-slate-700 hover:bg-slate-50"
+                        onClick={handleExportExcel}
+                        disabled={!finalMarks?.length}
+                      >
+                        <Download className="w-4 h-4 mr-2" /> Export to Excel
+                      </Button>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input 
+                          placeholder="Search student..."
+                          className="h-10 bg-slate-50 border border-slate-200 rounded-lg pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-slate-200 transition-all w-64"
+                          value={filterText}
+                          onChange={(e) => setFilterText(e.target.value)}
+                        />
                       </div>
                     </div>
-                  ) : !finalMarks?.length ? (
-                    <div className="text-center py-20 bg-slate-50/20">
-                      <Award className="w-12 h-12 mx-auto text-slate-200 mb-4" />
-                      <h3 className="text-lg font-semibold text-slate-900">No Grades Computed</h3>
-                      <p className="text-slate-500 max-w-[300px] mx-auto mt-2">Specify filters and click calculate to generate the grading sheet for this semester segment.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader className="bg-slate-50/80">
-                          <TableRow className="hover:bg-transparent">
-                            <TableHead className="w-[180px] font-bold text-slate-700">Reg. Number</TableHead>
-                            <TableHead className="w-[200px] font-bold text-slate-700">Student Identity</TableHead>
-                            <TableHead className="text-center font-bold text-slate-700">Internal 1</TableHead>
-                            <TableHead className="text-center font-bold text-slate-700">Internal 2</TableHead>
-                            <TableHead className="text-center font-bold text-indigo-700 bg-indigo-50/30">BEST INT</TableHead>
-                            <TableHead className="text-center font-bold text-slate-700">External</TableHead>
-                            <TableHead className="text-center font-bold text-slate-700">Total</TableHead>
-                            <TableHead className="text-center font-bold text-slate-700">%</TableHead>
-                            <TableHead className="text-center font-bold text-slate-700">Grade</TableHead>
-                            <TableHead className="text-center font-bold text-slate-700">Action</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {finalMarks
-                            .filter((m: any) => 
-                              m.student?.fullName?.toLowerCase().includes(filterText.toLowerCase()) || 
-                              m.student?.registrationNumber?.toLowerCase().includes(filterText.toLowerCase()) || 
-                              m.student?.email?.toLowerCase().includes(filterText.toLowerCase())
-                            )
-                            .map((mark: any) => (
-                            <TableRow key={mark.id} className="group hover:bg-slate-50/80 transition-colors">
-                              <TableCell>
-                                <span className="font-mono text-sm text-slate-600 font-medium">{mark.student?.registrationNumber || '-'}</span>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex flex-col">
-                                  <span className="font-bold text-slate-900">{mark.student?.fullName || 'Unknown Student'}</span>
-                                  <span className="text-xs text-slate-500 font-mono tracking-tighter">{mark.student?.email}</span>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader className="bg-slate-50">
+                        <TableRow className="border-none">
+                          <TableHead className="font-bold text-slate-900 pl-6">Student</TableHead>
+                          <TableHead className="font-bold text-slate-900 text-center">Internals</TableHead>
+                          <TableHead className="font-bold text-slate-900 text-center">External</TableHead>
+                          <TableHead className="font-bold text-slate-900 text-center">Total</TableHead>
+                          <TableHead className="font-bold text-slate-900 text-center">Grade</TableHead>
+                          <TableHead className="pr-6"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {marksLoading ? (
+                          <TableRow><TableCell colSpan={6} className="h-32 text-center text-slate-500">Loading records...</TableCell></TableRow>
+                        ) : finalMarks?.filter((m: any) => m.student?.fullName?.toLowerCase().includes(filterText.toLowerCase())).map((mark: any) => (
+                          <TableRow key={mark.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                            <TableCell className="pl-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-xs border border-slate-200">
+                                  {mark.student?.fullName?.split(' ').map((n: string) => n[0]).join('')}
                                 </div>
-                              </TableCell>
-                              <TableCell className="text-center font-medium">{mark.internal1}</TableCell>
-                              <TableCell className="text-center font-medium">{mark.internal2}</TableCell>
-                              <TableCell className="text-center font-extrabold text-indigo-600 bg-indigo-50/20">{mark.bestInternal}</TableCell>
-                              <TableCell className="text-center font-medium">{mark.externalMarks}</TableCell>
-                              <TableCell className="text-center font-bold text-slate-900">{mark.totalMarks}</TableCell>
-                              <TableCell className="text-center font-medium text-slate-600">{mark.percentage}%</TableCell>
-                              <TableCell className="text-center">
-                                <Badge 
-                                  className={`shadow-none px-3 py-1 font-bold ${
-                                    mark.grade === 'F' ? 'bg-red-50 text-red-600 border-red-100 hover:bg-red-50' : 
-                                    ['A+', 'A'].includes(mark.grade) ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
-                                    'bg-indigo-50 text-indigo-600 border-indigo-100'
-                                  }`} 
-                                  variant="outline"
-                                >
-                                  {mark.grade}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => {
-                                    setSelectedMark(mark);
-                                    setFeedbackText(mark.feedback || '');
-                                    setFeedbackOpen(true);
-                                  }}
-                                  className="group/btn"
-                                >
-                                  <MessageSquare className={`w-4 h-4 transition-transform group-hover/btn:scale-125 ${mark.feedback ? 'text-indigo-500 fill-indigo-50' : 'text-slate-300'}`} />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                                <div>
+                                  <p className="font-semibold text-slate-900">{mark.student?.fullName}</p>
+                                  <p className="text-[10px] text-slate-400 font-bold uppercase">{mark.student?.registrationNumber}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <div className="text-xs font-semibold text-slate-500">
+                                {mark.internal1} / {mark.internal2} (Best: <span className="text-slate-900">{mark.bestInternal}</span>)
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center font-bold text-slate-900">{mark.externalMarks}</TableCell>
+                            <TableCell className="text-center">
+                              <p className="font-bold text-slate-900">{mark.totalMarks}</p>
+                              <p className="text-[10px] text-slate-400 font-bold">{mark.percentage.toFixed(1)}%</p>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge className={cn(
+                                "rounded-lg px-3 py-1 border font-bold",
+                                mark.grade === 'F' ? "bg-red-50 text-red-700 border-red-100" : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                              )}>
+                                {mark.grade}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="pr-6 text-right">
+                              <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-900">
+                                <ChevronRight className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </TabsContent>
 
-          <TabsContent value="rules" className="space-y-6">
-            <Card className="shadow-sm border-slate-200">
-              <CardHeader className="border-b bg-slate-50/30 flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-xl">Institutional Grading Scale</CardTitle>
-                  <CardDescription>Rules defining percentage-to-grade mappings for the current department</CardDescription>
+          <TabsContent value="rules" className="space-y-6 animate-in fade-in duration-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">Grading Protocol</h3>
+                <p className="text-sm text-slate-500">Rules for converting percentages to letter grades</p>
+              </div>
+              <Button className="bg-slate-900 text-white hover:bg-slate-800" onClick={handleOpenAddDialog}>
+                <Plus className="w-4 h-4 mr-2" /> Add Grading Rule
+              </Button>
+            </div>
+
+            <Dialog open={isRuleDialogOpen} onOpenChange={setIsRuleDialogOpen}>
+              <DialogContent className="bg-white">
+                <DialogHeader>
+                  <DialogTitle>{editingRuleId ? 'Edit Grading Rule' : 'Add New Grading Rule'}</DialogTitle>
+                  <DialogDescription>Define the percentage range and associated letter grade.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="grade" className="text-right font-bold">Grade</Label>
+                    <Input 
+                      id="grade" 
+                      value={ruleForm.grade} 
+                      onChange={(e) => setRuleForm({...ruleForm, grade: e.target.value})}
+                      placeholder="e.g. A+" 
+                      className="col-span-3 border-slate-200"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="min" className="text-right font-bold">Min %</Label>
+                    <Input 
+                      id="min" 
+                      type="number"
+                      value={ruleForm.minPercentage} 
+                      onChange={(e) => setRuleForm({...ruleForm, minPercentage: parseFloat(e.target.value)})}
+                      className="col-span-3 border-slate-200"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="max" className="text-right font-bold">Max %</Label>
+                    <Input 
+                      id="max" 
+                      type="number"
+                      value={ruleForm.maxPercentage} 
+                      onChange={(e) => setRuleForm({...ruleForm, maxPercentage: parseFloat(e.target.value)})}
+                      className="col-span-3 border-slate-200"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="point" className="text-right font-bold">Points</Label>
+                    <Input 
+                      id="point" 
+                      type="number"
+                      step="0.1"
+                      value={ruleForm.gradePoint} 
+                      onChange={(e) => setRuleForm({...ruleForm, gradePoint: parseFloat(e.target.value)})}
+                      className="col-span-3 border-slate-200"
+                    />
+                  </div>
                 </div>
-                {['ADMIN', 'PRINCIPAL', 'HOD'].includes(user?.role || '') && (
-                  <Button onClick={() => setAddRuleOpen(true)} className="bg-indigo-600 hover:bg-indigo-700">
-                    Add Rule
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsRuleDialogOpen(false)}>Cancel</Button>
+                  <Button 
+                    className="bg-slate-900 text-white" 
+                    onClick={handleSaveRule}
+                    disabled={createRule.isPending || updateRule.isPending}
+                  >
+                    {createRule.isPending || updateRule.isPending ? <Loader2 className="animate-spin w-4 h-4" /> : "Save Rule"}
                   </Button>
-                )}
-              </CardHeader>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Card className="border-slate-200 shadow-sm overflow-hidden">
               <CardContent className="p-0">
-                {rulesLoading ? (
-                   <div className="flex items-center justify-center py-20">
-                     <Loader2 className="w-8 h-8 animate-spin text-slate-300" />
-                   </div>
-                ) : (
-                  <Table>
-                    <TableHeader className="bg-slate-50/50">
-                      <TableRow>
-                        <TableHead className="font-bold">Grade</TableHead>
-                        <TableHead className="font-bold">Score Range (%)</TableHead>
-                        <TableHead className="font-bold">Grade Points</TableHead>
-                        <TableHead className="font-bold">Status</TableHead>
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow className="border-none">
+                      <TableHead className="font-bold text-slate-900 pl-6">Grade</TableHead>
+                      <TableHead className="font-bold text-slate-900">Percentage Range</TableHead>
+                      <TableHead className="font-bold text-slate-900">Points</TableHead>
+                      <TableHead className="pr-6 text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {gradingRules?.map((rule: any) => (
+                      <TableRow key={rule.id} className="border-b border-slate-100 group">
+                        <TableCell className="pl-6 py-4 font-bold text-slate-900">{rule.grade}</TableCell>
+                        <TableCell className="text-slate-600 font-medium">{rule.minPercentage}% to {rule.maxPercentage}%</TableCell>
+                        <TableCell className="font-bold text-slate-900">{rule.gradePoint.toFixed(1)}</TableCell>
+                        <TableCell className="pr-6 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                             <Badge variant="outline" className="text-[10px] uppercase font-bold text-slate-400">
+                               {rule.departmentId ? 'Dept Rule' : 'Standard Rule'}
+                             </Badge>
+                             <Button 
+                               variant="ghost" 
+                               size="icon" 
+                               className="text-slate-400 hover:text-slate-900 transition-all"
+                               onClick={() => handleOpenEditDialog(rule)}
+                             >
+                               <Edit2 className="w-4 h-4" />
+                             </Button>
+                             <Button 
+                               variant="ghost" 
+                               size="icon" 
+                               className="text-slate-400 hover:text-red-600 transition-all"
+                               onClick={() => handleDeleteRule(rule.id)}
+                               disabled={deleteRule.isPending}
+                             >
+                               <Trash2 className="w-4 h-4" />
+                             </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {gradingRules?.map((rule: any) => (
-                        <TableRow key={rule.id}>
-                          <TableCell>
-                            <Badge className="font-extrabold px-3 py-0.5" variant={rule.grade === 'F' ? 'destructive' : 'default'}>
-                              {rule.grade}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="font-medium text-slate-600">
-                             {rule.minPercentage}% - {rule.maxPercentage}%
-                          </TableCell>
-                          <TableCell className="font-bold">{rule.gradePoint.toFixed(1)}</TableCell>
-                          <TableCell>
-                            {['ADMIN', 'PRINCIPAL', 'HOD'].includes(user?.role || '') ? (
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => {
-                                  if (confirm('Are you sure you want to delete this rule?')) {
-                                    deleteRuleMutation.mutate(rule.id);
-                                  }
-                                }}
-                              >
-                                Delete
-                              </Button>
-                            ) : (
-                              <span className="text-xs text-slate-400 font-medium italic">Active System Rule</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
-
-        {/* Add Rule Dialog */}
-        <Dialog open={addRuleOpen} onOpenChange={setAddRuleOpen}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Add Grading Rule</DialogTitle>
-              <DialogDescription>
-                Define a new grade mapping for the {departmentId ? 'department' : 'institution'}.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="grade" className="text-right">Grade</Label>
-                <Input id="grade" placeholder="e.g. A+" className="col-span-3" value={newRule.grade} onChange={(e: any) => setNewRule({...newRule, grade: e.target.value})} />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="minPercentage" className="text-right">Min %</Label>
-                <Input id="minPercentage" type="number" placeholder="e.g. 90" className="col-span-3" value={newRule.minPercentage} onChange={(e: any) => setNewRule({...newRule, minPercentage: e.target.value})} />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="maxPercentage" className="text-right">Max %</Label>
-                <Input id="maxPercentage" type="number" placeholder="e.g. 100" className="col-span-3" value={newRule.maxPercentage} onChange={(e: any) => setNewRule({...newRule, maxPercentage: e.target.value})} />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="gradePoint" className="text-right">Points</Label>
-                <Input id="gradePoint" type="number" step="0.1" placeholder="e.g. 10.0" className="col-span-3" value={newRule.gradePoint} onChange={(e: any) => setNewRule({...newRule, gradePoint: e.target.value})} />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setAddRuleOpen(false)}>Cancel</Button>
-              <Button 
-                className="bg-indigo-600 hover:bg-indigo-700"
-                disabled={createRuleMutation.isPending || !newRule.grade || !newRule.minPercentage || !newRule.maxPercentage || !newRule.gradePoint}
-                onClick={() => {
-                  createRuleMutation.mutate({
-                    ...newRule,
-                    minPercentage: parseFloat(newRule.minPercentage),
-                    maxPercentage: parseFloat(newRule.maxPercentage),
-                    gradePoint: parseFloat(newRule.gradePoint),
-                    departmentId: departmentId || null
-                  }, {
-                    onSuccess: () => {
-                      setAddRuleOpen(false);
-                      setNewRule({ grade: '', minPercentage: '', maxPercentage: '', gradePoint: '' });
-                    }
-                  });
-                }}
-              >
-                Save Changes
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle className="text-xl">Student Remarks</DialogTitle>
-              <DialogDescription>Performance feedback will be visible on student's final report card.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                 <div className="bg-indigo-100 p-2 rounded-full"><Users className="w-4 h-4 text-indigo-600" /></div>
-                 <div>
-                    <p className="text-sm font-bold text-slate-900">{selectedMark?.student?.registrationNumber ? `${selectedMark.student.registrationNumber} - ${selectedMark.student.fullName}` : selectedMark?.student?.fullName}</p>
-                    <p className="text-xs text-slate-500">{selectedMark?.student?.email}</p>
-                 </div>
-              </div>
-              <Textarea
-                value={feedbackText}
-                onChange={(e: any) => setFeedbackText(e.target.value)}
-                placeholder="Share descriptive feedback on student performance, areas for growth, or notable achievements..."
-                className="h-40 bg-slate-50/50 focus:bg-white transition-colors text-sm"
-              />
-            </div>
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="outline" onClick={() => setFeedbackOpen(false)}>Cancel</Button>
-              <Button 
-                className="bg-indigo-600 hover:bg-indigo-700"
-                onClick={async () => {
-                  try {
-                    await api.put(`/grading/final-marks/${selectedMark.id}/feedback`, { feedback: feedbackText });
-                    setFeedbackOpen(false);
-                    refetchMarks();
-                    toast({ title: 'Feedback saved successfully' });
-                  } catch (e) {
-                    toast({ title: 'Failed to save feedback', variant: 'destructive' });
-                  }
-                }}
-              >
-                <Save className="w-4 h-4 mr-2" />
-                Publish Feedback
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </AuthenticatedLayout>
   );

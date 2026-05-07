@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useAcademicContext } from '@/contexts/AcademicContext';
+import { useAvailableSemesters } from '@/hooks/useAvailableSemesters';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import {
   Select,
@@ -34,6 +35,7 @@ export default function Students() {
     departmentId, setDepartmentId,
     setAcademicContext
   } = useAcademicContext();
+  const availableSemesters = useAvailableSemesters(cohortId, departmentId); // Note: departmentId used as proxy for program context here if needed
   
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -205,7 +207,7 @@ export default function Students() {
                         <SelectValue placeholder="Select Semester" />
                       </SelectTrigger>
                       <SelectContent>
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                        {availableSemesters.map((s) => (
                           <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>
                         ))}
                       </SelectContent>

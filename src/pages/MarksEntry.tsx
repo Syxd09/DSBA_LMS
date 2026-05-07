@@ -38,7 +38,7 @@ export default function MarksEntry() {
 
   const { data: exams, isLoading: examsLoading } = useTeacherExams();
   const { data: examDetails, isLoading: detailsLoading } = useExamDetails(selectedExamId);
-  const { data: students, isLoading: studentsLoading } = useExamStudents(examDetails?.exam?.cohortId ?? null);
+  const { data: students, isLoading: studentsLoading } = useExamStudents(selectedExamId);
   const { data: existingMarks, isLoading: marksLoading } = useStudentMarks(selectedExamId);
   const { outcomes: courseOutcomes, isLoading: cosLoading } = useCourseOutcomes(examDetails?.exam?.subjectId ?? null);
 
@@ -233,7 +233,7 @@ export default function MarksEntry() {
                   <div>
                     <p className="text-muted-foreground">Max Marks</p>
                     <p className="font-semibold">
-                      {examDetails?.sections?.reduce((sum, section) => sum + (section.maxMarks || 0), 0) || selectedExam?.max_marks || 0}
+                      {examDetails?.sections?.reduce((sum: number, section: any) => sum + (section.maxMarks || 0), 0) || selectedExam?.maxMarks || 0}
                     </p>
                   </div>
                   <div>

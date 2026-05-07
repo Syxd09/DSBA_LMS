@@ -60,6 +60,28 @@ export function useCreateGradingRule() {
   });
 }
 
+export function useUpdateGradingRule() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, ...ruleData }: GradingRule) => {
+      const { data } = await api.put(`/grading/rules/${id}`, ruleData);
+      return data as GradingRule;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['grading-rules'] });
+      toast({ title: 'Success', description: 'Grading rule updated successfully' });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Error', 
+        description: error.response?.data?.message || 'Failed to update rule', 
+        variant: 'destructive' 
+      });
+    }
+  });
+}
+
 export function useDeleteGradingRule() {
   const queryClient = useQueryClient();
 
@@ -103,7 +125,7 @@ export function useCalculateGrades() {
     mutationFn: async (params: {
       cohort_id: string;
       subject_id: string;
-      internal_method?: 'best' | 'avg' | 'weighted';
+      internal_method?: 'best' | 'avg' | 'latest';
     }) => {
       await api.post('/grading/calculate', params);
     },

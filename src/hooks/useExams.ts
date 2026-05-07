@@ -9,6 +9,7 @@ export interface Exam {
   examType: string;
   maxMarks: number;
   status: string;
+  semester: number;
   teacherId: string | null;
   createdAt: string;
   publishedAt: string | null;
@@ -72,18 +73,15 @@ export function useExamDetails(examId: string | null) {
   });
 }
 
-export function useExamStudents(cohortId: string | null) {
-  // This requires a new endpoint! We didn't create /api/cohorts/:id/students or /api/exams/students
-  // We need to implement this in backend or component will fail.
-  // Assuming for now we can't fetch it.
+export function useExamStudents(examId: string | null) {
   return useQuery({
-    queryKey: ['exam-students', cohortId],
+    queryKey: ['exam-students', examId],
     queryFn: async () => {
-      if (!cohortId) return [];
-      const { data } = await api.get(`/exams/cohort/${cohortId}/students`);
+      if (!examId) return [];
+      const { data } = await api.get(`/exams/${examId}/students`);
       return data;
     },
-    enabled: !!cohortId
+    enabled: !!examId
   });
 }
 

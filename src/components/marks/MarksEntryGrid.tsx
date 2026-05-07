@@ -44,6 +44,7 @@ export function MarksEntryGrid({
   const [hasChanges, setHasChanges] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Initialize marks from existing data
   useEffect(() => {
@@ -198,6 +199,16 @@ export function MarksEntryGrid({
     );
   }
 
+  // Filter students based on search term
+  const filteredStudents = useMemo(() => {
+    if (!searchTerm) return students;
+    const term = searchTerm.toLowerCase();
+    return students.filter(s => 
+      s.studentName.toLowerCase().includes(term) || 
+      s.registrationNumber.toLowerCase().includes(term)
+    );
+  }, [students, searchTerm]);
+
   // Group sub-questions by question
   const groupedSubQuestions = useMemo(() => {
     const groups: Record<string, SubQuestion[]> = {};
@@ -212,41 +223,49 @@ export function MarksEntryGrid({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-foreground">Marks Entry</h3>
-          <p className="text-sm text-muted-foreground">
-            {isPublished ? 'Published - Read only' : 'Enter marks for each sub-question'}
-          </p>
+      <div className="flex items-center justify-between gap-4 bg-muted/30 p-4 rounded-lg border border-border">
+        <div className="flex-1 max-w-md relative">
+          <Input 
+            placeholder="Search student by name or registration number..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 bg-white"
+          />
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </div>
         </div>
-        {isPublished ? (
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary">Published - Read Only</Badge>
-            {onUnlock && (
-              <Button variant="outline" onClick={handleUnlock} disabled={isUnlocking}>
-                {isUnlocking ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Unlock for Editing
+        
+        <div className="flex items-center gap-2">
+          {isPublished ? (
+            <>
+              <Badge variant="secondary">Published - Read Only</Badge>
+              {onUnlock && (
+                <Button variant="outline" onClick={handleUnlock} disabled={isUnlocking} size="sm">
+                  {isUnlocking ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                  Unlock for Editing
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              {hasChanges && (
+                <Badge variant="outline" className="gap-1 text-amber-600 border-amber-200 bg-amber-50">
+                  <AlertCircle className="w-3 h-3" />
+                  Unsaved changes
+                </Badge>
+              )}
+              <Button variant="outline" onClick={handleSave} disabled={isSaving} size="sm">
+                {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                Save Draft
               </Button>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            {hasChanges && (
-              <Badge variant="outline" className="gap-1">
-                <AlertCircle className="w-3 h-3" />
-                Unsaved changes
-              </Badge>
-            )}
-            <Button variant="outline" onClick={handleSave} disabled={isSaving}>
-              {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-              Save Draft
-            </Button>
-            <Button onClick={handlePublish} disabled={isPublishing || hasChanges}>
-              {isPublishing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-              Publish
-            </Button>
-          </div>
-        )}
+              <Button onClick={handlePublish} disabled={isPublishing || hasChanges} size="sm">
+                {isPublishing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+                Publish Results
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="border border-border bg-card overflow-x-auto rounded-lg">
@@ -268,7 +287,13 @@ export function MarksEntryGrid({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {students.map((student, index) => {
+            {filteredStudents.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={subQuestions.length + 3} className="text-center py-12 text-muted-foreground">
+                  No students found matching your search.
+                </TableCell>
+              </TableRow>
+            ) : filteredStudents.map((student, index) => {
               const total = calculateTotal(student.studentId);
               const passThreshold = totalMaxMarks * 0.4;
               const rowKey = `${student.studentId}-${index}`;

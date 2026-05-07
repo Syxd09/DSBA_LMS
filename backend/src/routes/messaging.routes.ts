@@ -9,7 +9,8 @@ import {
     removeParticipant,
     deleteConversation,
     clearMessages,
-    getMessagingContacts
+    getMessagingContacts,
+    searchMessaging
 } from '../controllers/messaging.controller';
 import { upload, uploadAttachment, serveFile } from '../controllers/file-upload.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
@@ -19,8 +20,9 @@ const router = Router();
 // All routes require authentication
 router.use(authenticateToken);
 
-// Contacts
+// Contacts & Search
 router.get('/contacts', getMessagingContacts);
+router.get('/search', searchMessaging);
 
 // Conversation management
 router.post('/conversations', createConversation);

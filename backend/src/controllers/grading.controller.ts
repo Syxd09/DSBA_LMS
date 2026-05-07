@@ -42,6 +42,33 @@ export const createGradingRule = async (req: AuthRequest, res: Response) => {
     }
 };
 
+export const updateGradingRule = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { grade, minPercentage, maxPercentage, gradePoint, departmentId } = req.body;
+        const user = req.user;
+
+        if (!['ADMIN', 'PRINCIPAL', 'HOD'].includes(user?.role || '')) {
+            return res.status(403).json({ message: 'Unauthorized' });
+        }
+
+        const rule = await prisma.gradingRule.update({
+            where: { id },
+            data: {
+                grade,
+                minPercentage: parseFloat(minPercentage),
+                maxPercentage: parseFloat(maxPercentage),
+                gradePoint: parseFloat(gradePoint),
+                departmentId: departmentId || null
+            }
+        });
+
+        res.json(rule);
+    } catch (error: any) {
+        res.status(500).json({ message: 'Failed to update grading rule', error: error.message });
+    }
+};
+
 export const deleteGradingRule = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
@@ -88,7 +115,7 @@ export const getFinalMarks = async (req: AuthRequest, res: Response) => {
 
 export const calculateGrades = async (req: AuthRequest, res: Response) => {
     try {
-        const { cohortId, subjectId, cohort_id, subject_id } = req.body;
+        const { cohortId, subjectId, cohort_id, subject_id, internal_method = 'best' } = req.body;
 
         // Support both snake_case and camelCase
         const finalCohortId = cohortId || cohort_id;
@@ -129,7 +156,7 @@ export const calculateGrades = async (req: AuthRequest, res: Response) => {
             where: {
                 cohortId: finalCohortId,
                 subjectId: finalSubjectId,
-                status: 'PUBLISHED'
+                status: { in: ['PUBLISHED', 'LOCKED'] }
             },
             include: {
                 studentMarks: {
@@ -182,7 +209,15 @@ export const calculateGrades = async (req: AuthRequest, res: Response) => {
             const maxExt = extExam?.maxMarks || 70;
             const maxTotal = maxInt + maxExt;
 
-            const bestInternal = Math.max(internal1, internal2);
+            let bestInternal = 0;
+            if (internal_method === 'avg') {
+                bestInternal = (internal1 + internal2) / 2;
+            } else if (internal_method === 'latest') {
+                bestInternal = internal2 || internal1;
+            } else {
+                bestInternal = Math.max(internal1, internal2);
+            }
+
             const totalMarks = bestInternal + external;
 
             // Calculate percentage with precision
@@ -199,6 +234,27 @@ export const calculateGrades = async (req: AuthRequest, res: Response) => {
                     break;
                 }
             }
+
+            // Calculate CO Attainment for this student
+            const studentCoMarks: Record<string, { obtained: number, max: number }> = {};
+            exams.forEach(exam => {
+                const marksForStudent = exam.studentMarks.filter(m => m.studentId === student.id);
+                marksForStudent.forEach(mark => {
+                    const coId = mark.subQuestion?.coId || mark.subQuestion?.question?.coId;
+                    if (coId) {
+                        if (!studentCoMarks[coId]) {
+                            studentCoMarks[coId] = { obtained: 0, max: 0 };
+                        }
+                        studentCoMarks[coId].obtained += Number(mark.marks) || 0;
+                        studentCoMarks[coId].max += mark.subQuestion?.maxMarks || 0;
+                    }
+                });
+            });
+
+            const coAttainment = Object.entries(studentCoMarks).map(([id, stats]) => ({
+                id,
+                percentage: stats.max > 0 ? (stats.obtained / stats.max) * 100 : 0
+            }));
 
             // Upsert FinalMark
             await prisma.finalMark.upsert({
@@ -218,6 +274,7 @@ export const calculateGrades = async (req: AuthRequest, res: Response) => {
                     percentage,
                     grade,
                     gradePoint,
+                    coAttainment, // Save real CO data
                     computedAt: new Date()
                 },
                 create: {
@@ -232,6 +289,7 @@ export const calculateGrades = async (req: AuthRequest, res: Response) => {
                     percentage,
                     grade,
                     gradePoint,
+                    coAttainment, // Save real CO data
                     status: 'calculated'
                 }
             });

@@ -179,28 +179,9 @@ export const promoteCohort = async (req: AuthRequest, res: Response) => {
                 data: { status: 'LOCKED', lockedAt: new Date() }
             });
 
-            // 4. MIGRATE ENROLLMENTS (New - Critical Fix)
-            // Fetch active students in current semester
-            const currentEnrollments = await tx.studentEnrollment.findMany({
-                where: {
-                    cohortId: id,
-                    semester: prevSemester,
-                    status: 'active'
-                }
-            });
-
-            if (currentEnrollments.length > 0) {
-                // Create new enrollment records for next semester
-                await tx.studentEnrollment.createMany({
-                    data: currentEnrollments.map(e => ({
-                        studentId: e.studentId,
-                        cohortId: id,
-                        departmentId: e.departmentId,
-                        semester: newSemester,
-                        status: 'active'
-                    })) as any
-                });
-            }
+            // 4. MIGRATE ENROLLMENTS (Removed to prevent student merging)
+            // Institutions with different student bodies per semester require manual enrollment.
+            // Automatic migration was causing students from previous semesters to "leak" into new semesters.
         });
 
         // Audit Log

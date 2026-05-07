@@ -194,10 +194,16 @@ export const getTeacherStudents = async (req: AuthRequest, res: Response) => {
         // Get unique cohort IDs
         const cohortIds = [...new Set(teacherAssignments.map(ta => ta.cohortId))];
 
-        // Get all students enrolled in these cohorts
+        // STRICT FILTERING: Match both Cohort and Semester from teacher assignments
+        const orConditions = teacherAssignments.map(ta => ({
+            cohortId: ta.cohortId,
+            semester: ta.semester
+        }));
+
+        // Get all students enrolled in these cohorts AND semesters
         const enrollments = await prisma.studentEnrollment.findMany({
             where: {
-                cohortId: { in: cohortIds },
+                OR: orConditions,
                 status: 'active'
             },
             include: {
@@ -234,7 +240,7 @@ export const getTeacherStudents = async (req: AuthRequest, res: Response) => {
             semester: enrollment.semester,
             // Add subjects this teacher teaches to this student
             assignedSubjects: teacherAssignments
-                .filter(ta => ta.cohortId === enrollment.cohortId)
+                .filter(ta => ta.cohortId === enrollment.cohortId && ta.semester === enrollment.semester)
                 .map(ta => ({
                     id: ta.subject.id,
                     code: ta.subject.code,

@@ -13,6 +13,7 @@ import { Loader2, Search, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { teacherFeedbackApi, apiCall } from '@/api/feedbackApi';
 import { toast } from '@/hooks/use-toast';
 import api from '@/lib/api';
+import { useAvailableSemesters } from '@/hooks/useAvailableSemesters';
 
 export default function PendingApprovals() {
   const { user } = useAuth();
@@ -23,6 +24,7 @@ export default function PendingApprovals() {
   const [subjectFilter, setSubjectFilter] = useState<string>('all');
   const [semesterFilter, setSemesterFilter] = useState<string>('all');
   const [approvingIds, setApprovingIds] = useState<Set<string>>(new Set());
+  const availableSemesters = useAvailableSemesters();
 
   // RBAC: Only HOD/Principal/Admin can access
   if (!['HOD', 'PRINCIPAL', 'ADMIN'].includes(user?.role || '')) {
@@ -161,7 +163,7 @@ export default function PendingApprovals() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Semesters</SelectItem>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                  {availableSemesters.map((sem) => (
                     <SelectItem key={sem} value={sem.toString()}>
                       Semester {sem}
                     </SelectItem>

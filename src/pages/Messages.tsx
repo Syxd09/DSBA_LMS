@@ -25,7 +25,7 @@ export default function Messages() {
   const [isMobileView, setIsMobileView] = useState(false);
 
   // Check if user can create groups
-  const canCreateGroup = user && ['PRINCIPAL', 'ADMIN', 'HOD'].includes(user.role.toUpperCase());
+  const canCreateGroup = user && ['PRINCIPAL', 'ADMIN', 'HOD', 'TEACHER'].includes(user.role.toUpperCase());
 
   // Responsive handling
   useEffect(() => {

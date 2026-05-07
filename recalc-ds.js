@@ -24,29 +24,29 @@ async function recalculateDS() {
     );
 
     if (!dsExam) {
-        console.log('❌ No Data Structures exam found!');
+        console.log(' No Data Structures exam found!');
         return;
     }
 
-    console.log(`\n✅ Found Data Structures exam: ${dsExam.id}`);
+    console.log(`\n Found Data Structures exam: ${dsExam.id}`);
     console.log(`   Subject: ${dsExam.subject.name}`);
     console.log(`   Status: ${dsExam.status}`);
 
     if (dsExam.status !== 'PUBLISHED') {
-        console.log('\n⚠️  Exam is not published! Status:', dsExam.status);
+        console.log('\n  Exam is not published! Status:', dsExam.status);
         console.log('   Please publish the exam first.');
         return;
     }
 
     // Trigger recalculation
-    console.log('\n🔄 Triggering recalculation...');
+    console.log('\n Triggering recalculation...');
     const recalcRes = await fetch(`http://localhost:3000/api/exams/${dsExam.id}/recalculate`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
     });
 
     const result = await recalcRes.json();
-    console.log('\n📊 RESULT:');
+    console.log('\n RESULT:');
     console.log(JSON.stringify(result, null, 2));
 }
 

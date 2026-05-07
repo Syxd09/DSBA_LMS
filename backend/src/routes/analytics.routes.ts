@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getCOAttainment, getBloomDistribution, getSubjectPerformance, getDepartmentStats, getCOPOTraceability, getGlobalAttainmentStats, getOverallPerformanceTrend } from '../controllers/analytics.controller';
+import { getCOAttainment, getBloomDistribution, getSubjectBloomDistribution, getSubjectPerformance, getDepartmentStats, getCOPOTraceability, getGlobalAttainmentStats, getOverallPerformanceTrend } from '../controllers/analytics.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/rbac.middleware';
 import { requireAcademicContext } from '../middleware/academic-context.middleware';
@@ -18,6 +18,11 @@ router.get('/co-attainment/:subjectId',
 router.get('/bloom-distribution/:examId',
     requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER']),
     getBloomDistribution
+);
+
+router.get('/subject-bloom-distribution/:subjectId',
+    requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER']),
+    getSubjectBloomDistribution
 );
 
 router.get('/subject-performance/:cohortId',

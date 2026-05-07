@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 export function PrincipalDashboard() {
   const { data: stats } = useQuery({
@@ -48,109 +49,113 @@ export function PrincipalDashboard() {
   const teacherCount = stats?.teachers || 0;
   const atRiskCount = stats?.alerts?.studentsAtRisk || 0;
 
-  const departmentStats = departments.map((dept: any) => ({
+  const departmentData = stats?.departmentStats || departments.map((dept: any) => ({
+    id: dept.id,
     name: dept.name,
+    code: dept.code,
+    totalStudents: dept._count?.studentEnrollments || 0,
+    totalFaculty: dept._count?.users || 0,
+    atRiskStudents: 0,
     passPercentage: 0,
     averageScore: 0,
-    totalStudents: dept._count?.users || 0,
-    atRiskStudents: 0,
+    trend: 'stable'
   }));
 
   return (
-    <div className="space-y-8 pb-10 animate-in fade-in duration-700">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-8 pb-10">
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-black tracking-tight text-foreground">Institution Overview</h2>
-          <p className="text-muted-foreground font-medium">Real-time academic oversight & departmental performance</p>
+          <h1 className="text-2xl font-bold tracking-tight">Institutional Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Overview of departmental performance and administrative status.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Input 
+            placeholder="Search..." 
+            className="w-[250px] bg-background"
+          />
+          <Button variant="outline" size="icon">
+             <Filter className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard
-          title="Total Students"
-          value={studentCount.toLocaleString()}
-          subtitle="Enrolled population"
-          icon={GraduationCap}
-          trend={{ value: 5.2, isPositive: true }}
-          variant="primary"
-        />
-        <StatsCard
-          title="Academic Faculty"
-          value={teacherCount.toString()}
-          subtitle="Directing pedagogy"
+          title="Total Enrollment"
+          value={stats?.students?.toLocaleString() || '0'}
+          subtitle="Enrolled students"
           icon={Users}
         />
         <StatsCard
-          title="Operational Subjects"
-          value={(stats?.subjects || 0).toString()}
-          subtitle="Live curriculum"
+          title="Total Faculty"
+          value={stats?.teachers?.toLocaleString() || '0'}
+          subtitle="Active teachers"
           icon={BookOpen}
         />
         <StatsCard
-          title="Critical Alerts"
-          value={atRiskCount.toString()}
-          subtitle="Requiring attention"
+          title="At-Risk Students"
+          value={stats?.alerts?.studentsAtRisk || '0'}
+          subtitle="Needs attention"
           icon={AlertTriangle}
-          variant="danger"
+        />
+        <StatsCard
+          title="Data Integrity"
+          value={`${stats?.dataIntegrity || '100'}%`}
+          subtitle="Attainment mapping"
+          icon={CheckCircle}
         />
       </div>
 
-      {/* Main Intelligence Row */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        {/* Left: Insights (Replaces Graphs) */}
-        <div className="xl:col-span-2 h-full">
-          <AcademicPerformanceInsights 
-            attainmentData={globalAttainment} 
-            trendData={performanceTrend} 
-          />
+        <div className="xl:col-span-2">
+          <AcademicPerformanceInsights attainmentData={globalAttainment} trendData={performanceTrend} />
         </div>
-
-        {/* Right: At-Risk Students */}
-        <div className="xl:col-span-1 h-full">
-          <AtRiskStudentsWidget riskLevel="medium" maxDisplay={6} />
-        </div>
-      </div>
-
-      {/* Tertiary Row: Activity & Alerts */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-         {/* System Alerts */}
-         <Card className="lg:col-span-4 border-none shadow-lg bg-card/40 backdrop-blur-sm">
+        
+        <Card>
           <CardHeader>
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Zap className="h-4 w-4 text-amber-500" />
-              Operational Continuity
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Pending Actions
             </CardTitle>
-            <CardDescription>Real-time system health alerts</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 px-4">
+          <CardContent className="space-y-4">
             {stats?.alerts?.pendingApprovals > 0 && (
-              <div className="flex items-center justify-between p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 group hover:bg-blue-500/15 transition-colors cursor-pointer">
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30 group hover:bg-muted transition-colors cursor-pointer">
                 <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                  <span className="text-xs font-bold">{stats.alerts.pendingApprovals} Pending Reviews</span>
+                  <div className="w-2 h-2 bg-amber-500 rounded-full" />
+                  <span className="text-sm font-medium">{stats.alerts.pendingApprovals} Pending Reviews</span>
                 </div>
-                <ArrowRight className="h-3 w-3 text-blue-500 transition-transform group-hover:translate-x-1" />
+                <ArrowRight className="h-4 w-4 opacity-50 group-hover:translate-x-1 transition-transform" />
               </div>
             )}
             {stats?.alerts?.incompleteAttainments > 0 && (
-              <div className="flex items-center justify-between p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 group hover:bg-orange-500/15 transition-colors cursor-pointer">
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30 group hover:bg-muted transition-colors cursor-pointer">
                 <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
-                  <span className="text-xs font-bold">{stats.alerts.incompleteAttainments} CO Gaps</span>
+                  <div className="w-2 h-2 bg-rose-500 rounded-full" />
+                  <span className="text-sm font-medium">{stats.alerts.incompleteAttainments} Attainment Gaps</span>
                 </div>
-                <ArrowRight className="h-3 w-3 text-orange-500 transition-transform group-hover:translate-x-1" />
+                <ArrowRight className="h-4 w-4 opacity-50 group-hover:translate-x-1 transition-transform" />
+              </div>
+            )}
+            {!stats?.alerts?.pendingApprovals && !stats?.alerts?.incompleteAttainments && (
+              <div className="py-10 text-center text-muted-foreground">
+                <CheckCircle className="h-10 w-10 mx-auto opacity-20 mb-3" />
+                <p className="text-sm">All systems nominal</p>
               </div>
             )}
           </CardContent>
         </Card>
+      </div>
 
-        {/* Recent Activity */}
-        <Card className="lg:col-span-8 border-none shadow-lg bg-card/40 backdrop-blur-sm">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="lg:col-span-4">
+           <AtRiskStudentsWidget riskLevel="high" maxDisplay={5} />
+        </div>
+
+        <Card className="lg:col-span-8">
           <CardHeader>
-            <CardTitle className="text-base font-bold">Protocol Ledger</CardTitle>
-            <CardDescription>Latest instructional and administrative activities</CardDescription>
+            <CardTitle className="text-lg font-semibold">Recent Activity</CardTitle>
+            <CardDescription>System-wide administrative logs</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <RecentActivity limit={5} />
@@ -158,9 +163,8 @@ export function PrincipalDashboard() {
         </Card>
       </div>
 
-      {/* Department Performance */}
-      <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
-        <DepartmentTable departments={departmentStats} />
+      <div>
+        <DepartmentTable departments={departmentData} />
       </div>
     </div>
   );

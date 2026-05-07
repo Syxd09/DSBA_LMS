@@ -102,8 +102,7 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
     { name: 'Exams', href: '/exams', icon: ClipboardList },
     { name: 'Marks Entry', href: '/marks-entry', icon: ClipboardList },
     { name: 'Messages', href: '/messages', icon: MessageSquare },
-    { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-    { name: 'Attendance', href: '/attendance', icon: UserCheck2 },
+    { name: 'Analytics', href: '/co-po-analytics', icon: UserCheck2 },
   ],
   student: [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },

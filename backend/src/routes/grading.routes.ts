@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getGradingRules, createGradingRule, deleteGradingRule, getFinalMarks, calculateGrades, getSemesterResults, calculateSGPA, updateFeedback, bulkUpdateGradeStatus, bulkCalculateSGPA } from '../controllers/grading.controller';
+import { getGradingRules, createGradingRule, updateGradingRule, deleteGradingRule, getFinalMarks, calculateGrades, getSemesterResults, calculateSGPA, updateFeedback, bulkUpdateGradeStatus, bulkCalculateSGPA } from '../controllers/grading.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/rbac.middleware';
 
@@ -9,6 +9,7 @@ router.use(authenticateToken);
 
 router.get('/rules', getGradingRules);
 router.post('/rules', requireRole('ADMIN', 'PRINCIPAL', 'HOD'), createGradingRule);
+router.put('/rules/:id', requireRole('ADMIN', 'PRINCIPAL', 'HOD'), updateGradingRule);
 router.delete('/rules/:id', requireRole('ADMIN', 'PRINCIPAL', 'HOD'), deleteGradingRule);
 router.get('/final-marks', requireRole('ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER'), getFinalMarks);
 router.post('/calculate', requireRole('ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER'), calculateGrades);

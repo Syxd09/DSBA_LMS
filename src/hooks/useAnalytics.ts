@@ -49,6 +49,18 @@ export function useBloomDistribution(examId: string | null) {
   });
 }
 
+export function useSubjectBloomDistribution(subjectId: string | null) {
+  return useQuery({
+    queryKey: ['subject-bloom-distribution', subjectId],
+    queryFn: async () => {
+      if (!subjectId) return [];
+      const { data } = await api.get(`/analytics/subject-bloom-distribution/${subjectId}`);
+      return data;
+    },
+    enabled: !!subjectId,
+  });
+}
+
 export function useSubjectPerformance(cohortId: string | null) {
   return useQuery({
     queryKey: ['subject-performance', cohortId],
@@ -68,5 +80,37 @@ export function useDepartmentStats() {
       const { data } = await api.get('/analytics/department-stats');
       return data;
     },
+  });
+}
+
+export function useGlobalAttainmentStats() {
+  return useQuery({
+    queryKey: ['global-attainment-stats'],
+    queryFn: async () => {
+      const { data } = await api.get('/analytics/global-stats');
+      return data;
+    },
+  });
+}
+
+export function usePerformanceTrend() {
+  return useQuery({
+    queryKey: ['performance-trend'],
+    queryFn: async () => {
+      const { data } = await api.get('/analytics/performance-trend');
+      return data;
+    },
+  });
+}
+
+export function useCOPOTraceability(subjectId: string | null, cohortId: string | null, semester: number | null) {
+  return useQuery({
+    queryKey: ['co-po-traceability', subjectId, cohortId, semester],
+    queryFn: async () => {
+      if (!subjectId || !cohortId || !semester) return null;
+      const { data } = await api.get(`/analytics/co-po-traceability/${subjectId}/${cohortId}/${semester}`);
+      return data;
+    },
+    enabled: !!subjectId && !!cohortId && !!semester,
   });
 }

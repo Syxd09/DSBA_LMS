@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Plus, Trash2, GripVertical, Save, AlertCircle, CheckCircle2, 
-  BookOpen, Target, Eye, EyeOff, BookText, Info 
+  BookOpen, Target, Eye, EyeOff, BookText, Info, Copy, Download, Upload, Layout
 } from 'lucide-react';
 import { CourseOutcome } from '@/hooks/useCourseOutcomes';
 import { toast } from '@/hooks/use-toast';
@@ -74,6 +74,64 @@ export function ExamStructureBuilderNew({
   const [sections, setSections] = useState<SectionInput[]>(initialSections || []);
   const [isSaving, setIsSaving] = useState(false);
   const [expandedSections, setExpandedSections] = useState<string[]>([]);
+  const [templates, setTemplates] = useState<{ name: string; structure: SectionInput[] }[]>([]);
+
+  // Load templates from localStorage on mount
+  useEffect(() => {
+    const savedTemplates = localStorage.getItem('exam_structure_templates');
+    if (savedTemplates) {
+      try {
+        setTemplates(JSON.parse(savedTemplates));
+      } catch (e) {
+        console.error('Failed to parse templates');
+      }
+    }
+  }, []);
+
+  const saveTemplate = () => {
+    if (sections.length === 0) return;
+    const name = prompt('Enter a name for this template:');
+    if (!name) return;
+
+    const newTemplate = { name, structure: sections };
+    const updatedTemplates = [...templates, newTemplate];
+    setTemplates(updatedTemplates);
+    localStorage.setItem('exam_structure_templates', JSON.stringify(updatedTemplates));
+    toast({
+      title: 'Template saved',
+      description: `Structure saved as "${name}"`,
+    });
+  };
+
+  const loadTemplate = (template: { name: string; structure: SectionInput[] }) => {
+    if (confirm(`Are you sure you want to load "${template.name}"? This will replace the current structure.`)) {
+      // Re-map IDs to prevent duplicates
+      const remappedStructure = template.structure.map(section => ({
+        ...section,
+        id: `temp-s-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        questions: section.questions.map(q => ({
+          ...q,
+          id: `temp-q-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          subQuestions: q.subQuestions.map(sq => ({
+            ...sq,
+            id: `temp-sq-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          }))
+        }))
+      }));
+      setSections(remappedStructure);
+      setExpandedSections(remappedStructure.map(s => s.id));
+      toast({
+        title: 'Template loaded',
+        description: `Structure "${template.name}" applied successfully.`,
+      });
+    }
+  };
+
+  const deleteTemplate = (name: string) => {
+    const updatedTemplates = templates.filter(t => t.name !== name);
+    setTemplates(updatedTemplates);
+    localStorage.setItem('exam_structure_templates', JSON.stringify(updatedTemplates));
+  };
 
   useEffect(() => {
     if (initialSections) {
@@ -181,6 +239,30 @@ export function ExamStructureBuilderNew({
     );
   };
 
+  const copyQuestion = (sectionId: string, question: QuestionInput) => {
+    setSections(prev =>
+      prev.map(section => {
+        if (section.id === sectionId) {
+          const copiedQuestion: QuestionInput = {
+            ...question,
+            id: `temp-q-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            sequence: section.questions.length + 1,
+            subQuestions: question.subQuestions.map(sq => ({
+              ...sq,
+              id: `temp-sq-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+            }))
+          };
+          return { ...section, questions: [...section.questions, copiedQuestion] };
+        }
+        return section;
+      })
+    );
+    toast({
+      title: 'Question copied',
+      description: 'The question structure has been duplicated.',
+    });
+  };
+
   const addSubQuestion = (sectionId: string, questionId: string) => {
     setSections(prev =>
       prev.map(section => {
@@ -244,9 +326,22 @@ export function ExamStructureBuilderNew({
         if (section.id === sectionId) {
           return {
             ...section,
-            questions: section.questions.map(q =>
-              q.id === questionId ? { ...q, [field]: value } : q
-            ),
+            questions: section.questions.map(q => {
+              if (q.id === questionId) {
+                const updatedQ = { ...q, [field]: value };
+                
+                // If bloomLevel is changed at question level, sync to all subquestions
+                if (field === 'bloomLevel') {
+                  updatedQ.subQuestions = q.subQuestions.map(sq => ({
+                    ...sq,
+                    bloomLevel: value // Auto-sync
+                  }));
+                }
+                
+                return updatedQ;
+              }
+              return q;
+            }),
           };
         }
         return section;
@@ -379,6 +474,37 @@ export function ExamStructureBuilderNew({
           </p>
         </div>
         <div className="flex gap-2">
+          {templates.length > 0 && (
+            <Select onValueChange={(val) => {
+              const t = templates.find(t => t.name === val);
+              if (t) loadTemplate(t);
+            }}>
+              <SelectTrigger className="w-[160px] bg-white border-slate-200">
+                <Layout className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Use Template" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map(t => (
+                  <SelectItem key={t.name} value={t.name}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Button variant="outline" onClick={saveTemplate} disabled={sections.length === 0 || readOnly}>
+            <Download className="w-4 h-4 mr-2" />
+            Save Template
+          </Button>
+          <Button 
+            variant="ghost" 
+            onClick={() => {
+              if (confirm('Clear entire structure?')) setSections([]);
+            }} 
+            disabled={sections.length === 0 || readOnly}
+            className="text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Clear
+          </Button>
           <Button variant="outline" onClick={addSection} disabled={readOnly}>
             <Plus className="w-4 h-4 mr-2" />
             Add Section
@@ -624,21 +750,24 @@ export function ExamStructureBuilderNew({
                                       );
                                     }
                                   })()}
-                                  <Select
-                                    value={question.bloomLevel || ''}
-                                    onValueChange={(value) => updateQuestionField(section.id, question.id, 'bloomLevel', value)}
-                                    disabled={readOnly}
-                                  >
-                                    <SelectTrigger className="w-32 h-8">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {bloomLevels.map(level => (
-                                        <SelectItem key={level} value={level}>{level}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] uppercase font-bold text-slate-400">Bloom Level</span>
+                                    <Select
+                                      value={question.bloomLevel || ''}
+                                      onValueChange={(value) => updateQuestionField(section.id, question.id, 'bloomLevel', value)}
+                                      disabled={readOnly}
+                                    >
+                                      <SelectTrigger className="w-32 h-8">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {bloomLevels.map(level => (
+                                          <SelectItem key={level} value={level}>{level}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <label className="flex items-center gap-2 text-sm cursor-pointer mt-4">
                                     <input
                                       type="checkbox"
                                       checked={question.isOptional}
@@ -649,15 +778,27 @@ export function ExamStructureBuilderNew({
                                     Optional
                                   </label>
                                 </div>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  onClick={() => removeQuestion(section.id, question.id)}
-                                  disabled={readOnly}
-                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => copyQuestion(section.id, question)}
+                                    disabled={readOnly}
+                                    className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                                    title="Duplicate Question"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => removeQuestion(section.id, question.id)}
+                                    disabled={readOnly}
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </div>
                               </div>
                             </CardHeader>
 
@@ -709,25 +850,6 @@ export function ExamStructureBuilderNew({
                                         </SelectContent>
                                       </Select>
 
-                                      <Select
-                                        value={sq.bloomLevel || ''}
-                                        onValueChange={(value) => updateSubQuestionField(section.id, question.id, sq.id, 'bloomLevel', value)}
-                                        disabled={readOnly}
-                                      >
-                                        <SelectTrigger className="w-32 h-8 text-sm">
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {bloomLevels.map(level => (
-                                            <SelectItem key={level} value={level}>
-                                              <div className="flex items-center gap-2">
-                                                <div className={cn("w-2 h-2 rounded-full", bloomColors[level])} />
-                                                {level}
-                                              </div>
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
 
                                       {question.subQuestions.length > 1 && (
                                         <Button

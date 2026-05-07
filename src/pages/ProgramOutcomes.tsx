@@ -8,10 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Target, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Target, Pencil, Trash2, Loader2, TrendingUp } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 
@@ -132,6 +132,50 @@ export default function ProgramOutcomes() {
     }
   };
 
+  const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
+  const [bulkProgramId, setBulkProgramId] = useState('');
+  const [bulkThreshold, setBulkThreshold] = useState(60);
+
+  const handleBulkUpdate = async () => {
+    if (!bulkProgramId) {
+      toast({ title: 'Error', description: 'Please select a program.', variant: 'destructive' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const posToUpdate = programOutcomes.filter(po => po.programId === bulkProgramId);
+      
+      if (posToUpdate.length === 0) {
+        toast({ title: 'No POs found', description: 'This program has no outcomes to update.', variant: 'destructive' });
+        return;
+      }
+
+      await Promise.all(posToUpdate.map(po => 
+        api.put(`/program-outcomes/${po.id}`, {
+          poNumber: po.poNumber,
+          description: po.description,
+          targetPercent: bulkThreshold
+        })
+      ));
+
+      toast({
+        title: 'Bulk Update Successful',
+        description: `Set target threshold to ${bulkThreshold}% for ${posToUpdate.length} outcomes.`,
+      });
+      setIsBulkDialogOpen(false);
+      refetch();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to update outcomes.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deletePOId) return;
 
@@ -156,83 +200,139 @@ export default function ProgramOutcomes() {
   return (
     <AuthenticatedLayout allowedRoles={['admin', 'principal', 'hod']}>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Program Outcomes (PO)</h2>
-            <p className="text-muted-foreground">Manage program outcomes for your academic programs</p>
+            <h2 className="text-2xl font-bold tracking-tight">Program Outcomes</h2>
+            <p className="text-muted-foreground">
+              Define and manage Program Outcomes (POs) and attainment thresholds
+            </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Program Outcome
-              </Button>
-            </DialogTrigger>
-            <DialogContent aria-describedby="create-po-desc">
-              <DialogHeader>
-                <DialogTitle>Create Program Outcome</DialogTitle>
-                <DialogDescription id="create-po-desc">
-                  Add a new program outcome to a program.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>Program *</Label>
-                  <Select value={newPO.programId} onValueChange={(value) => setNewPO({ ...newPO, programId: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select program" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {programs.map((program) => (
-                        <SelectItem key={program.id} value={program.id}>
-                          {program.name} ({program.code})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>PO Number *</Label>
-                  <Input
-                    type="number"
-                    value={newPO.poNumber}
-                    onChange={(e) => setNewPO({ ...newPO, poNumber: parseInt(e.target.value) || 1 })}
-                    min={1}
-                    max={20}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Description *</Label>
-                  <Textarea
-                    value={newPO.description}
-                    onChange={(e) => setNewPO({ ...newPO, description: e.target.value })}
-                    placeholder="e.g., Engineering Knowledge: Apply knowledge of mathematics and science"
-                    rows={3}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Target Percentage</Label>
-                  <Input
-                    type="number"
-                    value={newPO.targetPercent}
-                    onChange={(e) => setNewPO({ ...newPO, targetPercent: parseInt(e.target.value) || 60 })}
-                    min={0}
-                    max={100}
-                  />
-                </div>
-                <Button className="w-full" onClick={handleCreate} disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    'Create Program Outcome'
-                  )}
+          <div className="flex gap-2">
+            <Dialog open={isBulkDialogOpen} onOpenChange={setIsBulkDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline">
+                  <TrendingUp className="mr-2 h-4 w-4" />
+                  Bulk Update Threshold
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Bulk Update PO Thresholds</DialogTitle>
+                  <DialogDescription>
+                    Update the target percentage for all outcomes in a program.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Select Program</Label>
+                    <Select value={bulkProgramId} onValueChange={setBulkProgramId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select program" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {programs.map((program) => (
+                          <SelectItem key={program.id} value={program.id}>
+                            {program.name} ({program.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>New Target Threshold (%)</Label>
+                    <Input
+                      type="number"
+                      value={bulkThreshold}
+                      onChange={(e) => setBulkThreshold(parseInt(e.target.value) || 60)}
+                      min={0}
+                      max={100}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsBulkDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleBulkUpdate} disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Update All POs'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Program Outcome
+                </Button>
+              </DialogTrigger>
+              <DialogContent aria-describedby="create-po-desc">
+                <DialogHeader>
+                  <DialogTitle>Create Program Outcome</DialogTitle>
+                  <DialogDescription id="create-po-desc">
+                    Add a new program outcome to a program.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Program *</Label>
+                    <Select value={newPO.programId} onValueChange={(value) => setNewPO({ ...newPO, programId: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select program" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {programs.map((program) => (
+                          <SelectItem key={program.id} value={program.id}>
+                            {program.name} ({program.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>PO Number *</Label>
+                    <Input
+                      type="number"
+                      value={newPO.poNumber}
+                      onChange={(e) => setNewPO({ ...newPO, poNumber: parseInt(e.target.value) || 1 })}
+                      min={1}
+                      max={20}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Description *</Label>
+                    <Textarea
+                      value={newPO.description}
+                      onChange={(e) => setNewPO({ ...newPO, description: e.target.value })}
+                      placeholder="e.g., Engineering Knowledge: Apply knowledge of mathematics and science"
+                      rows={3}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Target Percentage</Label>
+                    <Input
+                      type="number"
+                      value={newPO.targetPercent}
+                      onChange={(e) => setNewPO({ ...newPO, targetPercent: parseInt(e.target.value) || 60 })}
+                      min={0}
+                      max={100}
+                    />
+                  </div>
+                  <Button className="w-full" onClick={handleCreate} disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      'Create Program Outcome'
+                    )}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <Card>

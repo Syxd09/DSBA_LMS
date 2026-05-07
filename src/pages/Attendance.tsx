@@ -61,7 +61,7 @@ const Attendance: React.FC = () => {
             setLoading(true);
             try {
                 // Reuse existing endpoint or create new one if needed
-                const response = await api.get(`/enrollments/students?cohortId=${cohortId}`);
+                const response = await api.get(`/enrollments/students?cohortId=${cohortId}${semester ? `&semester=${semester}` : ''}`);
                 const studentsData = response.data.map((e: any) => ({
                     studentId: e.student.id,
                     studentName: e.student.fullName,

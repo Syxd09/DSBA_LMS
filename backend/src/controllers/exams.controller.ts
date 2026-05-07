@@ -21,21 +21,25 @@ export const getExams = async (req: AuthRequest, res: Response) => {
         if (userRole === 'TEACHER') {
             where.teacherId = userId;
         } else if (userRole === 'HOD') {
-            // Find HOD's department
             const department = await prisma.department.findFirst({
                 where: { hodId: userId }
             });
+            
             if (department) {
-                // Filter exams by subjects belonging to the department
-                where.subject = {
-                    curriculum: {
-                        program: {
-                            departmentId: department.id
+                where.OR = [
+                    { teacherId: userId },
+                    {
+                        subject: {
+                            curriculum: {
+                                program: {
+                                    departmentId: department.id
+                                }
+                            }
                         }
                     }
-                };
+                ];
             } else {
-                return res.json([]);
+                where.teacherId = userId;
             }
         }
         // PRINCIPAL and ADMIN see all exams (where = {})
@@ -179,15 +183,18 @@ export const getExamDetails = async (req: AuthRequest, res: Response) => {
 export const getStudentsByCohort = async (req: AuthRequest, res: Response) => {
     try {
         const { cohortId } = req.params;
-        console.log('🔍 getStudentsByCohort called for cohortId:', cohortId);
+        const semester = req.query.semester ? parseInt(req.query.semester as string) : undefined;
+        
+        console.log('🔍 getStudentsByCohort called:', { cohortId, semester });
 
-        // Fetch students enrolled in this cohort
+        const where: any = { cohortId, status: 'active' };
+        if (semester) where.semester = semester;
+
         const enrollments = await prisma.studentEnrollment.findMany({
-            where: { cohortId, status: 'active' },
-            include: { student: true }
+            where,
+            include: { student: true },
+            orderBy: { student: { registrationNumber: 'asc' } }
         });
-
-        console.log(`📊 Found ${enrollments.length} enrollments`);
 
         const students = enrollments.map(e => ({
             studentId: e.student.id,
@@ -195,11 +202,41 @@ export const getStudentsByCohort = async (req: AuthRequest, res: Response) => {
             registrationNumber: e.student.registrationNumber
         }));
 
-        console.log(`✅ Returning ${students.length} students:`, students.map(s => s.registrationNumber).join(', '));
         res.json(students);
     } catch (error) {
-        console.error('❌ Error fetching students:', error);
         res.status(500).json({ message: 'Error fetching students', error });
+    }
+};
+
+export const getExamStudents = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const exam = await prisma.exam.findUnique({
+            where: { id },
+            select: { cohortId: true, semester: true }
+        });
+
+        if (!exam) return res.status(404).json({ message: 'Exam not found' });
+
+        const enrollments = await prisma.studentEnrollment.findMany({
+            where: { 
+                cohortId: exam.cohortId, 
+                semester: exam.semester,
+                status: 'active' 
+            },
+            include: { student: true },
+            orderBy: { student: { registrationNumber: 'asc' } }
+        });
+
+        const students = enrollments.map(e => ({
+            studentId: e.student.id,
+            studentName: e.student.fullName,
+            registrationNumber: e.student.registrationNumber
+        }));
+
+        res.json(students);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching exam students' });
     }
 };
 

@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Target, TrendingUp, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 import api from '@/lib/api';
 import { format } from 'date-fns';
+import { useAvailableSemesters } from '@/hooks/useAvailableSemesters';
 
 interface TraceabilityData {
   context: {
@@ -67,6 +68,7 @@ export default function COPOTraceability() {
   const [selectedCohort, setSelectedCohort] = useState<string>('');
   const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [selectedSubject, setSelectedSubject] = useState<string>('');
+  const availableSemesters = useAvailableSemesters(selectedCohort, selectedProgram);
 
   // Fetch programs
   const { data: programs } = useQuery({
@@ -172,7 +174,7 @@ export default function COPOTraceability() {
                     <SelectValue placeholder="Select semester" />
                   </SelectTrigger>
                   <SelectContent>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                    {availableSemesters.map((sem) => (
                       <SelectItem key={sem} value={sem.toString()}>
                         Semester {sem}
                       </SelectItem>

@@ -37,14 +37,14 @@ export const createConversation = async (req: AuthRequest, res: Response) => {
             return res.status(400).json({ message: 'Invalid conversation type' });
         }
 
-        // RBAC: Only Principal/Admin/HOD can create groups
-        if (type === 'GROUP' && !['PRINCIPAL', 'ADMIN', 'HOD'].includes(userRole!)) {
+        // RBAC: Only Principal/Admin/HOD/Teacher can create groups
+        if (type === 'GROUP' && !['PRINCIPAL', 'ADMIN', 'HOD', 'TEACHER'].includes(userRole!)) {
             await createAuditLog(userId, 'GROUP_CREATE_DENIED', 'conversation', '', undefined, {
                 reason: 'Insufficient role',
                 attemptedRole: userRole
             });
             return res.status(403).json({
-                message: 'Only Principal, Admin, or HOD can create group conversations'
+                message: 'Only Principal, Admin, HOD, or Teacher can create group conversations'
             });
         }
 
@@ -342,15 +342,8 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
 
         if (!userId) return res.status(401).json({ message: 'Unauthorized' });
 
-        // Block students from sending messages
-        if (userRole === 'STUDENT') {
-            await createAuditLog(userId, 'MESSAGE_SEND_DENIED', 'message', '', undefined, {
-                reason: 'Students cannot send messages'
-            });
-            return res.status(403).json({
-                message: 'Students are not allowed to send messages'
-            });
-        }
+        // Students can only send messages in conversations they are already part of
+        // (This is already handled by the participant check below)
 
         // Validate content
         if (!content || content.trim().length === 0) {
@@ -731,19 +724,19 @@ export const getMessagingContacts = async (req: AuthRequest, res: Response) => {
         // Authority Matrix
         switch (role) {
             case 'PRINCIPAL':
-                eligibleRoles = ['ADMIN', 'HOD', 'TEACHER'];
+                eligibleRoles = ['ADMIN', 'HOD', 'TEACHER', 'STUDENT'];
                 break;
             case 'ADMIN':
-                eligibleRoles = ['PRINCIPAL', 'HOD'];
+                eligibleRoles = ['PRINCIPAL', 'HOD', 'TEACHER', 'STUDENT'];
                 break;
             case 'HOD':
-                eligibleRoles = ['PRINCIPAL', 'ADMIN', 'TEACHER'];
+                eligibleRoles = ['PRINCIPAL', 'ADMIN', 'TEACHER', 'STUDENT'];
                 break;
             case 'TEACHER':
-                eligibleRoles = ['HOD', 'TEACHER'];
+                eligibleRoles = ['HOD', 'TEACHER', 'STUDENT'];
                 break;
             case 'STUDENT':
-                eligibleRoles = []; // Students are read-only
+                eligibleRoles = ['TEACHER', 'HOD']; // Students can message their teachers/HODs
                 break;
             default:
                 eligibleRoles = [];
@@ -759,7 +752,17 @@ export const getMessagingContacts = async (req: AuthRequest, res: Response) => {
                 fullName: true, registrationNumber: true,
                 email: true,
                 role: true,
-                avatarUrl: true
+                avatarUrl: true,
+                studentEnrollments: {
+                    where: { status: 'active' },
+                    take: 1,
+                    select: {
+                        semester: true,
+                        cohort: {
+                            select: { name: true }
+                        }
+                    }
+                }
             },
             orderBy: {
                 fullName: 'asc'
@@ -770,5 +773,105 @@ export const getMessagingContacts = async (req: AuthRequest, res: Response) => {
     } catch (error: any) {
         console.error('[Messaging] Error fetching contacts:', error);
         res.status(500).json({ message: 'Failed to fetch contacts', error: error.message });
+    }
+};
+/**
+ * Global search for conversations, messages, and contacts
+ * @route GET /api/messaging/search
+ */
+export const searchMessaging = async (req: AuthRequest, res: Response) => {
+    try {
+        const { q } = req.query;
+        const userId = req.user?.userId;
+        const userRole = req.user?.role?.toUpperCase();
+
+        if (!userId || !q) {
+            return res.status(400).json({ message: 'Search query is required' });
+        }
+
+        const query = q.toString();
+
+        // 1. Search existing conversations
+        const conversations = await prisma.conversation.findMany({
+            where: {
+                participants: { some: { userId } },
+                OR: [
+                    { name: { contains: query, mode: 'insensitive' } },
+                    { participants: { some: { user: { fullName: { contains: query, mode: 'insensitive' } } } } }
+                ]
+            },
+            include: {
+                participants: {
+                    include: { user: { select: { id: true, fullName: true, avatarUrl: true, role: true } } }
+                },
+                messages: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 1
+                }
+            },
+            take: 5
+        });
+
+        // 2. Search messages in user's conversations
+        const messages = await prisma.message.findMany({
+            where: {
+                conversation: { participants: { some: { userId } } },
+                content: { contains: query, mode: 'insensitive' }
+            },
+            include: {
+                sender: { select: { id: true, fullName: true, avatarUrl: true } },
+                conversation: { 
+                    select: { 
+                        id: true, 
+                        name: true, 
+                        type: true,
+                        participants: {
+                            include: { user: { select: { id: true, fullName: true } } }
+                        }
+                    } 
+                }
+            },
+            take: 10,
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // 3. Search eligible contacts (Recommendations)
+        let eligibleRoles: string[] = [];
+        switch (userRole) {
+            case 'PRINCIPAL': eligibleRoles = ['ADMIN', 'HOD', 'TEACHER', 'STUDENT']; break;
+            case 'ADMIN': eligibleRoles = ['PRINCIPAL', 'HOD', 'TEACHER', 'STUDENT']; break;
+            case 'HOD': eligibleRoles = ['PRINCIPAL', 'ADMIN', 'TEACHER', 'STUDENT']; break;
+            case 'TEACHER': eligibleRoles = ['HOD', 'TEACHER', 'STUDENT']; break;
+            case 'STUDENT': eligibleRoles = ['TEACHER', 'HOD']; break;
+        }
+
+        const contacts = await prisma.user.findMany({
+            where: {
+                id: { not: userId },
+                role: { in: eligibleRoles as any },
+                OR: [
+                    { fullName: { contains: query, mode: 'insensitive' } },
+                    { registrationNumber: { contains: query, mode: 'insensitive' } },
+                    { email: { contains: query, mode: 'insensitive' } }
+                ]
+            },
+            select: {
+                id: true,
+                fullName: true,
+                registrationNumber: true,
+                role: true,
+                avatarUrl: true
+            },
+            take: 10
+        });
+
+        res.json({
+            conversations,
+            messages,
+            contacts
+        });
+    } catch (error: any) {
+        console.error('[Messaging] Search error:', error);
+        res.status(500).json({ message: 'Search failed', error: error.message });
     }
 };

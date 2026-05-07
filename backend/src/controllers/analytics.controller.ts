@@ -117,8 +117,10 @@ export const getBloomDistribution = async (req: AuthRequest, res: Response) => {
         exam.sections.forEach(section => {
             section.questions.forEach(q => {
                 q.subQuestions?.forEach(sq => {
-                    distribution[sq.bloomLevel] = (distribution[sq.bloomLevel] || 0) + 1;
-                    totalSubQuestions++;
+                    if (sq.bloomLevel) {
+                        distribution[sq.bloomLevel] = (distribution[sq.bloomLevel] || 0) + 1;
+                        totalSubQuestions++;
+                    }
                 });
             });
         });
@@ -137,6 +139,76 @@ export const getBloomDistribution = async (req: AuthRequest, res: Response) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Error fetching Bloom distribution' });
+    }
+};
+
+export const getSubjectBloomDistribution = async (req: AuthRequest, res: Response) => {
+    try {
+        const { subjectId } = req.params;
+        const userRole = req.user?.role?.toUpperCase();
+        const userId = req.user?.userId;
+
+        // RBAC: Verify Teacher Assignment
+        if (userRole === 'TEACHER') {
+            const assignment = await prisma.teacherAssignment.findFirst({
+                where: {
+                    teacherId: userId,
+                    subjectId: subjectId
+                }
+            });
+            if (!assignment) {
+                return res.status(403).json({ message: 'Not authorized for this subject' });
+            }
+        }
+
+        // Fetch all published exams for this subject
+        const exams = await prisma.exam.findMany({
+            where: {
+                subjectId,
+                status: 'PUBLISHED'
+            },
+            include: {
+                sections: {
+                    include: {
+                        questions: {
+                            include: {
+                                subQuestions: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        const distribution: Record<string, number> = {};
+        let totalSubQuestions = 0;
+
+        exams.forEach(exam => {
+            exam.sections.forEach(section => {
+                section.questions.forEach(q => {
+                    q.subQuestions?.forEach(sq => {
+                        if (sq.bloomLevel) {
+                            distribution[sq.bloomLevel] = (distribution[sq.bloomLevel] || 0) + 1;
+                            totalSubQuestions++;
+                        }
+                    });
+                });
+            });
+        });
+
+        const bloomOrder = ['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE'];
+        const result = Object.keys(distribution)
+            .sort((a, b) => bloomOrder.indexOf(a) - bloomOrder.indexOf(b))
+            .map(level => ({
+                level,
+                count: distribution[level],
+                percentage: totalSubQuestions ? Math.round((distribution[level] / totalSubQuestions) * 100) : 0
+            }));
+
+        res.json(result);
+    } catch (error) {
+        console.error('Error fetching subject bloom distribution:', error);
+        res.status(500).json({ message: 'Error fetching subject bloom distribution' });
     }
 };
 
@@ -419,13 +491,22 @@ export const getCOPOTraceability = async (req: AuthRequest, res: Response) => {
 };
 export const getGlobalAttainmentStats = async (req: AuthRequest, res: Response) => {
     try {
+        const { departmentId } = req.query;
         const userRole = req.user?.role?.toUpperCase();
         const userId = req.user?.userId;
 
         const where: any = {};
 
-        // RBAC: HOD filter
-        if (userRole === 'HOD') {
+        // RBAC: HOD filter or explicit department filter
+        if (departmentId) {
+            where.subject = {
+                curriculum: {
+                    program: {
+                        departmentId: String(departmentId)
+                    }
+                }
+            };
+        } else if (userRole === 'HOD') {
             const department = await prisma.department.findFirst({
                 where: { hodId: userId }
             });
@@ -470,13 +551,22 @@ export const getGlobalAttainmentStats = async (req: AuthRequest, res: Response) 
 
 export const getOverallPerformanceTrend = async (req: AuthRequest, res: Response) => {
     try {
+        const { departmentId } = req.query;
         const userRole = req.user?.role?.toUpperCase();
         const userId = req.user?.userId;
 
         const where: any = {};
 
-        // RBAC: HOD filter
-        if (userRole === 'HOD') {
+        // RBAC: HOD filter or explicit department filter
+        if (departmentId) {
+            where.subject = {
+                curriculum: {
+                    program: {
+                        departmentId: String(departmentId)
+                    }
+                }
+            };
+        } else if (userRole === 'HOD') {
             const department = await prisma.department.findFirst({
                 where: { hodId: userId }
             });
@@ -507,9 +597,9 @@ export const getOverallPerformanceTrend = async (req: AuthRequest, res: Response
             }
             const coLabel = `CO${att.co.coNumber}`;
             if (semesterMap[sem].hasOwnProperty(coLabel)) {
-                // If multiple COs for same sem, take average or latest? 
-                // Currently taking latest value found in sort order.
-                semesterMap[sem][coLabel] = att.achievedPercent;
+                // Average if multiple COs for same sem exist in the list
+                const currentVal = semesterMap[sem][coLabel];
+                semesterMap[sem][coLabel] = currentVal > 0 ? Math.round((currentVal + att.achievedPercent) / 2) : att.achievedPercent;
             }
         });
 

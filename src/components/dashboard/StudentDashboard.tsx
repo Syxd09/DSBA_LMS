@@ -146,10 +146,10 @@ export function StudentDashboard() {
                 <div className="p-4 bg-white/10 rounded-xl backdrop-blur-md border border-white/5 space-y-1">
                   <p className="text-xs font-black uppercase tracking-tighter opacity-70">Focus Objective</p>
                   <p className="text-sm font-bold">Strengthen Bloom Level K4 (Analysis)</p>
-                  <p className="text-[10px] leading-relaxed opacity-80">Synthesize information from multiple domains into case-study applications.</p>
+                  <p className="text-[10px] leading-relaxed opacity-80">Track performance and learning outcomes across all registered subjects.</p>
                 </div>
-                <div className="p-4 bg-white/10 rounded-xl backdrop-blur-md border border-white/5 space-y-1">
-                   <p className="text-xs font-black uppercase tracking-tighter opacity-70">Domain Protocol</p>
+                <div className="bg-slate-900 rounded-2xl p-4 flex flex-col justify-between border border-slate-800">
+                   <p className="text-xs font-extrabold uppercase tracking-tighter opacity-70">Program Protocol</p>
                    <p className="text-sm font-bold">Review CO Attainment Logs</p>
                    <p className="text-[10px] leading-relaxed opacity-80">Cross-reference subject-specific outcomes with your performance benchmarks.</p>
                 </div>

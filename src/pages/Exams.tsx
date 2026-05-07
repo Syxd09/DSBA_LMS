@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { useTeacherExams, useCreateExam, useUnlockExam, type Exam } from '@/hooks/useExams';
+import { useAvailableSemesters } from '@/hooks/useAvailableSemesters';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +15,7 @@ import { ExamCard } from '@/components/exams/ExamCard';
 import { ExamWizard } from '@/components/exams/ExamWizard';
 import { FeedbackStats } from '@/components/FeedbackStats';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Using Exam type from @/hooks/useExams
 
@@ -36,12 +38,14 @@ export default function Exams() {
   // All hooks MUST be at the top level and unconditional
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('drafts');
+  const [semesterFilter, setSemesterFilter] = useState<string>('all');
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [viewFeedback, setViewFeedback] = useState<string | null>(null);
 
   const { data: rawExams = [], isLoading, refetch } = useTeacherExams();
   const createExam = useCreateExam();
   const unlockExam = useUnlockExam();
+  const availableSemesters = useAvailableSemesters();
 
   // Ensure unique exams to prevent duplicate key errors
   const exams = Array.from(new Map(rawExams.map((e: Exam) => [e.id, e])).values());
@@ -117,6 +121,11 @@ export default function Exams() {
     completed: exams.filter((e: Exam) => ['COMPLETED', 'LOCKED'].includes(e.status?.toUpperCase()))
   };
 
+  const applySemesterFilter = (examList: Exam[]) => {
+    if (semesterFilter === 'all') return examList;
+    return examList.filter(e => e.semester === parseInt(semesterFilter));
+  };
+
 
   // Apply search filter
   const filterExams = (examList: Exam[]) => {
@@ -130,13 +139,13 @@ export default function Exams() {
     );
   };
 
-  const currentExams = filterExams(examsByStatus[activeTab as keyof typeof examsByStatus]);
+  const currentExams = applySemesterFilter(filterExams(examsByStatus[activeTab as keyof typeof examsByStatus]));
 
   const counts = {
-    drafts: examsByStatus.drafts.length,
-    scheduled: examsByStatus.scheduled.length,
-    published: examsByStatus.published.length,
-    completed: examsByStatus.completed.length
+    drafts: applySemesterFilter(examsByStatus.drafts).length,
+    scheduled: applySemesterFilter(examsByStatus.scheduled).length,
+    published: applySemesterFilter(examsByStatus.published).length,
+    completed: applySemesterFilter(examsByStatus.completed).length
   };
 
   return (
@@ -163,6 +172,18 @@ export default function Exams() {
               className="pl-10"
             />
           </div>
+          
+          <Select value={semesterFilter} onValueChange={setSemesterFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Semester" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Semesters</SelectItem>
+              {availableSemesters.map(sem => (
+                <SelectItem key={sem} value={sem.toString()}>Semester {sem}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <ExamTabs activeTab={activeTab} onTabChange={setActiveTab} counts={counts} />
@@ -203,6 +224,7 @@ export default function Exams() {
           onOpenChange={setIsWizardOpen}
           subjects={subjects}
           cohorts={cohorts}
+          availableSemesters={availableSemesters}
           onSubmit={handleCreateExam}
           isSubmitting={createExam.isPending}
         />

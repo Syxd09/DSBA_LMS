@@ -15,6 +15,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import api from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useAcademicContext } from '@/contexts/AcademicContext';
+import { useAvailableSemesters } from '@/hooks/useAvailableSemesters';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { 
@@ -96,6 +97,7 @@ export default function StudentAnalytics() {
     semester, setSemester, 
     departmentId, setDepartmentId 
   } = useAcademicContext();
+  const availableSemesters = useAvailableSemesters(cohortId, departmentId);
   
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
 
@@ -273,7 +275,7 @@ export default function StudentAnalytics() {
                         <SelectValue placeholder="Select Semester" />
                       </SelectTrigger>
                       <SelectContent>
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                        {availableSemesters.map((s) => (
                           <SelectItem key={s} value={String(s)}>Semester {s}</SelectItem>
                         ))}
                       </SelectContent>

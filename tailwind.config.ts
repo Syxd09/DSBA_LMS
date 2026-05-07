@@ -102,6 +102,7 @@ export default {
 			},
 			fontFamily: {
 				sans: [
+					'Inter',
 					'DM Sans',
 					'ui-sans-serif',
 					'system-ui',

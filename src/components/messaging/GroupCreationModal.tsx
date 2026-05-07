@@ -5,7 +5,7 @@
  * Mimics WhatsApp/Telegram contact selection.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useMessaging } from '@/contexts/MessagingContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,12 @@ interface User {
   fullName: string;
   email: string;
   role: string;
+  registrationNumber?: string;
   avatarUrl?: string;
+  studentEnrollments?: Array<{
+    semester: number;
+    cohort: { name: string };
+  }>;
 }
 
 interface Props {
@@ -35,6 +40,8 @@ export function GroupCreationModal({ onClose, onCreated }: Props) {
   const [searchTerm, setSearchTerm] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [semesterFilter, setSemesterFilter] = useState<number | 'ALL'>('ALL');
+  const [roleFilter, setRoleFilter] = useState<string | 'ALL'>('ALL');
   const [isCreating, setIsCreating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -54,10 +61,33 @@ export function GroupCreationModal({ onClose, onCreated }: Props) {
     loadContacts();
   }, []);
 
-  const filteredUsers = users.filter(user =>
-    user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredUsers = useMemo(() => {
+    const search = searchTerm.toLowerCase().trim();
+    return users.filter(user => {
+      const matchesSearch = !search || 
+        (user.fullName?.toLowerCase() || '').includes(search) ||
+        (user.email?.toLowerCase() || '').includes(search) ||
+        (user.registrationNumber?.toLowerCase() || '').includes(search) ||
+        (user.role?.toLowerCase() || '').includes(search);
+      
+      const matchesRole = roleFilter === 'ALL' || user.role === roleFilter;
+      
+      if (semesterFilter === 'ALL') return matchesSearch && matchesRole;
+      
+      const userSemester = user.studentEnrollments?.[0]?.semester;
+      return matchesSearch && matchesRole && userSemester === semesterFilter;
+    });
+  }, [users, searchTerm, roleFilter, semesterFilter]);
+
+  const handleSelectAllFiltered = () => {
+    const newSet = new Set(selectedUsers);
+    filteredUsers.forEach(user => {
+      if (user.role === 'STUDENT') {
+        newSet.add(user.id);
+      }
+    });
+    setSelectedUsers(newSet);
+  };
 
   const toggleUser = (userId: string) => {
     if (mode === 'CHAT') {
@@ -147,6 +177,25 @@ export function GroupCreationModal({ onClose, onCreated }: Props) {
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Role Filters */}
+          <div className="flex bg-muted rounded-lg p-1 w-full overflow-x-auto">
+            {['ALL', 'STUDENT', 'TEACHER', 'HOD'].map((role) => (
+              <button
+                key={role}
+                onClick={() => {
+                  setRoleFilter(role);
+                  if (role !== 'STUDENT') setSemesterFilter('ALL');
+                }}
+                className={cn(
+                  "flex-1 px-3 py-1.5 text-xs rounded-md font-medium transition-all capitalize",
+                  roleFilter === role ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {role.toLowerCase()}s
+              </button>
+            ))}
+          </div>
+
           {mode === 'GROUP' && (
             <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
               <Input
@@ -164,6 +213,43 @@ export function GroupCreationModal({ onClose, onCreated }: Props) {
               <div className="text-xs font-semibold uppercase text-muted-foreground tracking-wider pt-2">
                 Select Participants ({selectedUsers.size})
               </div>
+            </div>
+          )}
+
+          {/* Semester Filter and Select All */}
+          {mode === 'GROUP' && roleFilter === 'STUDENT' && (
+            <div className="flex flex-wrap gap-2 items-center animate-in fade-in slide-in-from-top-1 duration-300">
+              <div className="flex bg-muted rounded-lg p-1 overflow-x-auto">
+                <button
+                  onClick={() => setSemesterFilter('ALL')}
+                  className={cn(
+                    "px-3 py-1 text-xs rounded-md font-medium transition-all",
+                    semesterFilter === 'ALL' ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  All
+                </button>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
+                  <button
+                    key={sem}
+                    onClick={() => setSemesterFilter(sem)}
+                    className={cn(
+                      "px-3 py-1 text-xs rounded-md font-medium transition-all whitespace-nowrap",
+                      semesterFilter === sem ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    Sem {sem}
+                  </button>
+                ))}
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-8 text-xs ml-auto"
+                onClick={handleSelectAllFiltered}
+              >
+                Select All Students
+              </Button>
             </div>
           )}
 
@@ -205,7 +291,7 @@ export function GroupCreationModal({ onClose, onCreated }: Props) {
                       {user.avatarUrl ? (
                         <img src={user.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
                       ) : (
-                        user.fullName.charAt(0)
+                        user.fullName?.charAt(0) || '?'
                       )}
                     </div>
                     {mode === 'GROUP' && selectedUsers.has(user.id) && (
@@ -227,7 +313,15 @@ export function GroupCreationModal({ onClose, onCreated }: Props) {
                         {user.role}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {user.role === 'STUDENT' && user.studentEnrollments?.[0] ? (
+                        <span className="text-primary font-medium">
+                          Sem {user.studentEnrollments[0].semester} • {user.studentEnrollments[0].cohort.name}
+                        </span>
+                      ) : (
+                        user.email
+                      )}
+                    </p>
                   </div>
                   {mode === 'CHAT' && <MessageCircle className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100" />}
                 </div>
