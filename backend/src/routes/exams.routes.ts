@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createExam, getExamDetails, getExams, getExamStudents, getStudentsByCohort, updateExamStructure } from '../controllers/exams.controller';
+import { createExam, getExamDetails, getExams, getExamStudents, getStudentsByCohort, updateExamStructure, deleteExam } from '../controllers/exams.controller';
 import { publishExam, unlockExam, recalculateAttainment } from '../controllers/exam-publish.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/rbac.middleware';
@@ -18,5 +18,6 @@ router.post('/:id/structure', requireRole('TEACHER'), updateExamStructure);
 router.post('/:id/publish', requireRole('TEACHER', 'HOD', 'PRINCIPAL'), publishExam);
 router.post('/:id/unlock', requireRole('TEACHER', 'HOD', 'PRINCIPAL'), unlockExam);
 router.post('/:id/recalculate', requireRole('TEACHER', 'HOD', 'PRINCIPAL'), recalculateAttainment);
+router.delete('/:id', requireRole('TEACHER', 'HOD', 'PRINCIPAL'), deleteExam);
 
 export default router;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
-import { useTeacherExams, useCreateExam, useUnlockExam, type Exam } from '@/hooks/useExams';
+import { useTeacherExams, useCreateExam, useUnlockExam, useDeleteExam, type Exam } from '@/hooks/useExams';
 import { useAvailableSemesters } from '@/hooks/useAvailableSemesters';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,7 @@ export default function Exams() {
   const { data: rawExams = [], isLoading, refetch } = useTeacherExams();
   const createExam = useCreateExam();
   const unlockExam = useUnlockExam();
+  const deleteExam = useDeleteExam();
   const availableSemesters = useAvailableSemesters();
 
   // Ensure unique exams to prevent duplicate key errors
@@ -108,6 +109,27 @@ export default function Exams() {
       toast({
         title: 'Error',
         description: error.response?.data?.message || 'Failed to unlock exam.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDelete = async (examId: string) => {
+    if (!confirm('Are you sure you want to delete this exam? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await deleteExam.mutateAsync(examId);
+      toast({
+        title: 'Exam deleted',
+        description: 'The exam has been permanently removed.',
+      });
+      refetch();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'Failed to delete exam.',
         variant: 'destructive',
       });
     }
@@ -211,6 +233,7 @@ export default function Exams() {
                   exam={exam}
                   onEdit={(id) => navigate(`/marks-entry?exam=${id}`)}
                   onView={(id) => navigate(`/marks-entry?exam=${id}`)}
+                  onDelete={handleDelete}
                   onViewFeedback={setViewFeedback}
                   onUnlock={handleUnlock}
                 />

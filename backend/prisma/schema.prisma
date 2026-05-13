@@ -282,7 +282,7 @@ model Exam {
   unlockRequests MarksUnlockRequest[]
   studentMarks   StudentMark[]
 
-  @@unique([subjectId, cohortId, examType])
+  @@unique([subjectId, cohortId, examType, semester])
   @@index([subjectId, status])
   @@index([teacherId, status])
 }
@@ -309,6 +309,7 @@ model Question {
   bloomLevel   BloomLevel
   isOptional   Boolean        @default(false)
   groupKey     String?
+  questionText String?
   createdAt    DateTime       @default(now())
   co           CourseOutcome? @relation(fields: [coId], references: [id])
   section      ExamSection    @relation(fields: [sectionId], references: [id])
@@ -322,6 +323,7 @@ model SubQuestion {
   maxMarks     Int
   coId         String?
   bloomLevel   BloomLevel
+  questionText String?
   createdAt    DateTime       @default(now())
   studentMarks StudentMark[]
   co           CourseOutcome? @relation(fields: [coId], references: [id])

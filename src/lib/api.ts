@@ -72,13 +72,24 @@ api.interceptors.response.use(
             });
         }
 
-        // Handle authentication errors (401, 403)
-        if (status === 401 || status === 403) {
-            // Clear invalid token and redirect to login
-            localStorage.removeItem('token');
+        // Handle authentication errors (401) - token is invalid/expired
+        if (status === 401) {
+            // Only clear token if we're not already on the auth page
             if (!window.location.pathname.includes('/auth')) {
+                localStorage.removeItem('token');
                 window.location.href = '/auth';
             }
+        }
+
+        // Handle authorization errors (403) - valid token but insufficient permissions
+        if (status === 403) {
+            const { toast } = await import('@/hooks/use-toast');
+            toast({
+                variant: 'destructive',
+                title: 'Access Denied',
+                description: errorData?.message || 'You do not have permission to perform this action.',
+                duration: 5000,
+            });
         }
 
         // Handle server errors (500+)

@@ -19,7 +19,24 @@ export const getExams = async (req: AuthRequest, res: Response) => {
 
         // RBAC: Logic based on role
         if (userRole === 'TEACHER') {
-            where.teacherId = userId;
+            // Teachers see exams they created + exams for subjects they're assigned to
+            const assignments = await prisma.teacherAssignment.findMany({
+                where: { teacherId: userId },
+                select: { subjectId: true, cohortId: true, semester: true }
+            });
+
+            if (assignments.length > 0) {
+                where.OR = [
+                    { teacherId: userId },
+                    ...assignments.map(a => ({
+                        subjectId: a.subjectId,
+                        cohortId: a.cohortId,
+                        semester: a.semester
+                    }))
+                ];
+            } else {
+                where.teacherId = userId;
+            }
         } else if (userRole === 'HOD') {
             const department = await prisma.department.findFirst({
                 where: { hodId: userId }
@@ -133,7 +150,7 @@ export const createExam = async (req: AuthRequest, res: Response) => {
         res.status(201).json(exam);
     } catch (error: any) {
         if (error.code === 'P2002') {
-            return res.status(409).json({ message: 'Exam of this type already exists for this subject and cohort' });
+            return res.status(409).json({ message: 'An exam of this type already exists for this subject, cohort, and semester.' });
         }
         console.error('Error creating exam:', error);
         res.status(500).json({ message: 'Error creating exam', error });
@@ -169,7 +186,18 @@ export const getExamDetails = async (req: AuthRequest, res: Response) => {
         const userId = req.user?.userId;
 
         if (userRole === 'TEACHER' && exam.teacherId !== userId) {
-            return res.status(403).json({ message: 'Access denied: You are not the owner of this exam' });
+            // Check if this teacher is assigned to the same subject/cohort
+            const isAssigned = await prisma.teacherAssignment.findFirst({
+                where: {
+                    teacherId: userId,
+                    subjectId: exam.subjectId,
+                    cohortId: exam.cohortId,
+                    semester: exam.semester
+                }
+            });
+            if (!isAssigned) {
+                return res.status(403).json({ message: 'Access denied: You are not assigned to this exam\'s subject' });
+            }
         }
 
         // Note: HODs/Admins implicitly allowed. Students usually don't access this endpoint directly or have restricted view.
@@ -245,12 +273,22 @@ export const updateExamStructure = async (req: AuthRequest, res: Response) => {
         const { id } = req.params;
         const { sections } = req.body;
 
-        // RBAC: Ownership Check
+        // RBAC: Ownership / Assignment Check
         if (req.user?.role === 'TEACHER') {
-            const exam = await prisma.exam.findUnique({ where: { id }, select: { teacherId: true } });
+            const exam = await prisma.exam.findUnique({ where: { id }, select: { teacherId: true, subjectId: true, cohortId: true, semester: true } });
             if (!exam) return res.status(404).json({ message: 'Exam not found' });
             if (exam.teacherId !== req.user.userId) {
-                return res.status(403).json({ message: 'Access denied: You can only edit your own exams' });
+                const isAssigned = await prisma.teacherAssignment.findFirst({
+                    where: {
+                        teacherId: req.user.userId,
+                        subjectId: exam.subjectId,
+                        cohortId: exam.cohortId,
+                        semester: exam.semester
+                    }
+                });
+                if (!isAssigned) {
+                    return res.status(403).json({ message: 'Access denied: You are not assigned to this exam\'s subject' });
+                }
             }
         }
 
@@ -335,7 +373,8 @@ export const updateExamStructure = async (req: AuthRequest, res: Response) => {
                             maxMarks: q.maxMarks,
                             bloomLevel: q.bloomLevel,
                             coId: q.coId,
-                            isOptional: q.isOptional
+                            isOptional: q.isOptional,
+                            questionText: q.questionText
                         }
                     });
 
@@ -347,7 +386,8 @@ export const updateExamStructure = async (req: AuthRequest, res: Response) => {
                                     label: sq.label,
                                     maxMarks: sq.maxMarks,
                                     bloomLevel: sq.bloomLevel,
-                                    coId: sq.coId
+                                    coId: sq.coId,
+                                    questionText: sq.questionText
                                 }
                             });
                         }
@@ -368,6 +408,104 @@ export const updateExamStructure = async (req: AuthRequest, res: Response) => {
             message: 'Error updating structure',
             error: error instanceof Error ? error.message : 'Unknown error',
             details: error
+        });
+    }
+};
+
+export const deleteExam = async (req: AuthRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user?.userId;
+        const userRole = req.user?.role?.toUpperCase();
+
+        const exam = await prisma.exam.findUnique({
+            where: { id },
+            select: { id: true, teacherId: true, status: true, subjectId: true, cohortId: true, semester: true }
+        });
+
+        if (!exam) {
+            return res.status(404).json({ message: 'Exam not found' });
+        }
+
+        // RBAC: Teachers can only delete their own exams (or co-assigned ones); HODs/Admins can delete any
+        if (userRole === 'TEACHER' && exam.teacherId !== userId) {
+            const isAssigned = await prisma.teacherAssignment.findFirst({
+                where: {
+                    teacherId: userId,
+                    subjectId: exam.subjectId,
+                    cohortId: exam.cohortId,
+                    semester: exam.semester
+                }
+            });
+            if (!isAssigned) {
+                return res.status(403).json({ message: 'Access denied: You are not assigned to this exam\'s subject' });
+            }
+        }
+
+        // Only allow deleting DRAFT or SCHEDULED exams
+        if (!['DRAFT', 'SCHEDULED'].includes(exam.status)) {
+            return res.status(409).json({ 
+                message: `Cannot delete an exam with status "${exam.status}". Only DRAFT or SCHEDULED exams can be deleted.` 
+            });
+        }
+
+        // Prevent deletion if marks exist
+        const marksCount = await prisma.studentMark.count({ where: { examId: id } });
+        if (marksCount > 0) {
+            return res.status(409).json({ 
+                message: 'Cannot delete this exam because student marks have been recorded. Delete the marks first.',
+                marksCount
+            });
+        }
+
+        // Cascade delete in a transaction
+        await prisma.$transaction(async (tx) => {
+            // Delete snapshots
+            await tx.examSnapshot.deleteMany({ where: { examId: id } });
+            
+            // Delete feedbacks
+            await tx.feedback.deleteMany({ where: { examId: id } });
+
+            // Delete computed marks
+            await tx.marksComputed.deleteMany({ where: { examId: id } });
+
+            // Delete unlock requests
+            await tx.marksUnlockRequest.deleteMany({ where: { examId: id } });
+
+            // Delete structure: sub-questions → questions → sections
+            const sections = await tx.examSection.findMany({
+                where: { examId: id },
+                select: { id: true }
+            });
+            const sectionIds = sections.map(s => s.id);
+
+            if (sectionIds.length > 0) {
+                const questions = await tx.question.findMany({
+                    where: { sectionId: { in: sectionIds } },
+                    select: { id: true }
+                });
+                const questionIds = questions.map(q => q.id);
+
+                if (questionIds.length > 0) {
+                    await tx.subQuestion.deleteMany({ where: { questionId: { in: questionIds } } });
+                    await tx.question.deleteMany({ where: { sectionId: { in: sectionIds } } });
+                }
+
+                await tx.examSection.deleteMany({ where: { examId: id } });
+            }
+
+            // Delete the exam itself
+            await tx.exam.delete({ where: { id } });
+        });
+
+        await createAuditLog(userId!, 'DELETE_EXAM', 'exams', id, exam, undefined);
+
+        res.json({ message: 'Exam deleted successfully' });
+    } catch (error: any) {
+        console.error('Error deleting exam:', error);
+        res.status(500).json({
+            message: 'Error deleting exam',
+            error: error instanceof Error ? error.message : 'Unknown error'
         });
     }
 };

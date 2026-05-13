@@ -172,3 +172,16 @@ export function useCreateExam() {
     },
   });
 }
+
+export function useDeleteExam() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (examId: string) => {
+      await api.delete(`/exams/${examId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teacher-exams'] });
+    },
+  });
+}

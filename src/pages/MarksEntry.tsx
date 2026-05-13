@@ -81,6 +81,7 @@ export default function MarksEntry() {
         label: calculatedLabel, // e.g., "1a", "1b", "2a"
         maxMarks: sq.maxMarks,
         questionId: sq.questionId,
+        questionText: sq.questionText,
       };
     });
   }, [examDetails]);
@@ -105,6 +106,7 @@ export default function MarksEntry() {
           bloomLevel: question.bloomLevel,
           coId: question.coId,
           isOptional: question.isOptional,
+          questionText: question.questionText,
           subQuestions: examDetails.subQuestions
             .filter(sq => sq.questionId === question.id)
             .map(sq => ({
@@ -113,6 +115,7 @@ export default function MarksEntry() {
               maxMarks: sq.maxMarks,
               bloomLevel: sq.bloomLevel,
               coId: sq.coId,
+              questionText: sq.questionText,
             })),
         })),
     }));
@@ -150,11 +153,13 @@ export default function MarksEntry() {
         bloomLevel: q.bloomLevel,
         coId: q.coId,
         isOptional: q.isOptional,
+        questionText: q.questionText,
         subQuestions: q.subQuestions.map((sq: any) => ({
           label: sq.label,
           maxMarks: sq.maxMarks,
           bloomLevel: sq.bloomLevel,
           coId: sq.coId,
+          questionText: sq.questionText,
         })),
       })),
     }));

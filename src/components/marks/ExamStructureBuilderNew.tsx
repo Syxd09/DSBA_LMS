@@ -11,8 +11,9 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Plus, Trash2, GripVertical, Save, AlertCircle, CheckCircle2, 
-  BookOpen, Target, Eye, EyeOff, BookText, Info, Copy, Download, Upload, Layout
+  BookOpen, Target, Eye, EyeOff, BookText, Info, Copy, Download, Upload, Layout, AlignLeft
 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { CourseOutcome } from '@/hooks/useCourseOutcomes';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -23,6 +24,7 @@ interface SubQuestionInput {
   maxMarks: number;
   bloomLevel: string;
   coId: string | null;
+  questionText?: string;
 }
 
 interface QuestionInput {
@@ -32,6 +34,7 @@ interface QuestionInput {
   bloomLevel: string;
   coId: string | null;
   isOptional: boolean;
+  questionText?: string;
   subQuestions: SubQuestionInput[];
 }
 
@@ -210,12 +213,14 @@ export function ExamStructureBuilderNew({
             bloomLevel: 'Remember',
             coId: courseOutcomes[0]?.id || null,
             isOptional: false,
+            questionText: '',
             subQuestions: [{
               id: `temp-sq-${Date.now()}`,
               label: 'a',
               maxMarks: 5,
               bloomLevel: 'Remember',
               coId: courseOutcomes[0]?.id || null,
+              questionText: '',
             }],
           };
           return { ...section, questions: [...section.questions, newQuestion] };
@@ -280,6 +285,7 @@ export function ExamStructureBuilderNew({
                     maxMarks: 5,
                     bloomLevel: 'Remember',
                     coId: courseOutcomes[0]?.id || null,
+                    questionText: '',
                   }],
                 };
               }
@@ -803,6 +809,19 @@ export function ExamStructureBuilderNew({
                             </CardHeader>
 
                             <CardContent className="pt-0">
+                              <div className="mb-4 space-y-2">
+                                <Label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                                  <AlignLeft className="w-3 h-3" /> Question Description / Text
+                                </Label>
+                                <Textarea
+                                  placeholder="Enter the full question text here..."
+                                  value={question.questionText || ''}
+                                  onChange={(e) => updateQuestionField(section.id, question.id, 'questionText', e.target.value)}
+                                  readOnly={readOnly}
+                                  className="min-h-[80px] bg-slate-50/50 border-slate-200 focus:bg-white transition-colors"
+                                />
+                              </div>
+
                               {/* Sub-questions */}
                               <div className="space-y-2">
                                 {question.subQuestions.map((sq, sqIndex) => {
@@ -813,6 +832,16 @@ export function ExamStructureBuilderNew({
                                         ({sq.label})
                                       </span>
                                       
+                                      <div className="flex-1">
+                                        <Input
+                                          placeholder="Sub-question text (optional)..."
+                                          value={sq.questionText || ''}
+                                          onChange={(e) => updateSubQuestionField(section.id, question.id, sq.id, 'questionText', e.target.value)}
+                                          readOnly={readOnly}
+                                          className="h-8 text-sm bg-transparent border-slate-200"
+                                        />
+                                      </div>
+
                                       <div className="flex items-center gap-2">
                                         <Label className="text-xs text-muted-foreground whitespace-nowrap">Marks:</Label>
                                         <Input 

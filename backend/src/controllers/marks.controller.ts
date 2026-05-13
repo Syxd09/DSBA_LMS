@@ -37,7 +37,18 @@ export const saveMarks = async (req: AuthRequest, res: Response) => {
         // HOD/Principal can edit anytime, Teacher only...
         if (req.user?.role === 'TEACHER') {
             if (exam.teacherId !== teacherId) {
-                return res.status(403).json({ message: 'Access denied: You are not the teacher of this exam' });
+                // Check if co-assigned
+                const isAssigned = await prisma.teacherAssignment.findFirst({
+                    where: {
+                        teacherId,
+                        subjectId: exam.subjectId,
+                        cohortId: exam.cohortId,
+                        semester: exam.semester
+                    }
+                });
+                if (!isAssigned) {
+                    return res.status(403).json({ message: 'Access denied: You are not assigned to this exam\'s subject' });
+                }
             }
             if (exam.status !== 'DRAFT') {
                 return res.status(403).json({ message: 'Cannot edit marks after submission' });
@@ -183,13 +194,23 @@ export const getMarks = async (req: AuthRequest, res: Response) => {
         const userId = req.user?.userId;
         const userRole = req.user?.role?.toUpperCase();
 
-        // Verify Exam Ownership first
+        // Verify Exam Ownership or Assignment
         if (userRole === 'TEACHER') {
-            const exam = await prisma.exam.findUnique({ where: { id: examId }, select: { teacherId: true } });
+            const exam = await prisma.exam.findUnique({ where: { id: examId }, select: { teacherId: true, subjectId: true, cohortId: true, semester: true } });
             if (!exam) return res.status(404).json({ message: 'Exam not found' });
 
             if (exam.teacherId !== userId) {
-                return res.status(403).json({ message: 'Access denied' });
+                const isAssigned = await prisma.teacherAssignment.findFirst({
+                    where: {
+                        teacherId: userId,
+                        subjectId: exam.subjectId,
+                        cohortId: exam.cohortId,
+                        semester: exam.semester
+                    }
+                });
+                if (!isAssigned) {
+                    return res.status(403).json({ message: 'Access denied: You are not assigned to this exam\'s subject' });
+                }
             }
         }
 
@@ -311,8 +332,18 @@ export const bulkUploadMarks = async (req: AuthRequest, res: Response) => {
         console.log('[BULK UPLOAD] ✅ Exam found:', exam.examType);
 
         if (userRole === 'TEACHER' && exam.teacherId !== userId) {
-            console.log('[BULK UPLOAD] ❌ Access denied');
-            return res.status(403).json({ message: 'Access denied' });
+            const isAssigned = await prisma.teacherAssignment.findFirst({
+                where: {
+                    teacherId: userId,
+                    subjectId: exam.subjectId,
+                    cohortId: exam.cohortId,
+                    semester: exam.semester
+                }
+            });
+            if (!isAssigned) {
+                console.log('[BULK UPLOAD] ❌ Access denied');
+                return res.status(403).json({ message: 'Access denied: You are not assigned to this exam\'s subject' });
+            }
         }
 
         const enrollments = await prisma.studentEnrollment.findMany({
