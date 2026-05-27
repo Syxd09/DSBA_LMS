@@ -26,13 +26,10 @@ export const getExams = async (req: AuthRequest, res: Response) => {
             });
 
             if (assignments.length > 0) {
+                const assignedSubjectIds = Array.from(new Set(assignments.map(a => a.subjectId)));
                 where.OR = [
                     { teacherId: userId },
-                    ...assignments.map(a => ({
-                        subjectId: a.subjectId,
-                        cohortId: a.cohortId,
-                        semester: a.semester
-                    }))
+                    { subjectId: { in: assignedSubjectIds } }
                 ];
             } else {
                 where.teacherId = userId;
@@ -42,14 +39,16 @@ export const getExams = async (req: AuthRequest, res: Response) => {
                 where: { hodId: userId }
             });
             
-            if (department) {
+            const targetDepartmentId = department?.id || req.user?.departmentId;
+
+            if (targetDepartmentId) {
                 where.OR = [
                     { teacherId: userId },
                     {
                         subject: {
                             curriculum: {
                                 program: {
-                                    departmentId: department.id
+                                    departmentId: targetDepartmentId
                                 }
                             }
                         }
@@ -125,6 +124,24 @@ export const createExam = async (req: AuthRequest, res: Response) => {
 
         console.log('✅ Semester parsed:', semesterInt);
 
+        // Check if an exam of this type already exists for this subject, cohort, and semester
+        const existingExam = await prisma.exam.findFirst({
+            where: {
+                subjectId,
+                cohortId,
+                semester: semesterInt,
+                examType,
+                customTypeName: examType === 'CUSTOM' ? customTypeName : null
+            }
+        });
+
+        if (existingExam) {
+            const displayName = examType === 'CUSTOM' ? customTypeName : examType.replace('_', ' ');
+            return res.status(409).json({
+                message: `An exam of type "${displayName}" already exists for this subject, cohort, and semester.`
+            });
+        }
+
         const exam = await prisma.exam.create({
             data: {
                 subjectId,
@@ -191,8 +208,7 @@ export const getExamDetails = async (req: AuthRequest, res: Response) => {
                 where: {
                     teacherId: userId,
                     subjectId: exam.subjectId,
-                    cohortId: exam.cohortId,
-                    semester: exam.semester
+                    cohortId: exam.cohortId
                 }
             });
             if (!isAssigned) {
@@ -282,8 +298,7 @@ export const updateExamStructure = async (req: AuthRequest, res: Response) => {
                     where: {
                         teacherId: req.user.userId,
                         subjectId: exam.subjectId,
-                        cohortId: exam.cohortId,
-                        semester: exam.semester
+                        cohortId: exam.cohortId
                     }
                 });
                 if (!isAssigned) {
@@ -433,8 +448,7 @@ export const deleteExam = async (req: AuthRequest, res: Response) => {
                 where: {
                     teacherId: userId,
                     subjectId: exam.subjectId,
-                    cohortId: exam.cohortId,
-                    semester: exam.semester
+                    cohortId: exam.cohortId
                 }
             });
             if (!isAssigned) {

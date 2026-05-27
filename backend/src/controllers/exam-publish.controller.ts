@@ -25,9 +25,18 @@ export const publishExam = async (req: AuthRequest, res: Response) => {
 
         if (!exam) return res.status(404).json({ message: 'Exam not found' });
 
-        // Only teacher who owns the exam, HOD, or Principal can publish
+        // Only teacher who owns the exam, co-assigned teacher, HOD, or Principal can publish
         if (userRole === 'TEACHER' && exam.teacherId !== userId) {
-            return res.status(403).json({ message: 'Access denied' });
+            const isAssigned = await prisma.teacherAssignment.findFirst({
+                where: {
+                    teacherId: userId,
+                    subjectId: exam.subjectId,
+                    cohortId: exam.cohortId
+                }
+            });
+            if (!isAssigned) {
+                return res.status(403).json({ message: 'Access denied: You are not assigned to this exam\'s subject' });
+            }
         }
 
         if (exam.status === 'PUBLISHED') {
@@ -77,9 +86,18 @@ export const unlockExam = async (req: AuthRequest, res: Response) => {
         const exam = await prisma.exam.findUnique({ where: { id } });
         if (!exam) return res.status(404).json({ message: 'Exam not found' });
 
-        // Only teacher who owns the exam, HOD, or Principal can unlock
+        // Only teacher who owns the exam, co-assigned teacher, HOD, or Principal can unlock
         if (userRole === 'TEACHER' && exam.teacherId !== userId) {
-            return res.status(403).json({ message: 'Access denied' });
+            const isAssigned = await prisma.teacherAssignment.findFirst({
+                where: {
+                    teacherId: userId,
+                    subjectId: exam.subjectId,
+                    cohortId: exam.cohortId
+                }
+            });
+            if (!isAssigned) {
+                return res.status(403).json({ message: 'Access denied: You are not assigned to this exam\'s subject' });
+            }
         }
 
         if (!['PUBLISHED', 'COMPLETED', 'LOCKED'].includes(exam.status)) {

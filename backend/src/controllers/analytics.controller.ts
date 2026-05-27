@@ -110,7 +110,7 @@ export const getBloomDistribution = async (req: AuthRequest, res: Response) => {
             }
         }
 
-        const distribution: Record<string, number> = {};
+        const distribution = new Map<string, number>();
         let totalSubQuestions = 0;
 
         // Aggregate sub-questions (where Bloom levels are actually stored)
@@ -118,7 +118,8 @@ export const getBloomDistribution = async (req: AuthRequest, res: Response) => {
             section.questions.forEach(q => {
                 q.subQuestions?.forEach(sq => {
                     if (sq.bloomLevel) {
-                        distribution[sq.bloomLevel] = (distribution[sq.bloomLevel] || 0) + 1;
+                        const level = sq.bloomLevel;
+                        distribution.set(level, (distribution.get(level) || 0) + 1);
                         totalSubQuestions++;
                     }
                 });
@@ -127,13 +128,16 @@ export const getBloomDistribution = async (req: AuthRequest, res: Response) => {
 
         // Sort by Bloom level for consistent display
         const bloomOrder = ['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE'];
-        const result = Object.keys(distribution)
-            .sort((a, b) => bloomOrder.indexOf(a) - bloomOrder.indexOf(b))
-            .map(level => ({
-                level,
-                count: distribution[level],
-                percentage: totalSubQuestions ? Math.round((distribution[level] / totalSubQuestions) * 100) : 0
-            }));
+        const result = Array.from(distribution.keys())
+            .sort((a, b) => bloomOrder.indexOf(a.toUpperCase()) - bloomOrder.indexOf(b.toUpperCase()))
+            .map(level => {
+                const count = distribution.get(level) || 0;
+                return {
+                    level,
+                    count,
+                    percentage: totalSubQuestions ? Math.round((count / totalSubQuestions) * 100) : 0
+                };
+            });
 
         res.json(result);
     } catch (error) {
@@ -180,7 +184,7 @@ export const getSubjectBloomDistribution = async (req: AuthRequest, res: Respons
             }
         });
 
-        const distribution: Record<string, number> = {};
+        const distribution = new Map<string, number>();
         let totalSubQuestions = 0;
 
         exams.forEach(exam => {
@@ -188,7 +192,8 @@ export const getSubjectBloomDistribution = async (req: AuthRequest, res: Respons
                 section.questions.forEach(q => {
                     q.subQuestions?.forEach(sq => {
                         if (sq.bloomLevel) {
-                            distribution[sq.bloomLevel] = (distribution[sq.bloomLevel] || 0) + 1;
+                            const level = sq.bloomLevel;
+                            distribution.set(level, (distribution.get(level) || 0) + 1);
                             totalSubQuestions++;
                         }
                     });
@@ -197,13 +202,16 @@ export const getSubjectBloomDistribution = async (req: AuthRequest, res: Respons
         });
 
         const bloomOrder = ['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE'];
-        const result = Object.keys(distribution)
-            .sort((a, b) => bloomOrder.indexOf(a) - bloomOrder.indexOf(b))
-            .map(level => ({
-                level,
-                count: distribution[level],
-                percentage: totalSubQuestions ? Math.round((distribution[level] / totalSubQuestions) * 100) : 0
-            }));
+        const result = Array.from(distribution.keys())
+            .sort((a, b) => bloomOrder.indexOf(a.toUpperCase()) - bloomOrder.indexOf(b.toUpperCase()))
+            .map(level => {
+                const count = distribution.get(level) || 0;
+                return {
+                    level,
+                    count,
+                    percentage: totalSubQuestions ? Math.round((count / totalSubQuestions) * 100) : 0
+                };
+            });
 
         res.json(result);
     } catch (error) {
@@ -333,7 +341,12 @@ export const getDepartmentStats = async (req: AuthRequest, res: Response) => {
         let where = {};
         if (userRole === 'HOD') {
             const hod = await prisma.department.findUnique({ where: { hodId: userId } });
-            if (hod) where = { id: hod.id };
+            const targetDepartmentId = hod?.id || req.user?.departmentId;
+            if (targetDepartmentId) {
+                where = { id: targetDepartmentId };
+            } else {
+                return res.json([]);
+            }
         }
 
         const departments = await prisma.department.findMany({
@@ -371,10 +384,10 @@ export const getDepartmentStats = async (req: AuthRequest, res: Response) => {
 };
 
 // Helper function for attainment levels
-function getAttainmentLevel(percent: number): number {
-    if (percent >= 80) return 3;
-    if (percent >= 60) return 2;
-    if (percent >= 40) return 1;
+function getAttainmentLevel(percent: number, targetPercent: number): number {
+    if (percent >= targetPercent) return 3;
+    if (percent >= targetPercent * 0.8) return 2;
+    if (percent >= targetPercent * 0.6) return 1;
     return 0;
 }
 
@@ -431,7 +444,7 @@ export const getCOPOTraceability = async (req: AuthRequest, res: Response) => {
             co: { id: coAtt.co.id, coNumber: coAtt.co.coNumber, description: coAtt.co.description },
             achievedPercent: coAtt.achievedPercent,
             targetPercent: coAtt.targetPercent,
-            level: getAttainmentLevel(coAtt.achievedPercent),
+            level: getAttainmentLevel(coAtt.achievedPercent, coAtt.targetPercent),
             passCount: coAtt.passCount,
             studentCount: coAtt.studentCount,
             poMappings: coAtt.co.poMappings.map(m => ({
@@ -465,12 +478,192 @@ export const getCOPOTraceability = async (req: AuthRequest, res: Response) => {
                 po: { id: po.po.id, poNumber: po.po.poNumber, description: po.po.description },
                 achievedPercent: po.achievedPercent,
                 targetPercent: po.targetPercent,
-                level: getAttainmentLevel(po.achievedPercent),
+                level: getAttainmentLevel(po.achievedPercent, po.targetPercent),
                 weightedSum: po.weightedSum,
                 totalWeight: po.totalWeight,
                 breakdown
             };
         });
+
+        // ==========================================
+        // DYNAMIC QUESTION ATTAINMENT CALCULATION
+        // ==========================================
+        const exams = await prisma.exam.findMany({
+            where: {
+                subjectId,
+                cohortId,
+                semester: parseInt(semester),
+                status: 'PUBLISHED'
+            },
+            include: {
+                sections: {
+                    include: {
+                        questions: {
+                            include: {
+                                subQuestions: {
+                                    include: {
+                                        co: true
+                                    }
+                                }
+                            },
+                            orderBy: { sequence: 'asc' }
+                        }
+                    },
+                    orderBy: { sequence: 'asc' }
+                }
+            }
+        });
+
+        const activeEnrollments = await prisma.studentEnrollment.findMany({
+            where: {
+                cohortId,
+                semester: parseInt(semester),
+                status: 'active'
+            },
+            include: {
+                student: {
+                    select: {
+                        id: true,
+                        fullName: true,
+                        registrationNumber: true
+                    }
+                }
+            }
+        });
+        const totalStudentsCount = activeEnrollments.length;
+
+        const allQuestionsList: any[] = [];
+        
+        for (const exam of exams) {
+            let globalQNum = 1;
+            for (const section of exam.sections) {
+                for (const question of section.questions) {
+                    for (const sq of question.subQuestions) {
+                        const studentMarks = await prisma.studentMark.findMany({
+                            where: {
+                                examId: exam.id,
+                                subQuestionId: sq.id
+                            }
+                        });
+                        
+                        const sumObtained = studentMarks.reduce((sum, m) => sum + m.marksObtained, 0);
+                        const maxPossible = Number(sq.maxMarks) * Math.max(totalStudentsCount, 1);
+                        const attainmentPercent = maxPossible > 0 ? (sumObtained / maxPossible) * 100 : 0;
+                        
+                        allQuestionsList.push({
+                            id: sq.id,
+                            examType: exam.examType,
+                            customTypeName: exam.customTypeName,
+                            questionLabel: `${globalQNum}${sq.label}`,
+                            questionText: sq.questionText || question.questionText || `Question ${globalQNum}${sq.label}`,
+                            maxMarks: Number(sq.maxMarks),
+                            bloomLevel: sq.bloomLevel,
+                            coCode: sq.co ? `CO${sq.co.coNumber}` : 'N/A',
+                            coDescription: sq.co ? sq.co.description : 'N/A',
+                            attainmentPercent: Math.round(attainmentPercent * 10) / 10
+                        });
+                    }
+                    globalQNum++;
+                }
+            }
+        }
+
+        // ==========================================
+        // DYNAMIC STUDENT LEADERS & RANKING CALCULATION
+        // ==========================================
+        const examIds = exams.map(e => e.id);
+        const allStudentMarks = await prisma.studentMark.findMany({
+            where: {
+                examId: { in: examIds }
+            },
+            include: {
+                subQuestion: true
+            }
+        });
+
+        const programOutcomes = await prisma.programOutcome.findMany({
+            where: { programId: subject.curriculum.programId }
+        });
+        const coPoMappings = await prisma.coPoMapping.findMany({
+            where: {
+                co: { subjectId }
+            },
+            include: { co: true, po: true }
+        });
+
+        const studentRankings = activeEnrollments.map(enrollment => {
+            const student = enrollment.student;
+            const studentMarks = allStudentMarks.filter(m => m.studentId === student.id);
+            
+            const coScores = new Map<string, { obtained: number; max: number; percent: number }>();
+            coAttainments.forEach(coAtt => {
+                coScores.set(coAtt.co.id, { obtained: 0, max: 0, percent: 0 });
+            });
+            
+            studentMarks.forEach(mark => {
+                const coId = mark.subQuestion.coId;
+                if (coId) {
+                    const score = coScores.get(coId);
+                    if (score) {
+                        score.obtained += mark.marksObtained;
+                        score.max += Number(mark.subQuestion.maxMarks);
+                    }
+                }
+            });
+            
+            const coDetails: Record<string, number> = Object.create(null);
+            coAttainments.forEach(coAtt => {
+                const score = coScores.get(coAtt.co.id);
+                let percent = 0;
+                if (score && score.max > 0) {
+                    percent = (score.obtained / score.max) * 100;
+                    score.percent = percent;
+                }
+                const key = `CO${coAtt.co.coNumber}`;
+                coDetails[key] = Math.round(percent * 10) / 10;
+            });
+            
+            const poDetails: Record<string, number> = Object.create(null);
+            programOutcomes.forEach(po => {
+                let weightedSum = 0;
+                let totalWeight = 0;
+                
+                coAttainments.forEach(coAtt => {
+                    const mapping = coPoMappings.find(m => m.coId === coAtt.coId && m.poId === po.id);
+                    if (mapping && mapping.correlationLevel > 0) {
+                        const score = coScores.get(coAtt.coId);
+                        const coPercent = score?.percent || 0;
+                        weightedSum += coPercent * mapping.correlationLevel;
+                        totalWeight += mapping.correlationLevel;
+                    }
+                });
+                
+                const poPercent = totalWeight > 0 ? (weightedSum / totalWeight) : 0;
+                const key = `PO${po.poNumber}`;
+                poDetails[key] = Math.round(poPercent * 10) / 10;
+            });
+            
+            const coPercentsList = Object.values(coDetails);
+            const overallScore = coPercentsList.length > 0 
+                ? coPercentsList.reduce((a, b) => a + b, 0) / coPercentsList.length 
+                : 0;
+                
+            return {
+                studentId: student.id,
+                studentName: student.fullName,
+                registrationNumber: student.registrationNumber || 'N/A',
+                coAttainments: coDetails,
+                poAttainments: poDetails,
+                overallScore: Math.round(overallScore * 10) / 10
+            };
+        });
+
+        studentRankings.sort((a, b) => b.overallScore - a.overallScore);
+        
+        const rankedStudents = studentRankings.map((student, index) => ({
+            rank: index + 1,
+            ...student
+        }));
 
         res.json({
             context: {
@@ -482,7 +675,9 @@ export const getCOPOTraceability = async (req: AuthRequest, res: Response) => {
                 lastCalculated: coAttainments[0]?.calculatedAt || null
             },
             coAttainments: coWithLevels,
-            poAttainments: poWithBreakdown
+            poAttainments: poWithBreakdown,
+            questionTraceability: allQuestionsList,
+            studentRankings: rankedStudents
         });
     } catch (error) {
         console.error('[CO-PO Traceability] Error:', error);
@@ -510,11 +705,12 @@ export const getGlobalAttainmentStats = async (req: AuthRequest, res: Response) 
             const department = await prisma.department.findFirst({
                 where: { hodId: userId }
             });
-            if (department) {
+            const targetDepartmentId = department?.id || req.user?.departmentId;
+            if (targetDepartmentId) {
                 where.subject = {
                     curriculum: {
                         program: {
-                            departmentId: department.id
+                            departmentId: targetDepartmentId
                         }
                     }
                 };
@@ -570,11 +766,12 @@ export const getOverallPerformanceTrend = async (req: AuthRequest, res: Response
             const department = await prisma.department.findFirst({
                 where: { hodId: userId }
             });
-            if (department) {
+            const targetDepartmentId = department?.id || req.user?.departmentId;
+            if (targetDepartmentId) {
                 where.subject = {
                     curriculum: {
                         program: {
-                            departmentId: department.id
+                            departmentId: targetDepartmentId
                         }
                     }
                 };

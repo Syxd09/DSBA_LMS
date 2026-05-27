@@ -205,7 +205,7 @@ export const getStudentAnalytics = async (req: AuthRequest, res: Response) => {
                 },
                 subQuestion: {
                     include: {
-                        co: { select: { coNumber: true, description: true, bloomLevel: true } }
+                        co: { select: { coNumber: true, description: true, bloomLevel: true, targetPercent: true } }
                     }
                 }
             }
@@ -297,6 +297,7 @@ export const getStudentAnalytics = async (req: AuthRequest, res: Response) => {
             description: string;
             totalMarks: number;
             maxMarks: number;
+            targetPercent: number;
         }>();
 
         marks.forEach(mark => {
@@ -308,7 +309,8 @@ export const getStudentAnalytics = async (req: AuthRequest, res: Response) => {
                         coNumber: co.coNumber,
                         description: co.description,
                         totalMarks: 0,
-                        maxMarks: 0
+                        maxMarks: 0,
+                        targetPercent: co.targetPercent ?? 60
                     });
                 }
                 const entry = coMap.get(key)!;
@@ -321,8 +323,10 @@ export const getStudentAnalytics = async (req: AuthRequest, res: Response) => {
             const achievedPercent = co.maxMarks > 0 ? (co.totalMarks / co.maxMarks) * 100 : 0;
             let strength: 'Strong' | 'Moderate' | 'Weak';
 
-            if (achievedPercent >= 70) strength = 'Strong';
-            else if (achievedPercent >= 50) strength = 'Moderate';
+            // Scale threshold dynamically relative to co's targetPercent
+            const threshold = co.targetPercent;
+            if (achievedPercent >= threshold) strength = 'Strong';
+            else if (achievedPercent >= threshold * 0.7) strength = 'Moderate';
             else strength = 'Weak';
 
             return {
@@ -536,8 +540,9 @@ export const getAtRiskStudents = async (req: AuthRequest, res: Response) => {
             const department = await prisma.department.findFirst({
                 where: { hodId: userId }
             });
-            if (department) {
-                departmentId = department.id;
+            const targetDepartmentId = department?.id || req.user?.departmentId;
+            if (targetDepartmentId) {
+                departmentId = targetDepartmentId;
             } else {
                 return res.json({ success: true, count: 0, data: [] });
             }
@@ -585,8 +590,13 @@ export const getAtRiskStudents = async (req: AuthRequest, res: Response) => {
             const { percentage, risk, examsCompleted } = await calculateStudentRisk(enrollment.studentId);
 
             const riskPriority: Record<string, number> = { 'low': 0, 'medium': 1, 'high': 2, 'critical': 3 };
-            const requestedPriority = riskPriority[riskLevel as keyof typeof riskPriority] || 1;
-            const studentPriority = riskPriority[risk];
+            const riskLevelStr = typeof riskLevel === 'string' ? riskLevel.toLowerCase() : '';
+            const requestedPriority = ['low', 'medium', 'high', 'critical'].includes(riskLevelStr)
+                ? riskPriority[riskLevelStr]
+                : 1;
+            const studentPriority = ['low', 'medium', 'high', 'critical'].includes(risk)
+                ? riskPriority[risk]
+                : 0;
 
             if (studentPriority >= requestedPriority) {
                 atRiskStudents.push({
@@ -605,7 +615,13 @@ export const getAtRiskStudents = async (req: AuthRequest, res: Response) => {
 
         const riskOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
         atRiskStudents.sort((a: any, b: any) => {
-            const riskDiff = riskOrder[a.riskLevel] - riskOrder[b.riskLevel];
+            const aRisk = String(a.riskLevel).toLowerCase();
+            const bRisk = String(b.riskLevel).toLowerCase();
+
+            const aVal = ['critical', 'high', 'medium', 'low'].includes(aRisk) ? riskOrder[aRisk] : 4;
+            const bVal = ['critical', 'high', 'medium', 'low'].includes(bRisk) ? riskOrder[bRisk] : 4;
+
+            const riskDiff = aVal - bVal;
             if (riskDiff !== 0) return riskDiff;
             return a.currentPercentage - b.currentPercentage;
         });

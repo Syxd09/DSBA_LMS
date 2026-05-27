@@ -29,7 +29,7 @@ export const AttainmentService = {
             prisma.courseOutcome.findMany({
                 where: { subjectId },
                 orderBy: { coNumber: 'asc' },
-                select: { id: true, coNumber: true, description: true }
+                select: { id: true, coNumber: true, description: true, targetPercent: true }
             }),
             prisma.studentEnrollment.findMany({
                 where: { cohortId, semester },
@@ -123,6 +123,7 @@ export const AttainmentService = {
         for (const co of courseOutcomes) {
             // Calculate pass count for this CO
             let passCount = 0;
+            const threshold = co.targetPercent;
 
             for (const studentId of studentIds) {
                 const studentScores = studentCOScores.get(studentId);
@@ -130,13 +131,25 @@ export const AttainmentService = {
 
                 if (coScore && coScore.max > 0) {
                     const percentage = (coScore.scored / coScore.max) * 100;
-                    if (percentage >= targetPercent) {
+                    if (percentage >= threshold) {
                         passCount++;
                     }
                 }
             }
 
             const achievedPercent = totalStudents > 0 ? (passCount / totalStudents) * 100 : 0;
+
+            // Fetch existing attainment to preserve status (e.g. if already APPROVED or LOCKED)
+            const existingAtt = await prisma.cOAttainment.findUnique({
+                where: {
+                    subjectId_cohortId_coId_semester_academicYear: {
+                        subjectId, cohortId, coId: co.id, semester, academicYear
+                    }
+                }
+            });
+            const statusToSet = (existingAtt?.status === 'APPROVED' || existingAtt?.status === 'LOCKED')
+                ? existingAtt.status
+                : 'CALCULATED';
 
             // Batch upsert
             upsertPromises.push(
@@ -147,11 +160,11 @@ export const AttainmentService = {
                         }
                     },
                     update: {
-                        targetPercent,
+                        targetPercent: threshold,
                         achievedPercent: Number(achievedPercent.toFixed(2)),
                         studentCount: totalStudents,
                         passCount,
-                        status: 'CALCULATED',
+                        status: statusToSet,
                         calculatedAt: new Date()
                     },
                     create: {
@@ -160,11 +173,11 @@ export const AttainmentService = {
                         coId: co.id,
                         semester,
                         academicYear,
-                        targetPercent,
+                        targetPercent: threshold,
                         achievedPercent: Number(achievedPercent.toFixed(2)),
                         studentCount: totalStudents,
                         passCount,
-                        status: 'CALCULATED',
+                        status: statusToSet,
                         calculatedAt: new Date()
                     },
                     include: { co: true }
@@ -196,13 +209,13 @@ export const AttainmentService = {
 
         if (programOutcomes.length === 0) throw new Error('No Program Outcomes defined');
 
-        // Fetch Approved CO Attainments
+        // Fetch Approved and Calculated CO Attainments
         const coAttainments = await prisma.cOAttainment.findMany({
             where: {
                 cohortId,
                 semester,
                 academicYear,
-                status: { in: ['APPROVED', 'LOCKED'] }
+                status: { in: ['CALCULATED', 'APPROVED', 'LOCKED'] }
             },
             include: {
                 co: { include: { poMappings: true } }

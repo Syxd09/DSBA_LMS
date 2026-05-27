@@ -222,13 +222,18 @@ export const createAssignment = async (req: AuthRequest, res: Response) => {
             // Removed strict return 400 to allow setup before enrollment
         }
 
-        // Check for existing assignment
+        // Check if any teacher is already assigned to this subject/cohort/semester
         const existing = await prisma.teacherAssignment.findFirst({
-            where: { teacherId, subjectId, cohortId, semester: Number(semester || 1) }
+            where: { subjectId, cohortId, semester: Number(semester || 1) },
+            include: {
+                teacher: { select: { fullName: true } }
+            }
         });
 
         if (existing) {
-            return res.status(400).json({ message: 'This teacher is already assigned to this subject/cohort/semester' });
+            return res.status(400).json({
+                message: `This subject/cohort/semester is already assigned to teacher: ${existing.teacher.fullName}`
+            });
         }
 
         const assignment = await prisma.teacherAssignment.create({

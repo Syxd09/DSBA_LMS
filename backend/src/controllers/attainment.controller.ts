@@ -85,7 +85,7 @@ import { AttainmentService } from '../services/attainment.service';
  */
 export const calculateCOAttainment = async (req: AuthRequest, res: Response) => {
     try {
-        const { subjectId, cohortId, semester, academicYear, targetPercent = 60 } = req.body;
+        const { subjectId, cohortId, semester, academicYear } = req.body;
 
         if (!subjectId || !cohortId || !semester || !academicYear) {
             return res.status(400).json({
@@ -97,8 +97,7 @@ export const calculateCOAttainment = async (req: AuthRequest, res: Response) => 
             subjectId,
             cohortId,
             Number(semester),
-            String(academicYear),
-            Number(targetPercent)
+            String(academicYear)
         );
 
         res.json({

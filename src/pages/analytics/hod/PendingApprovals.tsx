@@ -15,6 +15,22 @@ import { toast } from '@/hooks/use-toast';
 import api from '@/lib/api';
 import { useAvailableSemesters } from '@/hooks/useAvailableSemesters';
 
+const t = {
+  pendingApprovalsTitle: "Pending Approvals",
+  reviewDescription: "Review and approve feedback submissions",
+  backToDashboard: "Back to Dashboard",
+  searchPlaceholder: "Search by student, teacher, or subject...",
+  allSubjects: "All Subjects",
+  allSemesters: "All Semesters",
+  allCaughtUp: "All caught up!",
+  noPendingApprovals: "No pending approvals at the moment",
+  noApprovalsMatchFilters: "No approvals match your current filters",
+  showing: "Showing",
+  of: "of",
+  pendingApprovalsText: "pending approvals",
+  semesterPrefix: "Semester "
+};
+
 export default function PendingApprovals() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -26,13 +42,15 @@ export default function PendingApprovals() {
   const [approvingIds, setApprovingIds] = useState<Set<string>>(new Set());
   const availableSemesters = useAvailableSemesters();
 
-  // RBAC: Only HOD/Principal/Admin can access
-  if (!['HOD', 'PRINCIPAL', 'ADMIN'].includes(user?.role || '')) {
-    navigate('/dashboard');
-    return null;
-  }
-
   const departmentId = user?.departmentId;
+  const isAuthorized = ['HOD', 'PRINCIPAL', 'ADMIN'].includes(user?.role || '');
+
+  // RBAC Redirect: Only HOD/Principal/Admin can access
+  useEffect(() => {
+    if (user && !['HOD', 'PRINCIPAL', 'ADMIN'].includes(user.role)) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   // Fetch pending approvals
   const { data, isLoading, error } = useQuery({
@@ -43,6 +61,7 @@ export default function PendingApprovals() {
       );
       return response.feedbacks;
     },
+    enabled: isAuthorized && (user?.role === 'PRINCIPAL' || user?.role === 'ADMIN' || !!departmentId)
   });
 
   // Fetch subjects for filter
@@ -52,7 +71,7 @@ export default function PendingApprovals() {
       const { data } = await api.get(`/subjects?departmentId=${departmentId}`);
       return data || [];
     },
-    enabled: !!departmentId
+    enabled: isAuthorized && !!departmentId
   });
 
   // Approve mutation
@@ -91,6 +110,15 @@ export default function PendingApprovals() {
     }
   });
 
+  // Early return if user is not loaded or is not authorized
+  if (!user || !isAuthorized) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   const handleApprove = async (feedbackId: string) => {
     setApprovingIds(prev => new Set(prev).add(feedbackId));
     await approveMutation.mutateAsync(feedbackId);
@@ -119,13 +147,13 @@ export default function PendingApprovals() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Pending Approvals</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{t.pendingApprovalsTitle}</h1>
             <p className="text-muted-foreground">
-              Review and approve feedback submissions
+              {t.reviewDescription}
             </p>
           </div>
           <Button variant="outline" onClick={() => navigate('/analytics/hod/dashboard')}>
-            Back to Dashboard
+            {t.backToDashboard}
           </Button>
         </div>
 
@@ -137,7 +165,7 @@ export default function PendingApprovals() {
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by student, teacher, or subject..."
+                    placeholder={t.searchPlaceholder}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-8"
@@ -146,10 +174,10 @@ export default function PendingApprovals() {
               </div>
               <Select value={subjectFilter} onValueChange={setSubjectFilter}>
                 <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="All Subjects" />
+                  <SelectValue placeholder={t.allSubjects} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Subjects</SelectItem>
+                  <SelectItem value="all">{t.allSubjects}</SelectItem>
                   {subjects.map((subject: any) => (
                     <SelectItem key={subject.id} value={subject.id}>
                       {subject.code} - {subject.name}
@@ -159,13 +187,13 @@ export default function PendingApprovals() {
               </Select>
               <Select value={semesterFilter} onValueChange={setSemesterFilter}>
                 <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="All Semesters" />
+                  <SelectValue placeholder={t.allSemesters} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Semesters</SelectItem>
+                  <SelectItem value="all">{t.allSemesters}</SelectItem>
                   {availableSemesters.map((sem) => (
                     <SelectItem key={sem} value={sem.toString()}>
-                      Semester {sem}
+                      {t.semesterPrefix}{sem}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -192,11 +220,11 @@ export default function PendingApprovals() {
         ) : filteredFeedback.length === 0 ? (
           <div className="text-center py-12">
             <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-green-600" />
-            <h3 className="text-lg font-medium mb-2">All caught up!</h3>
+            <h3 className="text-lg font-medium mb-2">{t.allCaughtUp}</h3>
             <p className="text-muted-foreground">
               {data?.length === 0
-                ? 'No pending approvals at the moment'
-                : 'No approvals match your current filters'}
+                ? t.noPendingApprovals
+                : t.noApprovalsMatchFilters}
             </p>
           </div>
         ) : (
@@ -204,7 +232,7 @@ export default function PendingApprovals() {
             {/* Count */}
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                Showing {filteredFeedback.length} of {data?.length} pending approvals
+                {t.showing} {filteredFeedback.length} {t.of} {data?.length} {t.pendingApprovalsText}
               </p>
             </div>
 

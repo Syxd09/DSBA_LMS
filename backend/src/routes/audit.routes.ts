@@ -8,6 +8,6 @@ const router = Router();
 
 router.use(authenticateToken);
 
-router.get('/', requireRole(Role.ADMIN, Role.PRINCIPAL), getAuditLogs);
+router.get('/', requireRole(Role.ADMIN, Role.PRINCIPAL, Role.HOD), getAuditLogs);
 
 export default router;

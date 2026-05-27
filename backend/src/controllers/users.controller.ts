@@ -26,6 +26,8 @@ export const getUsers = async (req: AuthRequest, res: Response) => {
             });
             if (department) {
                 where.departmentId = department.id;
+            } else if (req.user?.departmentId) {
+                where.departmentId = req.user.departmentId;
             } else {
                 return res.json([]);
             }
@@ -75,6 +77,8 @@ export const getTeachers = async (req: AuthRequest, res: Response) => {
             });
             if (department) {
                 where.departmentId = department.id;
+            } else if (req.user?.departmentId) {
+                where.departmentId = req.user.departmentId;
             } else {
                 return res.json([]);
             }

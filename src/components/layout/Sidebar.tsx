@@ -112,12 +112,22 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
   ],
 };
 
+const TRANSLATIONS = {
+  appName: "DSBA_OBE Manager",
+  portalSuffix: "Portal",
+  signOut: "Sign Out"
+};
+
 export function Sidebar({ role, profile, onSignOut }: SidebarProps) {
   const { totalUnreadCount } = useMessaging();
   
   if (!role) return null;
 
-  const navigation = navigationConfig[role] || navigationConfig.student;
+  // Safe allow-list check to prevent dynamic key bracket notation attacks or prototype pollution
+  const validRoles: AppRole[] = ['admin', 'principal', 'hod', 'teacher', 'student'];
+  const safeRole = validRoles.includes(role) ? role : 'student';
+
+  const navigation = navigationConfig[safeRole] || navigationConfig.student;
 
   return (
     <aside className="w-64 bg-card border-r border-border flex flex-col h-screen">
@@ -127,8 +137,8 @@ export function Sidebar({ role, profile, onSignOut }: SidebarProps) {
             <GraduationCap className="w-6 h-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="font-semibold text-foreground">DSBA_OBE Manager</h1>
-            <p className="text-xs text-muted-foreground capitalize">{role} Portal</p>
+            <h1 className="font-semibold text-foreground">{TRANSLATIONS.appName}</h1>
+            <p className="text-xs text-muted-foreground capitalize">{role} {TRANSLATIONS.portalSuffix}</p>
           </div>
         </div>
       </div>
@@ -176,7 +186,7 @@ export function Sidebar({ role, profile, onSignOut }: SidebarProps) {
         </div>
         <Button variant="ghost" size="sm" className="w-full justify-start" onClick={onSignOut}>
           <LogOut className="w-4 h-4 mr-2" />
-          Sign Out
+          {TRANSLATIONS.signOut}
         </Button>
       </div>
     </aside>

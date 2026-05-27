@@ -68,8 +68,7 @@ export default function AttainmentDashboard() {
         subjectId: selectedSubject,
         cohortId,
         semester,
-        academicYear,
-        targetPercent: 60
+        academicYear
       });
     },
     onSuccess: () => {

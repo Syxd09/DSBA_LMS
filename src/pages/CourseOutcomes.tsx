@@ -21,6 +21,7 @@ interface CourseOutcome {
   description: string;
   bloomLevel: string;
   subjectId: string;
+  targetPercent: number;
   createdAt: string;
   subject?: {
     id: string;
@@ -61,6 +62,7 @@ export default function CourseOutcomes() {
     coNumber: 1,
     description: '',
     bloomLevel: 'Remember',
+    targetPercent: 60,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -115,6 +117,7 @@ export default function CourseOutcomes() {
             coNumber: newCO.coNumber,
             description: newCO.description,
             bloomLevel: newCO.bloomLevel,
+            targetPercent: newCO.targetPercent,
          });
          toast({ title: 'Course Outcome updated', description: 'Changes saved successfully.' });
       } else {
@@ -124,6 +127,7 @@ export default function CourseOutcomes() {
             coNumber: newCO.coNumber,
             description: newCO.description,
             bloomLevel: newCO.bloomLevel,
+            targetPercent: newCO.targetPercent,
         });
         toast({ title: 'Course Outcome created', description: `CO${newCO.coNumber} has been created successfully.` });
       }
@@ -144,7 +148,7 @@ export default function CourseOutcomes() {
   };
 
   const resetForm = () => {
-      setNewCO({ subjectId: '', coNumber: 1, description: '', bloomLevel: 'Remember' });
+      setNewCO({ subjectId: '', coNumber: 1, description: '', bloomLevel: 'Remember', targetPercent: 60 });
       setIsEditMode(false);
       setEditingId(null);
   };
@@ -155,6 +159,7 @@ export default function CourseOutcomes() {
           coNumber: co.coNumber,
           description: co.description,
           bloomLevel: co.bloomLevel,
+          targetPercent: co.targetPercent ?? 60,
       });
       setEditingId(co.id);
       setIsEditMode(true);
@@ -300,7 +305,7 @@ export default function CourseOutcomes() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>CO Number</Label>
                     <Input
@@ -328,6 +333,16 @@ export default function CourseOutcomes() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Threshold (%)</Label>
+                    <Input
+                      type="number"
+                      value={newCO.targetPercent}
+                      onChange={(e) => setNewCO({ ...newCO, targetPercent: parseFloat(e.target.value) || 60 })}
+                      min={0}
+                      max={100}
+                    />
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -426,6 +441,10 @@ export default function CourseOutcomes() {
                         <p className="text-sm text-foreground flex-1">{co.description}</p>
                          <Badge className={bloomColors[co.bloomLevel] || ''}>
                           {co.bloomLevel}
+                        </Badge>
+                        <Badge variant="secondary" className="gap-1 shrink-0">
+                          <Target className="w-3 h-3 text-muted-foreground" />
+                          Threshold: {co.targetPercent ?? 60}%
                         </Badge>
                         {canModify && (
                           <div className="flex gap-1">

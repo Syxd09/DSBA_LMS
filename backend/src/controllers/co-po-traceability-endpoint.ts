@@ -7,10 +7,10 @@ import prisma from '../services/db';
 // ... existing imports and functions ...
 
 // Helper function for attainment levels
-function getAttainmentLevel(percent: number): number {
-    if (percent >= 80) return 3;
-    if (percent >= 60) return 2;
-    if (percent >= 40) return 1;
+function getAttainmentLevel(percent: number, targetPercent: number): number {
+    if (percent >= targetPercent) return 3;
+    if (percent >= targetPercent * 0.8) return 2;
+    if (percent >= targetPercent * 0.6) return 1;
     return 0;
 }
 
@@ -78,7 +78,7 @@ export const getCOPOTraceability = async (req: AuthRequest, res: Response) => {
             },
             achievedPercent: coAtt.achievedPercent,
             targetPercent: coAtt.targetPercent,
-            level: getAttainmentLevel(coAtt.achievedPercent),
+            level: getAttainmentLevel(coAtt.achievedPercent, coAtt.targetPercent),
             passCount: coAtt.passCount,
             studentCount: coAtt.studentCount,
             poMappings: coAtt.co.poMappings.map(m => ({
@@ -133,7 +133,7 @@ export const getCOPOTraceability = async (req: AuthRequest, res: Response) => {
                 },
                 achievedPercent: po.achievedPercent,
                 targetPercent: po.targetPercent,
-                level: getAttainmentLevel(po.achievedPercent),
+                level: getAttainmentLevel(po.achievedPercent, po.targetPercent),
                 weightedSum: po.weightedSum,
                 totalWeight: po.totalWeight,
                 breakdown

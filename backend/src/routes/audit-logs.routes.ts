@@ -8,8 +8,8 @@ const router = Router();
 
 router.use(authenticateToken);
 
-// SECURITY: Audit logs contain sensitive forensic data - restrict to ADMIN and PRINCIPAL only
-router.get('/', requireRole(Role.ADMIN, Role.PRINCIPAL), getAuditLogs);
-router.get('/dashboard-stats', requireRole(Role.ADMIN, Role.PRINCIPAL), getDashboardStats);
+// SECURITY: Audit logs contain sensitive forensic data - restrict to ADMIN, PRINCIPAL, and HOD
+router.get('/', requireRole(Role.ADMIN, Role.PRINCIPAL, Role.HOD), getAuditLogs);
+router.get('/dashboard-stats', requireRole(Role.ADMIN, Role.PRINCIPAL, Role.HOD), getDashboardStats);
 
 export default router;

@@ -83,11 +83,13 @@ export async function calculateCOAttainmentForExam(examId: string): Promise<void
         console.log(`[CO Attainment] Processing ${totalStudents} students`);
 
         // Calculate for each CO
-        const TARGET_THRESHOLD = 60;
-
         for (const [coId, coSqs] of coSubQuestions.entries()) {
             const coSubQuestionIds = coSqs.map(sq => sq.id);
             const coMaxMarks = coSqs.reduce((sum, sq) => sum + Number(sq.maxMarks), 0);
+
+            // Get targetPercent from the associated CO
+            const targetCO = coSqs.find(sq => sq.co)?.co;
+            const threshold = targetCO?.targetPercent ?? 60;
 
             let passCount = 0;
 
@@ -99,7 +101,7 @@ export async function calculateCOAttainmentForExam(examId: string): Promise<void
                 const obtainedMarks = studentCoMarks.reduce((sum, m) => sum + Number(m.marks), 0);
                 const percentage = coMaxMarks > 0 ? (obtainedMarks / coMaxMarks) * 100 : 0;
 
-                if (percentage >= TARGET_THRESHOLD) {
+                if (percentage >= threshold) {
                     passCount++;
                 }
             }
@@ -121,7 +123,7 @@ export async function calculateCOAttainmentForExam(examId: string): Promise<void
                 },
                 update: {
                     achievedPercent: achievedPercent,
-                    targetPercent: TARGET_THRESHOLD,
+                    targetPercent: threshold,
                     studentCount: totalStudents,
                     passCount: passCount,
                     calculatedAt: new Date(),
@@ -134,7 +136,7 @@ export async function calculateCOAttainmentForExam(examId: string): Promise<void
                     semester: semester,
                     academicYear: academicYear,
                     achievedPercent: achievedPercent,
-                    targetPercent: TARGET_THRESHOLD,
+                    targetPercent: threshold,
                     studentCount: totalStudents,
                     passCount: passCount,
                     calculatedAt: new Date(),

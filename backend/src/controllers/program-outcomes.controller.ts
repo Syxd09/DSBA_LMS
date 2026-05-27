@@ -23,9 +23,11 @@ export const getProgramOutcomes = async (req: AuthRequest, res: Response) => {
                     where: { hodId: userId }
                 });
 
-                if (department) {
+                const targetDepartmentId = department?.id || req.user?.departmentId;
+
+                if (targetDepartmentId) {
                     where.program = {
-                        departmentId: department.id
+                        departmentId: targetDepartmentId
                     };
                 } else {
                     // HOD with no department sees nothing

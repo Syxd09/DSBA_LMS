@@ -13,14 +13,15 @@ export default function AtRiskStudents() {
   const [searchParams] = useSearchParams();
   const { departmentAnalytics, fetchDepartmentAnalytics, isLoading } = useAnalytics();
 
-  // RBAC: Only HOD can access
-  if (user?.role !== 'HOD') {
-    navigate('/dashboard');
-    return null;
-  }
-
-  const departmentId = user.departmentId;
+  const departmentId = user?.departmentId;
   const riskFilter = searchParams.get('risk');
+
+  // RBAC: Only HOD can access
+  useEffect(() => {
+    if (user && user.role !== 'HOD') {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   // Re-fetch data if not available
   useEffect(() => {
@@ -28,6 +29,21 @@ export default function AtRiskStudents() {
       fetchDepartmentAnalytics(departmentId);
     }
   }, [departmentId, departmentAnalytics, fetchDepartmentAnalytics]);
+
+  // Safe early returns after hooks
+  if (!user) {
+    return (
+      <AuthenticatedLayout>
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </AuthenticatedLayout>
+    );
+  }
+
+  if (user.role !== 'HOD') {
+    return null;
+  }
 
   const handleViewStudent = (studentId: string) => {
     navigate(`/analytics/hod/student/${studentId}`);

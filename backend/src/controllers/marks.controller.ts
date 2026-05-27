@@ -42,8 +42,7 @@ export const saveMarks = async (req: AuthRequest, res: Response) => {
                     where: {
                         teacherId,
                         subjectId: exam.subjectId,
-                        cohortId: exam.cohortId,
-                        semester: exam.semester
+                        cohortId: exam.cohortId
                     }
                 });
                 if (!isAssigned) {
@@ -204,8 +203,7 @@ export const getMarks = async (req: AuthRequest, res: Response) => {
                     where: {
                         teacherId: userId,
                         subjectId: exam.subjectId,
-                        cohortId: exam.cohortId,
-                        semester: exam.semester
+                        cohortId: exam.cohortId
                     }
                 });
                 if (!isAssigned) {
@@ -336,8 +334,7 @@ export const bulkUploadMarks = async (req: AuthRequest, res: Response) => {
                 where: {
                     teacherId: userId,
                     subjectId: exam.subjectId,
-                    cohortId: exam.cohortId,
-                    semester: exam.semester
+                    cohortId: exam.cohortId
                 }
             });
             if (!isAssigned) {
@@ -428,6 +425,18 @@ export const bulkUploadMarks = async (req: AuthRequest, res: Response) => {
         console.log('[BULK UPLOAD] ✅ Transaction complete');
 
         await createAuditLog(userId!, 'BULK_UPLOAD_MARKS', 'student_marks', examId, undefined, { count: validatedMarks.length });
+
+        // Invalidate feedback analytics cache for affected students (Phase 4)
+        // Non-blocking operation - failure won't affect response
+        try {
+            const uniqueStudents = new Set(validatedMarks.map((m: any) => m.studentId));
+            for (const studentId of uniqueStudents) {
+                await invalidateCacheForStudent(studentId, exam.subjectId, exam.semester);
+            }
+        } catch (error) {
+            console.error('Failed to invalidate feedback analytics cache in bulk upload:', error);
+        }
+
         res.json({ success: true, processed: validatedMarks.length, errors: [] });
     } catch (error) {
         console.error('[BULK UPLOAD] ❌ Error:', error);

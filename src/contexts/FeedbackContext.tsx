@@ -59,7 +59,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       setError(null);
       const data = await apiCall(feedbackTemplateApi.list());
-      setTemplates(data);
+      setTemplates(data || []);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch templates');
       console.error('fetchTemplates error:', err);
@@ -200,13 +200,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
     try {
       setError(null);
       
-      // Check local cache first
-      const cached = myFeedbacks.find(f => f.id === id);
-      if (cached) {
-        return cached;
-      }
-      
-      // Fetch from API
+      // Fetch from API (always bypass cache to ensure full and latest detailed relations)
       const feedback = await apiCall(teacherFeedbackApi.get(id));
       return feedback;
     } catch (err: any) {
@@ -214,7 +208,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       console.error('getFeedbackById error:', err);
       return null;
     }
-  }, [myFeedbacks]);
+  }, []);
 
   return (
     <FeedbackContext.Provider

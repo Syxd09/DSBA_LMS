@@ -1,4 +1,3 @@
-import axios from 'axios';
 import {
     FeedbackTemplate,
     TeacherStudentFeedback,
@@ -8,23 +7,9 @@ import {
     CollegeAnalytics,
     RecalculateResponse
 } from '../types/feedback.types';
+import api from '../lib/api';
 
-// Create axios instance with base configuration
-const feedbackApi = axios.create({
-    baseURL: '/api',
-    headers: {
-        'Content-Type': 'application/json'
-    }
-});
-
-// Add auth token interceptor
-feedbackApi.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-});
+const feedbackApi = api;
 
 // ============================================================================
 // TEMPLATE APIs

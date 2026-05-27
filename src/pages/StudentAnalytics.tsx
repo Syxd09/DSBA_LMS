@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AuthenticatedLayout } from '@/components/layout/AuthenticatedLayout';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   User, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2, 
   Target, Brain, BarChart3, Award, Loader2, MessageSquareQuote, Star,
-  Building2, BookOpen
+  Building2, BookOpen, Search, Check
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend } from 'recharts';
 import api from '@/lib/api';
@@ -18,6 +18,7 @@ import { useAcademicContext } from '@/contexts/AcademicContext';
 import { useAvailableSemesters } from '@/hooks/useAvailableSemesters';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { 
   Select, 
   SelectContent, 
@@ -100,6 +101,7 @@ export default function StudentAnalytics() {
   const availableSemesters = useAvailableSemesters(cohortId, departmentId);
   
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+  const [studentSearchQuery, setStudentSearchQuery] = useState<string>('');
 
   // Fetch departments (for HOD/Admin)
   const { data: departments = [] } = useQuery({
@@ -134,7 +136,6 @@ export default function StudentAnalytics() {
     enabled: !!(role !== 'teacher' && role !== 'student')
   });
 
-  // Fetch students for selection - filtered by cohort
   const { data: students = [] } = useQuery({
     queryKey: ['students-list', cohortId, semester],
     queryFn: async () => {
@@ -152,6 +153,16 @@ export default function StudentAnalytics() {
     },
     enabled: !!(cohortId || (role === 'admin' || role === 'principal'))
   });
+
+  const filteredStudents = useMemo(() => {
+    if (!students) return [];
+    return students.filter((student: any) => {
+      const nameMatch = student.fullName?.toLowerCase().includes(studentSearchQuery.toLowerCase());
+      const regMatch = student.registrationNumber?.toLowerCase().includes(studentSearchQuery.toLowerCase());
+      const emailMatch = student.email?.toLowerCase().includes(studentSearchQuery.toLowerCase());
+      return nameMatch || regMatch || emailMatch;
+    });
+  }, [students, studentSearchQuery]);
 
   // Fetch student analytics
   const { data: analytics, isLoading, error } = useQuery<{ success: boolean; data: StudentAnalytics }>({
@@ -296,29 +307,99 @@ export default function StudentAnalytics() {
               <p>Please select an academic context above to view student analytics.</p>
             </div>
           ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <User className="w-4 h-4" />
-                  Select Student
-                </CardTitle>
-                <CardDescription>Filtering students in selected cohort</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <select
-                  className="w-full max-w-md px-3 py-2 border border-input rounded-md bg-background"
-                  value={selectedStudentId}
-                  onChange={(e) => setSelectedStudentId(e.target.value)}
-                >
-                  <option value="">-- Select a student --</option>
-                  {students?.map((student: any) => (
-                    <option key={student.id} value={student.id}>
-                      {student.fullName} {student.registrationNumber ? `| Reg: ${student.registrationNumber}` : ''} | {student.email}
-                    </option>
-                  ))}
-                </select>
-              </CardContent>
-            </Card>
+            (() => {
+              const selectedStudent = students?.find((s: any) => s.id === selectedStudentId);
+              return (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base font-semibold flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      Select Student
+                    </CardTitle>
+                    <CardDescription>Filtering students in selected cohort</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedStudent ? (
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-primary/5 border border-primary/20 rounded-lg gap-4 transition-all duration-200">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-lg shadow-sm">
+                            {selectedStudent.fullName ? selectedStudent.fullName.substring(0, 2).toUpperCase() : 'ST'}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-bold text-foreground text-base">{selectedStudent.fullName}</h4>
+                              {selectedStudent.registrationNumber && (
+                                <Badge variant="secondary" className="font-mono text-xs px-2 py-0">
+                                  {selectedStudent.registrationNumber}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-0.5">{selectedStudent.email}</p>
+                          </div>
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => {
+                            setSelectedStudentId('');
+                            setStudentSearchQuery('');
+                          }}
+                          className="shrink-0 font-semibold"
+                        >
+                          Change Student
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4 max-w-2xl">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Type student name, registration number, or email to search..."
+                            value={studentSearchQuery}
+                            onChange={(e) => setStudentSearchQuery(e.target.value)}
+                            className="pl-9 h-9"
+                          />
+                        </div>
+                        
+                        {filteredStudents.length === 0 ? (
+                          <div className="text-center py-6 border border-dashed rounded-lg text-muted-foreground text-sm">
+                            No students found matching your search.
+                          </div>
+                        ) : (
+                          <div className="border rounded-md divide-y shadow-sm max-h-64 overflow-y-auto bg-card">
+                            {filteredStudents.map((student: any) => (
+                              <div
+                                key={student.id}
+                                onClick={() => {
+                                  setSelectedStudentId(student.id);
+                                  setStudentSearchQuery('');
+                                }}
+                                className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-900/40 cursor-pointer transition-colors"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-sm">
+                                    {student.fullName ? student.fullName.substring(0, 2).toUpperCase() : 'ST'}
+                                  </div>
+                                  <div>
+                                    <p className="font-semibold text-sm text-foreground">{student.fullName}</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      {student.registrationNumber ? `${student.registrationNumber} • ` : ''}{student.email}
+                                    </p>
+                                  </div>
+                                </div>
+                                <Button variant="ghost" size="sm" className="h-8 font-semibold text-xs text-primary hover:text-primary">
+                                  Select
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })()
           )
         )}
 

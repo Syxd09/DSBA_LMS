@@ -151,6 +151,7 @@ model CourseOutcome {
   coNumber      Int
   description   String
   bloomLevel    BloomLevel
+  targetPercent Float          @default(60)
   createdAt     DateTime       @default(now())
   coAttainments COAttainment[]
   poMappings    CoPoMapping[]
@@ -282,7 +283,7 @@ model Exam {
   unlockRequests MarksUnlockRequest[]
   studentMarks   StudentMark[]
 
-  @@unique([subjectId, cohortId, examType, semester])
+  @@unique([subjectId, cohortId, examType, customTypeName, semester])
   @@index([subjectId, status])
   @@index([teacherId, status])
 }

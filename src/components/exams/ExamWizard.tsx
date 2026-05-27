@@ -33,7 +33,8 @@ interface ExamWizardProps {
 const EXAM_TYPES = [
   { value: 'INTERNAL_1', label: 'Internal Assessment 1' },
   { value: 'INTERNAL_2', label: 'Internal Assessment 2' },
-  { value: 'EXTERNAL', label: 'End-Semester Exam' }
+  { value: 'EXTERNAL', label: 'End-Semester Exam' },
+  { value: 'CUSTOM', label: 'Custom Exam (Other)' }
 ];
 
 export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSemesters = [], onSubmit, isSubmitting }: ExamWizardProps) {
@@ -60,8 +61,11 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSem
 
   const canProceed = () => {
     if (step === 1) {
-      return formData.subjectId && formData.cohortId && formData.semester &&
-        formData.examType;
+      const basicFields = formData.subjectId && formData.cohortId && formData.semester && formData.examType;
+      if (formData.examType === 'CUSTOM') {
+        return !!(basicFields && formData.customTypeName.trim());
+      }
+      return !!basicFields;
     }
     if (step === 2) {
       return formData.maxMarks > 0;
@@ -89,29 +93,35 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSem
       examDate: formData.examDate || undefined
     };
     
-    await onSubmit(submitData);
-    
-    // Reset form
-    setStep(1);
-    setFormData({
-      subjectId: '',
-      cohortId: '',
-      semester: '',
-      examType: 'INTERNAL_1',
-      customTypeName: '',
-      maxMarks: 30,
-      passingMarks: '',
-      examDate: '',
-      duration: '',
-      instructions: ''
-    });
+    try {
+      await onSubmit(submitData);
+      
+      // Reset form on success
+      setStep(1);
+      setFormData({
+        subjectId: '',
+        cohortId: '',
+        semester: '',
+        examType: 'INTERNAL_1',
+        customTypeName: '',
+        maxMarks: 30,
+        passingMarks: '',
+        examDate: '',
+        duration: '',
+        instructions: ''
+      });
+    } catch (error) {
+      // Error is caught here, avoiding unhandled promise rejection in console.
+      // Parent component (Exams.tsx) already displays toast.
+      console.warn('[ExamWizard] Exam creation failed:', error);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Create New Exam</DialogTitle>
+          <DialogTitle>{"Create New Exam"}</DialogTitle>
           <Progress value={progress} className="mt-2" />
           <p className="text-sm text-muted-foreground mt-1">
             Step {step} of {totalSteps}
@@ -122,7 +132,7 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSem
           {step === 1 && (
             <>
               <div className="space-y-2">
-                <Label>Subject *</Label>
+                <Label>{"Subject *"}</Label>
                 <Select value={formData.subjectId} onValueChange={(v) => updateField('subjectId', v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select subject" />
@@ -136,7 +146,7 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSem
               </div>
 
               <div className="space-y-2">
-                <Label>Cohort *</Label>
+                <Label>{"Cohort *"}</Label>
                 <Select value={formData.cohortId} onValueChange={(v) => updateField('cohortId', v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select cohort" />
@@ -150,21 +160,21 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSem
               </div>
 
               <div className="space-y-2">
-                <Label>Semester *</Label>
+                <Label>{"Semester *"}</Label>
                 <Select value={formData.semester} onValueChange={(v) => updateField('semester', v)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select semester" />
                   </SelectTrigger>
                   <SelectContent>
                     {availableSemesters.map(sem => (
-                      <SelectItem key={sem} value={sem.toString()}>Semester {sem}</SelectItem>
+                      <SelectItem key={sem} value={sem.toString()}>{"Semester "} {sem}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label>Exam Type *</Label>
+                <Label>{"Exam Type *"}</Label>
                 <Select value={formData.examType} onValueChange={(v) => updateField('examType', v)}>
                   <SelectTrigger>
                     <SelectValue />
@@ -176,6 +186,17 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSem
                   </SelectContent>
                 </Select>
               </div>
+
+              {formData.examType === 'CUSTOM' && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                  <Label>{"Custom Exam Name *"}</Label>
+                  <Input 
+                    placeholder="e.g. Communication Skills, Lab Exam"
+                    value={formData.customTypeName}
+                    onChange={(e) => updateField('customTypeName', e.target.value)}
+                  />
+                </div>
+              )}
             </>
           )}
 
@@ -183,7 +204,7 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSem
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Maximum Marks *</Label>
+                  <Label>{"Maximum Marks *"}</Label>
                   <Input
                     type="number"
                     value={formData.maxMarks}
@@ -192,7 +213,7 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSem
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Passing Marks</Label>
+                  <Label>{"Passing Marks"}</Label>
                   <Input
                     type="number"
                     value={formData.passingMarks}
@@ -205,7 +226,7 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSem
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Exam Date & Time</Label>
+                  <Label>{"Exam Date & Time"}</Label>
                   <Input
                     type="datetime-local"
                     value={formData.examDate}
@@ -213,7 +234,7 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSem
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Duration (minutes)</Label>
+                  <Label>{"Duration (minutes)"}</Label>
                   <Input
                     type="number"
                     value={formData.duration}
@@ -224,7 +245,7 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSem
               </div>
 
               <div className="space-y-2">
-                <Label>Instructions for Students</Label>
+                <Label>{"Instructions for Students"}</Label>
                 <Textarea
                   value={formData.instructions}
                   onChange={(e) => updateField('instructions', e.target.value)}
@@ -237,35 +258,35 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSem
 
           {step === 3 && (
             <div className="space-y-4 bg-muted/30 p-4 rounded-lg">
-              <h3 className="font-semibold">Review Exam Details</h3>
+              <h3 className="font-semibold">{"Review Exam Details"}</h3>
               
               <div className="grid gap-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Subject:</span>
+                  <span className="text-muted-foreground">{"Subject:"}</span>
                   <span className="font-medium">
                     {subjects.find(s => s.id === formData.subjectId)?.name}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Cohort:</span>
+                  <span className="text-muted-foreground">{"Cohort:"}</span>
                   <span className="font-medium">
                     {cohorts.find(c => c.id === formData.cohortId)?.name}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Type:</span>
+                  <span className="text-muted-foreground">{"Type:"}</span>
                   <span className="font-medium">
                     {formData.examType === 'CUSTOM' ? formData.customTypeName : 
                       EXAM_TYPES.find(t => t.value === formData.examType)?.label}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Marks:</span>
+                  <span className="text-muted-foreground">{"Marks:"}</span>
                   <span className="font-medium">{formData.maxMarks} marks</span>
                 </div>
                 {formData.examDate && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Scheduled:</span>
+                    <span className="text-muted-foreground">{"Scheduled:"}</span>
                     <span className="font-medium">
                       {new Date(formData.examDate).toLocaleString()}
                     </span>
@@ -273,7 +294,7 @@ export function ExamWizard({ open, onOpenChange, subjects, cohorts, availableSem
                 )}
                 {formData.duration && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Duration:</span>
+                    <span className="text-muted-foreground">{"Duration:"}</span>
                     <span className="font-medium">{formData.duration} minutes</span>
                   </div>
                 )}

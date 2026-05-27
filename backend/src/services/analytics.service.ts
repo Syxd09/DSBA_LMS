@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from './db';
 
 /**
  * Analytics Service for Teacher-Student Feedback System
@@ -36,7 +34,12 @@ export async function calculateAverageMarks(
             }
         },
         select: {
-            marksObtained: true
+            marksObtained: true,
+            subQuestion: {
+                select: {
+                    maxMarks: true
+                }
+            }
         }
     });
 
@@ -44,8 +47,14 @@ export async function calculateAverageMarks(
         return null;  // No marks available yet
     }
 
-    const sum = marks.reduce((acc, mark) => acc + mark.marksObtained, 0);
-    const average = sum / marks.length;
+    const sumObtained = marks.reduce((acc, mark) => acc + mark.marksObtained, 0);
+    const sumMax = marks.reduce((acc, mark) => acc + mark.subQuestion.maxMarks, 0);
+
+    if (sumMax === 0) {
+        return 0;
+    }
+
+    const average = (sumObtained / sumMax) * 100;
 
     return Math.round(average * 100) / 100;  // Round to 2 decimal places
 }

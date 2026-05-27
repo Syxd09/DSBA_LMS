@@ -15,6 +15,23 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, AlertCircle, Bell, RefreshCw } from 'lucide-react';
 import { RiskLevel } from '@/types/feedback.types';
 
+const t = {
+  departmentAnalytics: "Department Analytics",
+  feedbackInsights: "Feedback insights for your department",
+  pendingApprovals: "Pending Approvals",
+  analyticsUpdating: "Analytics Updating",
+  updatingMessage: "Recent exam marks were updated. Analytics are being recalculated and will refresh shortly.",
+  quickActions: "Quick Actions",
+  viewAllAtRisk: "View All At-Risk Students",
+  reviewPendingApprovals: "Review Pending Approvals",
+  atRiskStudentsTitle: "At-Risk Students (Top 10)",
+  viewAllLink: "View All →",
+  noAnalyticsData: "No analytics data available",
+  refreshData: "Refresh Data",
+  dismiss: "Dismiss",
+  noAnalyticsText: "No analytics data available"
+};
+
 export default function HODAnalyticsDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -28,13 +45,14 @@ export default function HODAnalyticsDashboard() {
     clearError
   } = useAnalytics();
 
-  // RBAC: Only HOD can access
-  if (user?.role !== 'HOD') {
-    navigate('/dashboard');
-    return null;
-  }
+  const departmentId = user?.departmentId;
 
-  const departmentId = user.departmentId;
+  // RBAC Redirect: Only HOD can access
+  useEffect(() => {
+    if (user && user.role !== 'HOD') {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   // Fetch filter options
   const { data: subjects = [] } = useQuery({
@@ -43,6 +61,7 @@ export default function HODAnalyticsDashboard() {
       const { data } = await api.get(`/subjects?departmentId=${departmentId}`);
       return data || [];
     },
+    enabled: !!departmentId && user?.role === 'HOD',
   });
 
   const { data: teachers = [] } = useQuery({
@@ -51,6 +70,7 @@ export default function HODAnalyticsDashboard() {
       const { data } = await api.get(`/users?departmentId=${departmentId}&role=TEACHER`);
       return data || [];
     },
+    enabled: !!departmentId && user?.role === 'HOD',
   });
 
   const { data: cohorts = [] } = useQuery({
@@ -59,6 +79,7 @@ export default function HODAnalyticsDashboard() {
       const { data } = await api.get('/cohorts');
       return data || [];
     },
+    enabled: user?.role === 'HOD',
   });
 
   // Fetch pending approvals count
@@ -70,14 +91,24 @@ export default function HODAnalyticsDashboard() {
       });
       return data?.feedbacks || [];
     },
+    enabled: !!departmentId && user?.role === 'HOD',
   });
 
   // Initial load
   useEffect(() => {
-    if (departmentId) {
+    if (departmentId && user?.role === 'HOD') {
       fetchDepartmentAnalytics(departmentId);
     }
-  }, [departmentId, fetchDepartmentAnalytics]);
+  }, [departmentId, fetchDepartmentAnalytics, user]);
+
+  // Early return if user is not loaded or is not HOD
+  if (!user || user.role !== 'HOD') {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   const handleApplyFilters = () => {
     if (departmentId) {
@@ -121,9 +152,9 @@ export default function HODAnalyticsDashboard() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Department Analytics</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{t.departmentAnalytics}</h1>
             <p className="text-muted-foreground">
-              Feedback insights for your department
+              {t.feedbackInsights}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -133,7 +164,7 @@ export default function HODAnalyticsDashboard() {
                 onClick={() => navigate('/analytics/hod/pending-approvals')}
               >
                 <Bell className="h-4 w-4 mr-2" />
-                Pending Approvals
+                {t.pendingApprovals}
                 <Badge variant="destructive" className="ml-2">
                   {pendingApprovals.length}
                 </Badge>
@@ -162,7 +193,7 @@ export default function HODAnalyticsDashboard() {
                 className="ml-2"
                 onClick={clearError}
               >
-                Dismiss
+                {t.dismiss}
               </Button>
             </AlertDescription>
           </Alert>
@@ -172,9 +203,9 @@ export default function HODAnalyticsDashboard() {
         {hasStaleData && (
           <Alert>
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Analytics Updating</AlertTitle>
+            <AlertTitle>{t.analyticsUpdating}</AlertTitle>
             <AlertDescription>
-              Recent exam marks were updated. Analytics are being recalculated and will refresh shortly.
+              {t.updatingMessage}
             </AlertDescription>
           </Alert>
         )}
@@ -214,7 +245,7 @@ export default function HODAnalyticsDashboard() {
               {/* Quick Actions */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
+                  <CardTitle>{t.quickActions}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
@@ -223,14 +254,14 @@ export default function HODAnalyticsDashboard() {
                       className="w-full justify-start"
                       onClick={() => navigate('/analytics/hod/at-risk')}
                     >
-                      View All At-Risk Students
+                      {t.viewAllAtRisk}
                     </Button>
                     <Button
                       variant="outline"
                       className="w-full justify-start"
                       onClick={() => navigate('/analytics/hod/pending-approvals')}
                     >
-                      Review Pending Approvals
+                      {t.reviewPendingApprovals}
                       {pendingApprovals && pendingApprovals.length > 0 && (
                         <Badge variant="secondary" className="ml-auto">
                           {pendingApprovals.length}
@@ -248,13 +279,13 @@ export default function HODAnalyticsDashboard() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle>
-                      At-Risk Students (Top 10)
+                      {t.atRiskStudentsTitle}
                     </CardTitle>
                     <Button
                       variant="link"
                       onClick={() => navigate('/analytics/hod/at-risk')}
                     >
-                      View All →
+                      {t.viewAllLink}
                     </Button>
                   </div>
                 </CardHeader>
@@ -299,9 +330,9 @@ export default function HODAnalyticsDashboard() {
         ) : (
           <Card>
             <CardContent className="flex flex-col items-center justify-center h-64">
-              <p className="text-muted-foreground">No analytics data available</p>
+              <p className="text-muted-foreground">{t.noAnalyticsText}</p>
               <Button variant="outline" className="mt-4" onClick={handleRefresh}>
-                Refresh Data
+                {t.refreshData}
               </Button>
             </CardContent>
           </Card>

@@ -36,6 +36,30 @@ interface FeedbackFormProps {
  * - All fields required before submit
  * - Optimistic UI for draft save, waits for backend on submit
  */
+const t = {
+  selectTemplate: "Select Template",
+  templateCannotBeChanged: "Template cannot be changed after creation",
+  chooseFeedbackTemplate: "Choose a feedback template",
+  usingTemplate: "Using template:",
+  cannotBeChanged: "(Cannot be changed)",
+  overallRating: "Overall Rating",
+  starRating: "Star Rating",
+  categoryRatings: "Category Ratings",
+  rateStudentPerformance: "Rate student performance in each category",
+  review: "Review",
+  detailedFeedback: "Detailed feedback for the student (minimum 10 characters)",
+  provideDetailedFeedback: "Provide detailed feedback...",
+  createFeedback: "Create Feedback",
+  editFeedback: "Edit Feedback",
+  viewFeedback: "View Feedback",
+  submitted: "Submitted:",
+  backToList: "Back to List",
+  saving: "Saving...",
+  saveDraft: "Save Draft",
+  submitting: "Submitting...",
+  submitForApproval: "Submit for Approval"
+};
+
 export function FeedbackForm({
   mode,
   feedback,
@@ -70,7 +94,16 @@ export function FeedbackForm({
     }
   }, [feedback]);
 
-  const selectedTemplate = (templates.find(t => t.id === selectedTemplateId) || feedback?.template) as FeedbackTemplate | undefined;
+  // Synchronize other form states when feedback changes
+  useEffect(() => {
+    if (feedback) {
+      setSelectedTemplateId(feedback.templateId || '');
+      setStarRating(feedback.starRating || 0);
+      setReviewText(feedback.reviewText || '');
+    }
+  }, [feedback]);
+
+  const selectedTemplate = (templates?.find(t => t.id === selectedTemplateId) || feedback?.template) as FeedbackTemplate | undefined;
   
   // Derived categories list for robust display and validation
   const categories = selectedTemplate?.categories || 
@@ -232,23 +265,23 @@ export function FeedbackForm({
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold">
-            {mode === 'create' && 'Create Feedback'}
-            {mode === 'edit' && 'Edit Feedback'}
-            {mode === 'view' && 'View Feedback'}
+            {mode === 'create' && t.createFeedback}
+            {mode === 'edit' && t.editFeedback}
+            {mode === 'view' && t.viewFeedback}
           </h2>
           {feedback && (
             <div className="flex items-center gap-2 mt-2">
               <FeedbackStatusBadge status={feedback.status} />
               {feedback.submittedAt && (
                 <span className="text-sm text-muted-foreground">
-                  Submitted: {new Date(feedback.submittedAt).toLocaleDateString()}
+                  {t.submitted} {new Date(feedback.submittedAt).toLocaleDateString()}
                 </span>
               )}
             </div>
           )}
         </div>
         <Button variant="outline" onClick={() => navigate('/feedback/teacher/assigned')}>
-          Back to List
+          {t.backToList}
         </Button>
       </div>
 
@@ -278,15 +311,15 @@ export function FeedbackForm({
       {mode === 'create' && (
         <Card>
           <CardHeader>
-            <CardTitle>Select Template</CardTitle>
+            <CardTitle>{t.selectTemplate}</CardTitle>
             <CardDescription>
-              Template cannot be changed after creation
+              {t.templateCannotBeChanged}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
               <SelectTrigger>
-                <SelectValue placeholder="Choose a feedback template" />
+                <SelectValue placeholder={t.chooseFeedbackTemplate} />
               </SelectTrigger>
               <SelectContent>
                 {templates.map(template => (
@@ -304,7 +337,7 @@ export function FeedbackForm({
       {(mode === 'edit' || mode === 'view') && selectedTemplate && (
         <Alert>
           <AlertDescription>
-            Using template: <strong>{selectedTemplate.name}</strong> (Cannot be changed)
+            {t.usingTemplate} <strong>{selectedTemplate.name}</strong> {t.cannotBeChanged}
           </AlertDescription>
         </Alert>
       )}
@@ -312,11 +345,11 @@ export function FeedbackForm({
       {/* Overall Rating */}
       <Card>
         <CardHeader>
-          <CardTitle>Overall Rating</CardTitle>
+          <CardTitle>{t.overallRating}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            <Label>Star Rating</Label>
+            <Label>{t.starRating}</Label>
             <StarRatingInput
               value={starRating}
               onChange={setStarRating}
@@ -331,8 +364,8 @@ export function FeedbackForm({
       {categories.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Category Ratings</CardTitle>
-            <CardDescription>Rate student performance in each category</CardDescription>
+            <CardTitle>{t.categoryRatings}</CardTitle>
+            <CardDescription>{t.rateStudentPerformance}</CardDescription>
           </CardHeader>
           <CardContent>
             <CategoryRatings
@@ -348,15 +381,15 @@ export function FeedbackForm({
       {/* Review Text */}
       <Card>
         <CardHeader>
-          <CardTitle>Review</CardTitle>
-          <CardDescription>Detailed feedback for the student (minimum 10 characters)</CardDescription>
+          <CardTitle>{t.review}</CardTitle>
+          <CardDescription>{t.detailedFeedback}</CardDescription>
         </CardHeader>
         <CardContent>
           <Textarea
             value={reviewText}
             onChange={(e) => setReviewText(e.target.value)}
             disabled={isReadOnly}
-            placeholder="Provide detailed feedback..."
+            placeholder={t.provideDetailedFeedback}
             rows={6}
             className="resize-none"
           />
@@ -374,12 +407,12 @@ export function FeedbackForm({
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
+                {t.saving}
               </>
             ) : (
               <>
                 <Save className="h-4 w-4 mr-2" />
-                Save Draft
+                {t.saveDraft}
               </>
             )}
           </Button>
@@ -391,12 +424,12 @@ export function FeedbackForm({
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Submitting...
+                  {t.submitting}
                 </>
               ) : (
                 <>
                   <Send className="h-4 w-4 mr-2" />
-                  Submit for Approval
+                  {t.submitForApproval}
                 </>
               )}
             </Button>

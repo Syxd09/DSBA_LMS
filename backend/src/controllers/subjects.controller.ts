@@ -27,11 +27,13 @@ export const getSubjects = async (req: AuthRequest, res: Response) => {
                 where: { hodId: userId }
             });
 
-            if (department) {
+            const targetDepartmentId = department?.id || req.user?.departmentId;
+
+            if (targetDepartmentId) {
                 // Filter subjects by program -> department
                 where.curriculum = {
                     program: {
-                        departmentId: department.id
+                        departmentId: targetDepartmentId
                     }
                 };
             } else {
