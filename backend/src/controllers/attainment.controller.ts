@@ -278,10 +278,14 @@ export const getAttainmentSummary = async (req: AuthRequest, res: Response) => {
             byStatus: {} as Record<string, number>
         };
 
+        const byStatus = new Map<string, number>();
+
         for (const a of attainments) {
             summary.total += a._count;
-            summary.byStatus[a.status] = a._count;
+            byStatus.set(a.status, a._count);
         }
+
+        summary.byStatus = Object.fromEntries(byStatus);
 
         res.json(summary);
     } catch (error) {

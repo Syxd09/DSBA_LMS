@@ -98,7 +98,7 @@ export const getAttainmentReport = async (req: AuthRequest, res: Response) => {
             }
         });
 
-        const bloomAttainmentMap: Record<string, { attained: number, total: number }> = {};
+        const bloomAttainmentMap = new Map<string, { attained: number, total: number }>();
         const bloomLevels = [...new Set(subQuestions.map(sq => sq.bloomLevel))];
 
         bloomLevels.forEach(level => {
@@ -117,10 +117,10 @@ export const getAttainmentReport = async (req: AuthRequest, res: Response) => {
                 }
             });
 
-            bloomAttainmentMap[level] = {
+            bloomAttainmentMap.set(level, {
                 attained: levelPassCount,
                 total: uniqueStudents.length
-            };
+            });
         });
 
         res.json({
@@ -142,7 +142,7 @@ export const getAttainmentReport = async (req: AuthRequest, res: Response) => {
             attainment: {
                 co: detailedCoStats,
                 po: poAttainments,
-                bloom: bloomAttainmentMap, // Added Bloom's data
+                bloom: Object.fromEntries(bloomAttainmentMap), // Added Bloom's data
                 rawCoRecords: coAttainments
             }
         });

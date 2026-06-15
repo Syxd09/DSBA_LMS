@@ -1,4 +1,5 @@
 import { PrismaClient, Prisma } from '@prisma/client';
+import prisma from '../services/db';
 
 /**
  * Audit log data structure
@@ -67,8 +68,6 @@ export async function logAudit(
  */
 export async function logViolation(data: ViolationLogData): Promise<void> {
     try {
-        const prisma = (await import('../services/db')).default;
-
         // Create audit log for violation
         await prisma.auditLog.create({
             data: {

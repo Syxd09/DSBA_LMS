@@ -2,7 +2,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../services/db';
-import * as bcrypt from 'bcrypt';
+import bcrypt from 'bcrypt';
 import { Role } from '@prisma/client';
 
 export const getUsers = async (req: AuthRequest, res: Response) => {

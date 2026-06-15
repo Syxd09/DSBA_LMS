@@ -589,13 +589,13 @@ export const getAtRiskStudents = async (req: AuthRequest, res: Response) => {
 
             const { percentage, risk, examsCompleted } = await calculateStudentRisk(enrollment.studentId);
 
-            const riskPriority: Record<string, number> = { 'low': 0, 'medium': 1, 'high': 2, 'critical': 3 };
+            const riskPriority = new Map<string, number>([['low', 0], ['medium', 1], ['high', 2], ['critical', 3]]);
             const riskLevelStr = typeof riskLevel === 'string' ? riskLevel.toLowerCase() : '';
-            const requestedPriority = ['low', 'medium', 'high', 'critical'].includes(riskLevelStr)
-                ? riskPriority[riskLevelStr]
+            const requestedPriority = riskPriority.has(riskLevelStr)
+                ? riskPriority.get(riskLevelStr)!
                 : 1;
-            const studentPriority = ['low', 'medium', 'high', 'critical'].includes(risk)
-                ? riskPriority[risk]
+            const studentPriority = riskPriority.has(risk)
+                ? riskPriority.get(risk)!
                 : 0;
 
             if (studentPriority >= requestedPriority) {
@@ -613,13 +613,13 @@ export const getAtRiskStudents = async (req: AuthRequest, res: Response) => {
             }
         }
 
-        const riskOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+        const riskOrder = new Map<string, number>([['critical', 0], ['high', 1], ['medium', 2], ['low', 3]]);
         atRiskStudents.sort((a: any, b: any) => {
             const aRisk = String(a.riskLevel).toLowerCase();
             const bRisk = String(b.riskLevel).toLowerCase();
 
-            const aVal = ['critical', 'high', 'medium', 'low'].includes(aRisk) ? riskOrder[aRisk] : 4;
-            const bVal = ['critical', 'high', 'medium', 'low'].includes(bRisk) ? riskOrder[bRisk] : 4;
+            const aVal = riskOrder.has(aRisk) ? riskOrder.get(aRisk)! : 4;
+            const bVal = riskOrder.has(bRisk) ? riskOrder.get(bRisk)! : 4;
 
             const riskDiff = aVal - bVal;
             if (riskDiff !== 0) return riskDiff;

@@ -1,4 +1,6 @@
 import prisma from './db';
+import fs from 'fs';
+import path from 'path';
 
 export const AuditService = {
     log: async (
@@ -62,11 +64,8 @@ export const AuditService = {
      */
     async logToFallback(data: any) {
         try {
-            const fs = require('fs');
-            const path = require('path');
-
-            const logDir = path.join(__dirname, '..', '..', 'logs');
-            const logFile = path.join(logDir, 'audit-fallback.log');
+            const logDir = path.normalize(path.join(__dirname, '..', '..', 'logs'));
+            const logFile = path.normalize(path.join(logDir, 'audit-fallback.log'));
 
             // Ensure logs directory exists
             if (!fs.existsSync(logDir)) {

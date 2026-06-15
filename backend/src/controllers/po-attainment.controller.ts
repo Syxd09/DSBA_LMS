@@ -306,16 +306,18 @@ export const getPOTrends = async (req: AuthRequest, res: Response) => {
         });
 
         // Group by academicYear and calculate average achievedPercent
-        const yearGroups: Record<string, { sum: number; count: number }> = {};
+        const yearGroups = new Map<string, { sum: number; count: number }>();
         for (const att of poAttainments) {
-            if (!yearGroups[att.academicYear]) {
-                yearGroups[att.academicYear] = { sum: 0, count: 0 };
+            const existing = yearGroups.get(att.academicYear);
+            if (!existing) {
+                yearGroups.set(att.academicYear, { sum: att.achievedPercent, count: 1 });
+            } else {
+                existing.sum += att.achievedPercent;
+                existing.count += 1;
             }
-            yearGroups[att.academicYear].sum += att.achievedPercent;
-            yearGroups[att.academicYear].count += 1;
         }
 
-        const trendPoints = Object.entries(yearGroups).map(([year, info]) => ({
+        const trendPoints = Array.from(yearGroups.entries()).map(([year, info]) => ({
             academicYear: year,
             achievedPercent: Math.round((info.sum / info.count) * 100) / 100
         }));

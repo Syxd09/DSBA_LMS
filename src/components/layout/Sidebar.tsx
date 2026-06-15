@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   MessageSquare,
   UserCheck,
+  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -36,6 +37,7 @@ interface SidebarProps {
 const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon: any }>> = {
   admin: [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Departments', href: '/departments', icon: Building2},
     { name: 'Programs', href: '/programs', icon: GraduationCap },
     { name: 'Cohorts', href: '/cohorts', icon: Users },
     { name: 'Subjects', href: '/subjects', icon: BookOpen },
@@ -56,6 +58,7 @@ const navigationConfig: Record<AppRole, Array<{ name: string; href: string; icon
   ],
   principal: [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Departments', href: '/departments', icon: Building2},
     { name: 'Programs', href: '/programs', icon: GraduationCap },
     { name: 'Cohorts', href: '/cohorts', icon: Users },
     { name: 'Subjects', href: '/subjects', icon: BookOpen },

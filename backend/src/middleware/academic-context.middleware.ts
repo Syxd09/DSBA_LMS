@@ -98,8 +98,17 @@ export const requireAcademicContext = (options: ContextOptions = {}) => {
 
             // Validate required fields
             const missingFields: string[] = [];
+            const getContextField = (f: string): unknown => {
+                switch (f) {
+                    case 'departmentId': return context.departmentId;
+                    case 'cohortId': return context.cohortId;
+                    case 'semester': return context.semester;
+                    case 'academicYear': return context.academicYear;
+                    default: return undefined;
+                }
+            };
             for (const field of opts.required || []) {
-                if (!context[field]) {
+                if (!getContextField(field)) {
                     missingFields.push(field);
                 }
             }

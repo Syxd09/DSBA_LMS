@@ -4,22 +4,22 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import compression from 'compression';
-const timeout = require('express-timeout-handler');
+// @ts-ignore
+import timeout from 'express-timeout-handler';
 import { apiLimiter, authLimiter, calculationLimiter } from './middleware/rate-limit.middleware';
 import prisma from './services/db';
+import { logger } from './utils/logger';
 
 
 const app = express();
 
-// Environment validation on startup
 function validateEnvironment() {
-    const required = ['DATABASE_URL', 'JWT_SECRET'];
     const missing: string[] = [];
-
-    for (const varName of required) {
-        if (!process.env[varName]) {
-            missing.push(varName);
-        }
+    if (!process.env.DATABASE_URL) {
+        missing.push('DATABASE_URL');
+    }
+    if (!process.env.JWT_SECRET) {
+        missing.push('JWT_SECRET');
     }
 
     if (missing.length > 0) {
@@ -260,9 +260,7 @@ app.use(databaseErrorHandler);
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     console.error('Unhandled error:', err.stack || err.message);
     // Also log to file
-    import('./utils/logger').then(({ logger }) => {
-        logger.error(`${err.message}\n${err.stack}`);
-    });
+    logger.error(`${err.message}\n${err.stack}`);
 
     res.status(500).json({
         message: process.env.NODE_ENV === 'production'

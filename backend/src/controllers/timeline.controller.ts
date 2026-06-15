@@ -81,39 +81,41 @@ export const getActivitySummary = async (req: AuthRequest, res: Response) => {
         });
 
         // 1. Calculate action counts (group by action)
-        const actionMap: Record<string, number> = {};
+        const actionMap = new Map<string, number>();
         for (const log of logs) {
-            actionMap[log.action] = (actionMap[log.action] || 0) + 1;
+            actionMap.set(log.action, (actionMap.get(log.action) || 0) + 1);
         }
-        const actionCounts = Object.entries(actionMap).map(([action, count]) => ({
+        const actionCounts = Array.from(actionMap.entries()).map(([action, count]) => ({
             action,
             count
         }));
 
         // 2. Daily activity (group by date)
-        const dailyMap: Record<string, number> = {};
+        const dailyMap = new Map<string, number>();
         for (const log of logs) {
             const dateStr = log.createdAt.toISOString().split('T')[0];
-            dailyMap[dateStr] = (dailyMap[dateStr] || 0) + 1;
+            dailyMap.set(dateStr, (dailyMap.get(dateStr) || 0) + 1);
         }
-        const dailyActivity = Object.entries(dailyMap).map(([date, count]) => ({
+        const dailyActivity = Array.from(dailyMap.entries()).map(([date, count]) => ({
             date,
             count
         })).sort((a, b) => a.date.localeCompare(b.date));
 
         // 3. Active users (group by userId/userName and count)
-        const userActivityMap: Record<string, { userName: string; role: string; count: number }> = {};
+        const userActivityMap = new Map<string, { userName: string; role: string; count: number }>();
         for (const log of logs) {
-            if (!userActivityMap[log.userId]) {
-                userActivityMap[log.userId] = {
+            const existing = userActivityMap.get(log.userId);
+            if (!existing) {
+                userActivityMap.set(log.userId, {
                     userName: log.user?.fullName || 'Unknown User',
                     role: log.user?.role || 'SYSTEM',
-                    count: 0
-                };
+                    count: 1
+                });
+            } else {
+                existing.count += 1;
             }
-            userActivityMap[log.userId].count += 1;
         }
-        const activeUsers = Object.entries(userActivityMap).map(([userId, info]) => ({
+        const activeUsers = Array.from(userActivityMap.entries()).map(([userId, info]) => ({
             userId,
             userName: info.userName,
             role: info.role,

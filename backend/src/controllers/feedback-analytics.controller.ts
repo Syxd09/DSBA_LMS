@@ -232,13 +232,23 @@ export const getDepartmentAnalytics = async (req: AuthRequest, res: Response) =>
             }
 
             // Risk distribution
-            if (analytics.riskLevel) {
-                riskDistribution[analytics.riskLevel as keyof typeof riskDistribution]++;
+            if (analytics.riskLevel === 'CRITICAL') {
+                riskDistribution.CRITICAL++;
+            } else if (analytics.riskLevel === 'HIGH') {
+                riskDistribution.HIGH++;
+            } else if (analytics.riskLevel === 'MODERATE') {
+                riskDistribution.MODERATE++;
+            } else if (analytics.riskLevel === 'STABLE') {
+                riskDistribution.STABLE++;
             }
 
             // Band distribution
-            if (analytics.marksBand) {
-                bandDistribution[analytics.marksBand as keyof typeof bandDistribution]++;
+            if (analytics.marksBand === 'HIGH') {
+                bandDistribution.HIGH++;
+            } else if (analytics.marksBand === 'MEDIUM') {
+                bandDistribution.MEDIUM++;
+            } else if (analytics.marksBand === 'LOW') {
+                bandDistribution.LOW++;
             }
 
             // Collect at-risk students
@@ -376,8 +386,14 @@ export const getCollegeAnalytics = async (req: AuthRequest, res: Response) => {
             }
 
             // Risk distribution
-            if (analytics.riskLevel) {
-                riskDistribution[analytics.riskLevel as keyof typeof riskDistribution]++;
+            if (analytics.riskLevel === 'CRITICAL') {
+                riskDistribution.CRITICAL++;
+            } else if (analytics.riskLevel === 'HIGH') {
+                riskDistribution.HIGH++;
+            } else if (analytics.riskLevel === 'MODERATE') {
+                riskDistribution.MODERATE++;
+            } else if (analytics.riskLevel === 'STABLE') {
+                riskDistribution.STABLE++;
             }
 
             // Department-wise statistics

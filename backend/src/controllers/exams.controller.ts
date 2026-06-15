@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth.middleware';
 import prisma from '../services/db';
 import { createAuditLog } from '../middleware/audit.middleware';
+import { logger } from '../utils/logger';
 
 interface SubQuestionInput {
     label: string;
@@ -414,9 +415,7 @@ export const updateExamStructure = async (req: AuthRequest, res: Response) => {
         res.json({ message: 'Exam structure updated' });
     } catch (error: any) {
         // Log deep error with stack trace for debugging
-        import('../utils/logger').then(({ logger }) => {
-            logger.error(`❌ Error updating exam structure for ID ${req.params.id}: ${error.message}\n${error.stack}`);
-        });
+        logger.error(`❌ Error updating exam structure for ID ${req.params.id}: ${error.message}\n${error.stack}`);
         
         console.error('Error updating exam structure:', error);
         res.status(500).json({

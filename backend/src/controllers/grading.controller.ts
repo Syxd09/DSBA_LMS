@@ -184,20 +184,20 @@ export const calculateGrades = async (req: AuthRequest, res: Response) => {
         const results = [];
 
         for (const student of students) {
-            const studentExamMarks: Record<string, number> = {};
+            const studentExamMarks = new Map<string, number>();
 
             // Aggregate marks by exam type
             exams.forEach(exam => {
                 const marksForStudent = exam.studentMarks.filter(m => m.studentId === student.id);
                 const total = marksForStudent.reduce((sum, m) => sum + (Number(m.marks) ?? 0), 0);
 
-                studentExamMarks[exam.examType] = total;
+                studentExamMarks.set(exam.examType, total);
             });
 
             // Calculate final marks (Best of 2 internals + External)
-            const internal1 = studentExamMarks['INTERNAL_1'] ?? 0;
-            const internal2 = studentExamMarks['INTERNAL_2'] ?? 0;
-            const external = studentExamMarks['EXTERNAL'] ?? 0;
+            const internal1 = studentExamMarks.get('INTERNAL_1') ?? 0;
+            const internal2 = studentExamMarks.get('INTERNAL_2') ?? 0;
+            const external = studentExamMarks.get('EXTERNAL') ?? 0;
             
             // Get max marks for the involved exams to calculate correct percentage
             // Default to institutional standards if exams are missing
@@ -236,22 +236,23 @@ export const calculateGrades = async (req: AuthRequest, res: Response) => {
             }
 
             // Calculate CO Attainment for this student
-            const studentCoMarks: Record<string, { obtained: number, max: number }> = {};
+            const studentCoMarks = new Map<string, { obtained: number, max: number }>();
             exams.forEach(exam => {
                 const marksForStudent = exam.studentMarks.filter(m => m.studentId === student.id);
                 marksForStudent.forEach(mark => {
                     const coId = mark.subQuestion?.coId || mark.subQuestion?.question?.coId;
                     if (coId) {
-                        if (!studentCoMarks[coId]) {
-                            studentCoMarks[coId] = { obtained: 0, max: 0 };
+                        if (!studentCoMarks.has(coId)) {
+                            studentCoMarks.set(coId, { obtained: 0, max: 0 });
                         }
-                        studentCoMarks[coId].obtained += Number(mark.marks) || 0;
-                        studentCoMarks[coId].max += mark.subQuestion?.maxMarks || 0;
+                        const entry = studentCoMarks.get(coId)!;
+                        entry.obtained += Number(mark.marks) || 0;
+                        entry.max += mark.subQuestion?.maxMarks || 0;
                     }
                 });
             });
 
-            const coAttainment = Object.entries(studentCoMarks).map(([id, stats]) => ({
+            const coAttainment = Array.from(studentCoMarks.entries()).map(([id, stats]) => ({
                 id,
                 percentage: stats.max > 0 ? (stats.obtained / stats.max) * 100 : 0
             }));

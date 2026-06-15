@@ -28,11 +28,11 @@ async function main() {
     });
 
     console.log(`Total Enrollments: ${enrollments.length}`);
-    const bySem: any = {};
+    const bySem = new Map<number, number>();
     enrollments.forEach(e => {
-        bySem[e.semester] = (bySem[e.semester] || 0) + 1;
+        bySem.set(e.semester, (bySem.get(e.semester) || 0) + 1);
     });
-    console.log('Enrollments by Semester:', bySem);
+    console.log('Enrollments by Semester:', Object.fromEntries(bySem));
 
     if (enrollments.length > 0) {
         console.log('Sample Student:', enrollments[0]);

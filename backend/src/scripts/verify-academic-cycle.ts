@@ -1,7 +1,7 @@
 
 import { PrismaClient } from '@prisma/client';
 import axios from 'axios';
-import * as bcrypt from 'bcrypt';
+import bcrypt from 'bcrypt';
 
 
 const prisma = new PrismaClient();
@@ -21,10 +21,14 @@ async function login(email: string, password = 'password123') {
 async function authenticatedRequest(method: 'get' | 'post' | 'put' | 'delete', url: string, token: string, data?: any) {
     try {
         const config = { headers: { Authorization: `Bearer ${token}` } };
-        if (method === 'get' || method === 'delete') {
-            return await axios[method](`${BASE_URL}${url}`, config);
+        if (method === 'get') {
+            return await axios.get(`${BASE_URL}${url}`, config);
+        } else if (method === 'delete') {
+            return await axios.delete(`${BASE_URL}${url}`, config);
+        } else if (method === 'post') {
+            return await axios.post(`${BASE_URL}${url}`, data, config);
         } else {
-            return await axios[method](`${BASE_URL}${url}`, data, config);
+            return await axios.put(`${BASE_URL}${url}`, data, config);
         }
     } catch (error: any) {
         // Return null for 403/400 to allow negative testing, else throw

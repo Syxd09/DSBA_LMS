@@ -98,17 +98,17 @@ export const getFeedbackStats = async (req: AuthRequest, res: Response) => {
         const avgRating = totalRating / count;
 
         // Count improvements tags
-        const improvementCounts: Record<string, number> = {};
+        const improvementCountsMap = new Map<string, number>();
         feedbacks.forEach(f => {
             f.improvements.forEach(tag => {
-                improvementCounts[tag] = (improvementCounts[tag] || 0) + 1;
+                improvementCountsMap.set(tag, (improvementCountsMap.get(tag) || 0) + 1);
             });
         });
 
         res.json({
             count,
             avgRating: parseFloat(avgRating.toFixed(1)),
-            improvementCounts
+            improvementCounts: Object.fromEntries(improvementCountsMap)
         });
 
     } catch (error) {

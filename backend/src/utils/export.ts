@@ -24,7 +24,14 @@ export const toCSV = <T extends Record<string, unknown>>(
 
     // Build data rows
     const rows = data.map(item =>
-        cols.map(c => escapeCSV(String(item[c.key] ?? ''))).join(',')
+        cols.map(c => {
+            const key = String(c.key);
+            if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+                return '';
+            }
+            const value = Reflect.get(item, key);
+            return escapeCSV(String(value ?? ''));
+        }).join(',')
     );
 
     return [header, ...rows].join('\n');

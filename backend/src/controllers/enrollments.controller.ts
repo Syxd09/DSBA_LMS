@@ -396,8 +396,9 @@ export const bulkEnroll = async (req: AuthRequest, res: Response) => {
             errors: [] as { row: number; email: string; error: string }[]
         };
 
-        for (let i = 0; i < students.length; i++) {
-            const s = students[i];
+        let rowIndex = 0;
+        for (const s of students) {
+            const i = rowIndex++;
             try {
                 if (!s.email || !s.registrationNumber) {
                     results.errors.push({

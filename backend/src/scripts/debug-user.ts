@@ -1,6 +1,6 @@
 
 import { PrismaClient } from '@prisma/client';
-import * as fs from 'fs';
+import fs from 'fs';
 
 const prisma = new PrismaClient();
 

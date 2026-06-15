@@ -21,6 +21,18 @@ export const activeRecordFilter = {
     deletedAt: null,
 };
 
+const getModelClient = (prisma: PrismaClient, model: SoftDeletableModel): any => {
+    switch (model) {
+        case 'user': return prisma.user;
+        case 'department': return prisma.department;
+        case 'program': return prisma.program;
+        case 'cohort': return prisma.cohort;
+        case 'subject': return prisma.subject;
+        default:
+            throw new Error(`Unsupported soft delete model: ${model}`);
+    }
+};
+
 /**
  * Soft delete a record by setting isActive=false and deletedAt=now
  */
@@ -29,7 +41,7 @@ export const softDelete = async <T extends { id: string }>(
     model: SoftDeletableModel,
     id: string
 ): Promise<T> => {
-    const modelClient = prisma[model] as any;
+    const modelClient = getModelClient(prisma, model);
 
     return await modelClient.update({
         where: { id },
@@ -48,7 +60,7 @@ export const restoreRecord = async <T extends { id: string }>(
     model: SoftDeletableModel,
     id: string
 ): Promise<T> => {
-    const modelClient = prisma[model] as any;
+    const modelClient = getModelClient(prisma, model);
 
     return await modelClient.update({
         where: { id },
@@ -68,7 +80,7 @@ export const findActiveRecords = async <T>(
     additionalWhere: Record<string, any> = {},
     include?: Record<string, any>
 ): Promise<T[]> => {
-    const modelClient = prisma[model] as any;
+    const modelClient = getModelClient(prisma, model);
 
     return await modelClient.findMany({
         where: {
@@ -88,7 +100,7 @@ export const findDeletedRecords = async <T>(
     additionalWhere: Record<string, any> = {},
     include?: Record<string, any>
 ): Promise<T[]> => {
-    const modelClient = prisma[model] as any;
+    const modelClient = getModelClient(prisma, model);
 
     return await modelClient.findMany({
         where: {

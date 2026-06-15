@@ -8,13 +8,13 @@ const USERS = {
     STUDENT: { email: 'student.cse@college.edu', password: 'password123' }
 };
 
-let tokens: any = {};
+const tokens = new Map<string, string>();
 
 async function loginAll() {
     for (const [role, creds] of Object.entries(USERS)) {
         try {
             const res = await axios.post(`${API_URL}/auth/login`, creds);
-            tokens[role] = res.data.token;
+            tokens.set(role, res.data.token);
             console.log(`✅ Logged in as ${role}`);
         } catch (e) {
             console.error(`❌ Login failed for ${role}`);
@@ -23,17 +23,19 @@ async function loginAll() {
 }
 
 async function verifyAcademicFlow() {
-    if (!tokens.ADMIN || !tokens.TEACHER) return;
+    const adminToken = tokens.get('ADMIN');
+    const teacherToken = tokens.get('TEACHER');
+    if (!adminToken || !teacherToken) return;
 
     console.log('\n🔄 1. SUBJECT & CO CREATION (Admin/HOD)');
-    const depts = await axios.get(`${API_URL}/departments`, { headers: { Authorization: `Bearer ${tokens.ADMIN}` } });
+    const depts = await axios.get(`${API_URL}/departments`, { headers: { Authorization: `Bearer ${adminToken}` } });
     const cse = depts.data.find((d: any) => d.code === 'CSE');
     if (!cse) { console.error('CSE Dept not found'); return; }
 
     // 1.1 Create Curriculum Version (REQUIRED)
     let curriculumVersionId;
     // Need program ID first.
-    const progs = await axios.get(`${API_URL}/programs?departmentId=${cse.id}`, { headers: { Authorization: `Bearer ${tokens.ADMIN}` } });
+    const progs = await axios.get(`${API_URL}/programs?departmentId=${cse.id}`, { headers: { Authorization: `Bearer ${adminToken}` } });
     const progId = progs.data[0]?.id; // Assuming B.Tech exists from previous script
 
     if (progId) {
@@ -42,7 +44,7 @@ async function verifyAcademicFlow() {
                 programId: progId,
                 versionName: 'v1-2025',
                 effectiveFrom: 2025
-            }, { headers: { Authorization: `Bearer ${tokens.ADMIN}` } });
+            }, { headers: { Authorization: `Bearer ${adminToken}` } });
             curriculumVersionId = currRes.data.id;
             console.log('✅ Curriculum Version Created:', curriculumVersionId);
         } catch (e: any) {
@@ -65,7 +67,7 @@ async function verifyAcademicFlow() {
         if (curriculumVersionId) payload.curriculumVersionId = curriculumVersionId;
         else payload.departmentId = cse.id; // Fallback attempt
 
-        const subRes = await axios.post(`${API_URL}/subjects`, payload, { headers: { Authorization: `Bearer ${tokens.ADMIN}` } });
+        const subRes = await axios.post(`${API_URL}/subjects`, payload, { headers: { Authorization: `Bearer ${adminToken}` } });
         subjectId = subRes.data.id;
         console.log('✅ Subject Created:', subjectId);
     } catch (e: any) {
@@ -73,7 +75,7 @@ async function verifyAcademicFlow() {
         // Try finding existing
         try {
             const existSub = await axios.get(`${API_URL}/subjects`, {
-                headers: { Authorization: `Bearer ${tokens.ADMIN}` },
+                headers: { Authorization: `Bearer ${adminToken}` },
                 params: { code: 'CS201' }
             });
             if (existSub.data.length > 0) {
@@ -96,7 +98,7 @@ async function verifyAcademicFlow() {
             subjectId,
             code: 'CO1',
             description: 'Understand Arrays'
-        }, { headers: { Authorization: `Bearer ${tokens.TEACHER}` } });
+        }, { headers: { Authorization: `Bearer ${teacherToken}` } });
         console.log('✅ CO1 Created (Teacher)');
     } catch (e: any) {
         console.log(`ℹ️ Teacher cannot create CO (Expected?): ${e.response?.status}`);
@@ -106,7 +108,7 @@ async function verifyAcademicFlow() {
                 subjectId,
                 code: 'CO1',
                 description: 'Understand Arrays'
-            }, { headers: { Authorization: `Bearer ${tokens.ADMIN}` } });
+            }, { headers: { Authorization: `Bearer ${adminToken}` } });
             console.log('✅ CO1 Created (Admin)');
         } catch (err: any) {
             console.error('❌ CO Creation Failed (Admin):', err.response?.data);
@@ -123,7 +125,7 @@ async function verifyAcademicFlow() {
             maxMarks: 50,
             semester: 3,
             examDate: new Date().toISOString()
-        }, { headers: { Authorization: `Bearer ${tokens.TEACHER}` } });
+        }, { headers: { Authorization: `Bearer ${teacherToken}` } });
         console.log('✅ Exam Created:', examRes.data.id);
     } catch (e: any) {
         console.error('❌ Exam Creation Failed:', e.response?.data || e.message);
@@ -135,7 +137,7 @@ async function verifyAcademicFlow() {
         await axios.post(`${API_URL}/marks`, {
             examId: 'dummy-exam-id',
             marks: []
-        }, { headers: { Authorization: `Bearer ${tokens.TEACHER}` } });
+        }, { headers: { Authorization: `Bearer ${teacherToken}` } });
     } catch (e: any) {
         if (e.response?.status === 404 || e.response?.status === 400) {
             console.log('✅ Marks Endpoint Accessible (Teacher) - Got validation error as expected');

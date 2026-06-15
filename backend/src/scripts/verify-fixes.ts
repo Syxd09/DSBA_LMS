@@ -1,6 +1,6 @@
 
 import axios from 'axios';
-import * as fs from 'fs';
+import fs from 'fs';
 
 const API_URL = 'http://localhost:3000/api';
 const USERS = {
