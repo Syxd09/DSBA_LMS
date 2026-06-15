@@ -77,12 +77,12 @@ async function setupEnvironment() {
     const sEmail = `student.${generateId()}@audit.edu`;
     const enroll = await axios.post(`${API_URL}/enrollments`, {
         cohortId, departmentId: deptId, semester: 1,
-        rollNumber: `R-${generateId()}`, email: sEmail, fullName: 'Audit Student'
+        rollNumber: `R-${generateId()}`, registrationNumber: `R-${generateId()}`, email: sEmail, fullName: 'Audit Student'
     }, { headers });
     studentId = enroll.data.studentId || enroll.data.student?.id;
 
     // Login Student
-    const sLogin = await axios.post(`${API_URL}/auth/login`, { email: sEmail, password: 'student@123' }); // Default password logic
+    const sLogin = await axios.post(`${API_URL}/auth/login`, { email: sEmail, password: 'Student@123' }); // Default password logic
     studentToken = sLogin.data.token;
 
     console.log('    Environment Ready');
@@ -98,22 +98,20 @@ async function auditOutcomeCalculation() {
     // 2. Create CO & Exam
     // Add CO manually if needed or assume subject has COs? 
     // The subject creation might not have added COs. Let's add one.
-    await axios.post(`${API_URL}/course-outcomes`, { subjectId, coNumber: 1, description: 'Understand Audit', bloomLevel: 'Understand' }, { headers });
+    const coRes = await axios.post(`${API_URL}/course-outcomes`, { subjectId, coNumber: 1, description: 'Understand Audit', bloomLevel: 'Understand' }, { headers });
+    const coId = coRes.data.id;
 
     // Create Exam
-    const exam = await axios.post(`${API_URL}/exams`, { subjectId, cohortId, examType: 'Audit Exam', maxMarks: 50 }, { headers });
+    const exam = await axios.post(`${API_URL}/exams`, { subjectId, cohortId, examType: 'Audit Exam', maxMarks: 50, semester: 1, academicYear: '2024-25' }, { headers });
     examId = exam.data.id;
 
     // Structure
-    await axios.put(`${API_URL}/exams/${examId}/structure`, {
+    await axios.post(`${API_URL}/exams/${examId}/structure`, {
         sections: [{
             name: 'A', sequence: 1, maxMarks: 50, requiredQuestions: 1,
-            questions: [{ sequence: 1, maxMarks: 50, bloomLevel: 'Understand', subQuestions: [{ label: '1', maxMarks: 50, bloomLevel: 'Understand' }] }]
+            questions: [{ sequence: 1, maxMarks: 50, bloomLevel: 'Understand', coId, subQuestions: [{ label: '1', maxMarks: 50, bloomLevel: 'Understand', coId }] }]
         }]
     }, { headers });
-
-    // Publish
-    await axios.patch(`${API_URL}/exams/${examId}/status`, { status: 'PUBLISHED' }, { headers });
 
     // Enter Marks (50/50 = 100%)
     const examDetails = await axios.get(`${API_URL}/exams/${examId}`, { headers });
@@ -121,12 +119,16 @@ async function auditOutcomeCalculation() {
 
     await axios.post(`${API_URL}/marks/save`, { examId, marks: [{ studentId, subQuestionId: subQId, marks: 50 }] }, { headers });
 
+    // Publish
+    await axios.post(`${API_URL}/exams/${examId}/publish`, {}, { headers });
+
     // Calculate Outcome
     // Endpoint: POST /api/attainment/calculate/co
     const attRes = await axios.post(`${API_URL}/attainment/calculate/co`, { subjectId, cohortId, semester: 1, academicYear: '2024-25' }, { headers });
 
     // Verify
-    const attainment = attRes.data.find((a: any) => a.coId === examDetails.data.sections[0].questions[0].coId || true); // Just grab first
+    const results = Array.isArray(attRes.data) ? attRes.data : (attRes.data.results || []);
+    const attainment = results.find((a: any) => a.coId === examDetails.data.sections[0].questions[0].coId || true); // Just grab first
     // Since we created CO 1, we expect 100% pass (1 student, scored 100%, target 60%)
 
     if (attainment && attainment.achievedPercent === 100) {

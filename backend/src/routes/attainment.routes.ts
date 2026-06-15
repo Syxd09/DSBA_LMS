@@ -23,9 +23,14 @@ router.use(authenticateToken);
 // CO Attainment routes
 router.get('/co', getCOAttainment);
 router.post('/co/calculate', validateAttainmentCalculation, calculateCOAttainment);
+router.post('/calculate', validateAttainmentCalculation, calculateCOAttainment);
+router.post('/calculate/co', validateAttainmentCalculation, calculateCOAttainment);
 router.post('/co/submit', submitForReview);
+router.post('/submit-review', submitForReview);
 router.post('/co/approve', approveAttainment);
+router.post('/approve', approveAttainment);
 router.post('/co/lock', lockAttainment);
+router.post('/lock', lockAttainment);
 router.get('/summary', getAttainmentSummary);
 
 // Student Analytics routes - IMPORTANT: specific routes before parameterized ones

@@ -188,7 +188,6 @@ import feedbackAnalyticsRoutes from './routes/feedback-analytics.routes';
 import coPoTraceabilityRoutes from './routes/co-po-traceability.routes';
 import attendanceRoutes from './routes/attendance.routes';
 import reportingRoutes from './routes/reporting.routes';
-import auditRoutes from './routes/audit.routes';
 
 // Auth routes with stricter rate limiting
 app.use('/api/auth', authLimiter, authRoutes);
@@ -226,7 +225,6 @@ app.use('/api/feedback-analytics', feedbackAnalyticsRoutes);
 app.use('/api/co-po-traceability', coPoTraceabilityRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/reports', reportingRoutes);
-app.use('/api/audit-logs', auditRoutes);
 
 // Bulk operations routes
 import bulkRoutes from './routes/bulk.routes';

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -27,11 +27,14 @@ export default function FinalApprovals() {
   const [lockingIds, setLockingIds] = useState<Set<string>>(new Set());
   const availableSemesters = useAvailableSemesters();
 
-  // RBAC:Only Principal/Admin can access
-  if (user?.role !== 'PRINCIPAL' && user?.role !== 'ADMIN') {
-    navigate('/dashboard');
-    return null;
-  }
+  const isAuthorized = user?.role === 'PRINCIPAL' || user?.role === 'ADMIN';
+
+  // RBAC: Only Principal/Admin can access
+  useEffect(() => {
+    if (user && !isAuthorized) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate, isAuthorized]);
 
   // Fetch pending locks (APPROVED feedback)
   const { data, isLoading, error } = useQuery({
@@ -42,6 +45,7 @@ export default function FinalApprovals() {
       );
       return response.feedbacks;
     },
+    enabled: isAuthorized,
   });
 
   // Fetch departments for filter
@@ -51,6 +55,7 @@ export default function FinalApprovals() {
       const { data } = await api.get('/departments');
       return data || [];
     },
+    enabled: isAuthorized,
   });
 
   // Lock mutation
@@ -90,6 +95,11 @@ export default function FinalApprovals() {
       });
     }
   });
+
+  // Safe early return if not authorized (after all hooks have been declared)
+  if (!isAuthorized) {
+    return null;
+  }
 
   const handleLock = async (feedbackId: string) => {
     setLockingIds(prev => new Set(prev).add(feedbackId));

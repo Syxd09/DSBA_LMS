@@ -12,16 +12,37 @@ import { feedbackAnalyticsApi, apiCall } from '@/api/feedbackApi';
 import { StudentAnalytics, RiskLevel } from '@/types/feedback.types';
 import { StarRatingInput } from '@/components/feedback/StarRatingInput';
 
+const t = {
+  studentAnalytics: "Student Analytics",
+  detailedFeedbackInsights: "Detailed feedback insights",
+  backToAtRiskList: "Back to At-Risk List",
+  semesterPrefix: "Semester ",
+  teacher: "Teacher",
+  feedbackRating: "Feedback Rating",
+  averageMarks: "Average Marks",
+  feedbackScore: "Feedback Score",
+  alignmentIndex: "Alignment Index",
+  aligned: "Aligned",
+  misaligned: "Misaligned",
+  categoryInsights: "Category Insights",
+  noAnalyticsAvailable: "No analytics available for this student",
+  calculated: "Calculated:",
+  updating: "(Updating...)"
+};
+
 export default function StudentAnalyticsDetail() {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  const isAuthorized = ['HOD', 'PRINCIPAL', 'ADMIN'].includes(user?.role || '');
+
   // RBAC: Only HOD/Principal/Admin can access
-  if (!['HOD', 'PRINCIPAL', 'ADMIN'].includes(user?.role || '')) {
-    navigate('/dashboard');
-    return null;
-  }
+  useEffect(() => {
+    if (user && !isAuthorized) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate, isAuthorized]);
 
   // Fetch student analytics
   const { data, isLoading, error } = useQuery({
@@ -33,8 +54,13 @@ export default function StudentAnalyticsDetail() {
       );
       return response.analytics;
     },
-    enabled: !!studentId,
+    enabled: !!studentId && isAuthorized,
   });
+
+  // Safe early return if not authorized (after all hooks have been declared)
+  if (!user || !isAuthorized) {
+    return null;
+  }
 
   const getRiskBadgeClass = (risk: RiskLevel) => {
     switch (risk) {
@@ -68,9 +94,9 @@ export default function StudentAnalyticsDetail() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Student Analytics</h1>
-            <p className="text-muted-foreground">
-              Detailed feedback insights
+            <h1 className="text-3xl font-bold tracking-tight">{t.studentAnalytics}</h1>
+            <p className="text-muted-foreground font-medium flex items-center gap-2">
+              {t.detailedFeedbackInsights}
             </p>
           </div>
           <Button
@@ -78,7 +104,7 @@ export default function StudentAnalyticsDetail() {
             onClick={() => navigate('/analytics/hod/at-risk')}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to At-Risk List
+            {t.backToAtRiskList}
           </Button>
         </div>
 
@@ -109,7 +135,7 @@ export default function StudentAnalyticsDetail() {
                         {analytics.subject.code} - {analytics.subject.name}
                       </CardTitle>
                       <div className="flex items-center gap-2 mt-2">
-                        <Badge variant="secondary">Semester {analytics.semester}</Badge>
+                        <Badge variant="secondary">{t.semesterPrefix}{analytics.semester}</Badge>
                         {analytics.cohort && (
                           <Badge variant="outline">{analytics.cohort.name}</Badge>
                         )}
@@ -128,13 +154,13 @@ export default function StudentAnalyticsDetail() {
                     {/* Teacher & Rating */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Teacher</p>
+                        <p className="text-sm text-muted-foreground mb-1">{t.teacher}</p>
                         <p className="font-medium">
                           {analytics.teacher.fullName || analytics.teacher.name}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Feedback Rating</p>
+                        <p className="text-sm text-muted-foreground mb-1">{t.feedbackRating}</p>
                         <StarRatingInput
                           value={analytics.starRating}
                           onChange={() => {}}
@@ -149,7 +175,7 @@ export default function StudentAnalyticsDetail() {
                       <Card>
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Average Marks
+                            {t.averageMarks}
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -171,7 +197,7 @@ export default function StudentAnalyticsDetail() {
                       <Card>
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Feedback Score
+                            {t.feedbackScore}
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -185,7 +211,7 @@ export default function StudentAnalyticsDetail() {
                       <Card>
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Alignment Index
+                            {t.alignmentIndex}
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -196,8 +222,8 @@ export default function StudentAnalyticsDetail() {
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">
                             {analytics.alignmentIndex !== null && analytics.alignmentIndex >= 0
-                              ? 'Aligned'
-                              : 'Misaligned'}
+                              ? t.aligned
+                              : t.misaligned}
                           </p>
                         </CardContent>
                       </Card>
@@ -207,7 +233,7 @@ export default function StudentAnalyticsDetail() {
                     {analytics.categoryInsights.length > 0 && (
                       <Card>
                         <CardHeader>
-                          <CardTitle className="text-sm">Category Insights</CardTitle>
+                          <CardTitle className="text-sm">{t.categoryInsights}</CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="space-y-2">
@@ -242,9 +268,9 @@ export default function StudentAnalyticsDetail() {
 
                     {/* Calculated Timestamp */}
                     <p className="text-xs text-muted-foreground">
-                      Calculated: {new Date(analytics.calculatedAt).toLocaleString()}
+                      {t.calculated} {new Date(analytics.calculatedAt).toLocaleString()}
                       {analytics.isStale && (
-                        <span className="ml-2 text-yellow-600">(Updating...)</span>
+                        <span className="ml-2 text-yellow-600">{t.updating}</span>
                       )}
                     </p>
                   </div>
@@ -255,7 +281,7 @@ export default function StudentAnalyticsDetail() {
         ) : (
           <Card>
             <CardContent className="flex flex-col items-center justify-center h-64">
-              <p className="text-muted-foreground">No analytics available for this student</p>
+              <p className="text-muted-foreground">{t.noAnalyticsAvailable}</p>
             </CardContent>
           </Card>
         )}

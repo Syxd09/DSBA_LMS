@@ -25,6 +25,11 @@ router.get('/subject-bloom-distribution/:subjectId',
     getSubjectBloomDistribution
 );
 
+router.get('/bloom-distribution/subject/:subjectId',
+    requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER']),
+    getSubjectBloomDistribution
+);
+
 router.get('/subject-performance/:cohortId',
     requireRole(['ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER']),
     getSubjectPerformance

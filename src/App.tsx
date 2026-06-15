@@ -43,6 +43,7 @@ import EditFeedback from "./pages/feedback/teacher/EditFeedback";
 import ViewFeedback from "./pages/feedback/teacher/ViewFeedback";
 import FeedbackTemplates from "./pages/feedback/FeedbackTemplates";
 import CreateFeedbackTemplate from "./pages/feedback/CreateFeedbackTemplate";
+import EditFeedbackTemplate from "./pages/feedback/EditFeedbackTemplate";
 import ViewFeedbackTemplate from "./pages/feedback/ViewFeedbackTemplate";
 import TemplateResults from './pages/feedback/TemplateResults';
 import HODAnalyticsDashboard from "./pages/analytics/hod/HODAnalyticsDashboard";
@@ -105,6 +106,7 @@ const App = () => (
             <Route path="/feedback/templates" element={<AuthGuard><FeedbackTemplates /></AuthGuard>} />
             <Route path="/feedback/templates/create" element={<AuthGuard><CreateFeedbackTemplate /></AuthGuard>} />
             <Route path="/feedback/templates/:id" element={<AuthGuard><ViewFeedbackTemplate /></AuthGuard>} />
+            <Route path="/feedback/templates/:id/edit" element={<AuthGuard><EditFeedbackTemplate /></AuthGuard>} />
             <Route path="/feedback/templates/:templateId/results" element={<AuthGuard><TemplateResults /></AuthGuard>} />
 
             {/* Teacher Feedback Routes */}

@@ -176,18 +176,22 @@ export const lockPOAttainment = async (req: AuthRequest, res: Response) => {
 
 /**
  * Get PO attainment dashboard summary
- * TODO: Fix when Program schema relations are clarified
  */
 export const getPODashboard = async (req: AcademicRequest, res: Response) => {
     try {
         const { cohortId } = req.params;
         const { academicYear } = req.query;
 
-        console.log('[PO_DASHBOARD] Called - not fully implemented yet');
-
-        // Get basic cohort info
+        // Get basic cohort info with program and department included
         const cohort = await prisma.cohort.findUnique({
-            where: { id: cohortId }
+            where: { id: cohortId },
+            include: {
+                program: {
+                    include: {
+                        department: true
+                    }
+                }
+            }
         });
 
         if (!cohort) return res.status(404).json({ message: 'Cohort not found' });
@@ -207,26 +211,126 @@ export const getPODashboard = async (req: AcademicRequest, res: Response) => {
             ? lockedAttainments.reduce((sum, a) => sum + a.achievedPercent, 0) / lockedAttainments.length
             : 0;
 
+        // Count actual program outcomes for this program
+        const totalPOs = await prisma.programOutcome.count({
+            where: { programId: cohort.programId }
+        });
+
         res.json({
             cohort: {
                 id: cohort.id,
                 name: cohort.name,
                 year: cohort.year,
-                program: 'N/A', // TODO: fetch separately
-                department: 'N/A' // TODO: fetch separately
+                program: cohort.program.name,
+                department: cohort.program.department.name
             },
             summary: {
-                totalPOs: 0, // TODO: count from outcomes
+                totalPOs,
                 avgAttainment: Math.round(avgAttainment * 100) / 100,
                 attainedCount: lockedAttainments.filter(a => a.achievedPercent >= a.targetPercent).length,
                 pendingApproval: poAttainments.filter(a => a.status === 'CALCULATED').length,
                 locked: lockedAttainments.length
             },
-            poTrends: [], // TODO: implement when schema is fixed
+            poTrends: [],
             rawData: poAttainments
         });
     } catch (error) {
         console.error('Error fetching PO dashboard:', error);
         res.status(500).json({ message: 'Error fetching PO dashboard', error: String(error) });
+    }
+};
+
+/**
+ * Get PO attainment list (query-based for frontend dashboard)
+ */
+export const getPOAttainmentList = async (req: AuthRequest, res: Response) => {
+    try {
+        const { programId, cohortId, semester, academicYear } = req.query;
+
+        if (!programId) {
+            return res.status(400).json({ success: false, message: 'programId is required' });
+        }
+
+        const where: any = { programId: String(programId) };
+        if (cohortId) where.cohortId = String(cohortId);
+        if (semester) where.semester = parseInt(String(semester));
+        if (academicYear) where.academicYear = String(academicYear);
+
+        const data = await prisma.pOAttainment.findMany({
+            where,
+            include: {
+                po: true,
+                program: { select: { name: true, code: true } },
+                cohort: { select: { name: true, year: true } }
+            },
+            orderBy: [
+                { semester: 'asc' },
+                { po: { poNumber: 'asc' } }
+            ]
+        });
+
+        res.json({
+            success: true,
+            data
+        });
+    } catch (error) {
+        console.error('Error in getPOAttainmentList:', error);
+        res.status(500).json({ success: false, message: 'Error fetching PO attainment', error: String(error) });
+    }
+};
+
+/**
+ * Get PO attainment trends over academic years for a program
+ */
+export const getPOTrends = async (req: AuthRequest, res: Response) => {
+    try {
+        const { programId } = req.params;
+
+        if (!programId) {
+            return res.status(400).json({ success: false, message: 'programId is required' });
+        }
+
+        // Fetch all locked or approved PO attainments for this program, grouped by academicYear
+        const poAttainments = await prisma.pOAttainment.findMany({
+            where: {
+                programId,
+                status: 'LOCKED'
+            },
+            select: {
+                academicYear: true,
+                achievedPercent: true
+            },
+            orderBy: {
+                academicYear: 'asc'
+            }
+        });
+
+        // Group by academicYear and calculate average achievedPercent
+        const yearGroups: Record<string, { sum: number; count: number }> = {};
+        for (const att of poAttainments) {
+            if (!yearGroups[att.academicYear]) {
+                yearGroups[att.academicYear] = { sum: 0, count: 0 };
+            }
+            yearGroups[att.academicYear].sum += att.achievedPercent;
+            yearGroups[att.academicYear].count += 1;
+        }
+
+        const trendPoints = Object.entries(yearGroups).map(([year, info]) => ({
+            academicYear: year,
+            achievedPercent: Math.round((info.sum / info.count) * 100) / 100
+        }));
+
+        res.json({
+            success: true,
+            data: [
+                {
+                    id: programId,
+                    data: trendPoints
+                }
+            ]
+        });
+    } catch (error) {
+        console.error('Error fetching PO trends:', error);
+        res.status(500).json({ success: false, message: 'Error fetching PO trends', error: String(error) });
     }
 };

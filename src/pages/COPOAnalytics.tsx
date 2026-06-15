@@ -71,7 +71,7 @@ export default function COPOAnalytics() {
     queryKey: ['subject-bloom-dist', selectedSubject],
     queryFn: async () => {
       if (!selectedSubject) return null;
-      const { data } = await api.get(`/analytics/bloom-distribution/subject/${selectedSubject}`);
+      const { data } = await api.get(`/analytics/subject-bloom-distribution/${selectedSubject}`);
       return data;
     },
     enabled: !!selectedSubject,

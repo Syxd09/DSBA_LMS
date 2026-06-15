@@ -4,7 +4,9 @@ import {
     getPOAttainment,
     approvePOAttainment,
     lockPOAttainment,
-    getPODashboard
+    getPODashboard,
+    getPOAttainmentList,
+    getPOTrends
 } from '../controllers/po-attainment.controller';
 import { authenticateToken } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/rbac.middleware';
@@ -13,6 +15,18 @@ import { requireAcademicContext } from '../middleware/academic-context.middlewar
 const router = Router();
 
 router.use(authenticateToken);
+
+// Get PO attainment list (query-based for frontend dashboard)
+router.get('/',
+    requireRole('ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER'),
+    getPOAttainmentList
+);
+
+// Get PO trends (for frontend dashboard)
+router.get('/trends/:programId',
+    requireRole('ADMIN', 'PRINCIPAL', 'HOD', 'TEACHER'),
+    getPOTrends
+);
 
 // Calculate PO attainment (HOD/Principal)
 router.post('/calculate/:cohortId',
